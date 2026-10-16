@@ -6,6 +6,7 @@ disable-model-invocation: true
 allowed-tools:
   - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh *)
   - Bash(pdftotext *)
+  - Bash(libreoffice --headless --convert-to *)
   - Bash(git add *)
   - Bash(git commit *)
 ---
@@ -30,7 +31,7 @@ Claims with no plausible source in `sources:` are **uncited**. Claims sourced to
 Group the claims by source and dispatch one `Agent` per source in a single message. Each subagent gets:
 - the source reference and how to read it:
   - **Gmail** `"Gmail: <subject> (<date>)"`: find the thread with `search_threads` (subject and date), then read it in full with `get_thread`. Search results can lag, so always use `get_thread`.
-  - **Proton** `"Proton Drive: <path>"`: the path is relative to the wiki's root in `.claude/proton-roots`. Run `bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh download "<root>/<path>"` (exactly this form: one command, no pipes), then read the downloaded file. Use `pdftotext -layout` for text PDFs, `raw/ocr/<name>.txt` for scans if it exists, otherwise the Read tool on page images. Proton Docs and Sheets can't be downloaded; mark them `source-missing`.
+  - **Proton** `"Proton Drive: <path>"`: the path is relative to the wiki's root in `.claude/proton-roots`. Run `bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh download "<root>/<path>"` (exactly this form: one command, no pipes), then read the downloaded file. Use `pdftotext -layout` for text PDFs, `libreoffice --headless --convert-to csv "<file>" --outdir <scratchpad>` for XLSX (`txt` for DOCX/RTF/ODT), `raw/ocr/<name>.txt` for scans if it exists, otherwise the Read tool on page images. Proton Docs and Sheets can't be downloaded; mark them `source-missing`.
   - **Local file** (`raw/...` or another repo path): read it directly.
   - **URL**: fetch it with WebFetch and note the access date.
 - the list of claims against that source (exact text and line);

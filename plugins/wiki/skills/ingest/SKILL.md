@@ -11,6 +11,7 @@ allowed-tools:
   - Bash(git commit *)
   - Bash(git status *)
   - Bash(pdftotext *)
+  - Bash(libreoffice --headless --convert-to *)
 ---
 
 # Ingest: $ARGUMENTS
