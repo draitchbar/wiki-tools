@@ -1,6 +1,6 @@
 # Wiki layout (raw + wiki pattern)
 
-For wikis that follow the raw/wiki pattern. Page templates and the folder list for each wiki live in that wiki's CLAUDE.md.
+For wikis that follow the raw/wiki pattern. Each wiki's CLAUDE.md names its folders, page types and page templates.
 
 ## Structure
 - `raw/`: immutable source material and derived extracts. Never edit source files here.
@@ -35,7 +35,7 @@ Decision and approval pages carry `status_as_of`, so a superseded decision doesn
 Use `/wiki:ingest <source> [filter]`. It:
 1. reads `raw/sync-log.md` to find what's new per source;
 2. reads each new source;
-3. creates or updates pages (templates from CLAUDE.md, verbatim-figures rule);
+3. creates or updates pages (templates as CLAUDE.md names them, verbatim-figures rule);
 4. updates `wiki/index.md` and appends to `wiki/log.md`;
 5. updates the `last_checked_<source>` line and the history table in `raw/sync-log.md`;
 6. makes **one commit per ingested source**, staging named paths only.
