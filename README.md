@@ -5,7 +5,7 @@ Shared tooling for my Karpathy-style LLM wikis (udbygning, carleasing), used fro
 It is two things in one repo:
 
 1. **A local-directory plugin marketplace** with one plugin, `wiki`, containing:
-   - skills `/wiki:ingest`, `/wiki:sync-status` and `/wiki:commit-themes`;
+   - skills `/wiki:ingest`, `/wiki:sync-status`, `/wiki:commit-themes`, `/wiki:lint` and `/wiki:audit`;
    - guard hooks that block `git push`, keep Proton Drive read-only and protect the guard machinery itself;
    - a SessionStart hook that reports how stale each source in `raw/sync-log.md` is.
 2. **The shared wiki schema**, imported by each wiki's CLAUDE.md:
@@ -22,7 +22,7 @@ Design and rationale: `~/wiki-tier1-implementation-plan.md` (revision 2).
 .claude-plugin/marketplace.json   marketplace "wiki-tools"
 schema/                           shared CLAUDE.md content (@-imported)
 plugins/wiki/
-  skills/{ingest,sync-status,commit-themes}/SKILL.md
+  skills/{ingest,sync-status,commit-themes,lint,audit}/SKILL.md
   hooks/hooks.json                PreToolUse guards + SessionStart status
   scripts/
     lib-hookjson.sh               jq-free hook-input parsing (fails closed)
@@ -31,8 +31,10 @@ plugins/wiki/
     sync-status.sh                staleness report from raw/sync-log.md
     pd-read.sh                    read-only Proton Drive wrapper
     ocr.sh                        ocrmypdf wrapper (Linux)
+    lint.sh                       deterministic wiki checks for /wiki:lint (read-only)
 templates/project-settings.json   starting point for a wiki's .claude/settings.json
-tests/                            fixtures + run-tests.sh
+tests/                            guard fixtures, fake proton-drive, lint fixture wiki, run-tests.sh
+docs/kfchou-security-review.md    review of kfchou/wiki-skills (inspiration for lint/audit)
 ```
 
 ## Setup per machine
@@ -44,7 +46,6 @@ The clone path **must be `~/src/wiki-tools`** on every machine. The skills, the 
 | Prerequisites | git, bash | Git for Windows (Git Bash); Claude Code runs hooks in Git Bash |
 | Proton Drive CLI | `~/.local/bin/proton-drive` from [proton.me/download/drive/cli](https://proton.me/download/drive/cli/index.html) | Windows build on PATH; check `proton-drive version` in Git Bash |
 | OCR | `sudo apt install ocrmypdf tesseract-ocr-dan` | none; scans are read as page images |
-| uv (for kfchou/wiki-skills) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | `winget install astral-sh.uv` |
 
 ```bash
 git clone git@github.com:draitchbar/wiki-tools.git ~/src/wiki-tools
@@ -196,11 +197,18 @@ Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for `pd-read.sh`:
 - `filesystem --help` prints the usage but also reports `Command not found: filesystem --help`; that's cosmetic.
 
 
+## Lint and audit
+
+`/wiki:lint` and `/wiki:audit` reimplement ideas from [kfchou/wiki-skills](https://github.com/kfchou/wiki-skills) (MIT) on our own schema. That plugin isn't installed: it requires its own wiki layout, and its optional cross-model audit sends wiki content to OpenAI or Google. See `docs/kfchou-security-review.md`.
+
+- **`/wiki:lint`:** `lint.sh` runs the structural checks (frontmatter, broken links, orphans, index coverage, dates, stale pages, `status_as_of`). Then one subagent per `wiki/` folder checks for contradictions, VAT ambiguities, superseded statements and missing cross-references. The report goes to `outputs/lint-YYYY-MM-DD.md`, and fixes are only offered.
+- **`/wiki:audit <page>`:** extracts every checkable claim, then runs one subagent per cited source (Gmail via `get_thread`, Proton via `pd-read.sh`, local files, URLs) to verify it against the source wording. The report goes to `outputs/audit-<slug>-YYYY-MM-DD.md`, and fixes are only offered.
+
 ## Guard design and known limits
 
 - **Guardrail, not a security boundary.** The guards match command text. They reliably stop accidental or straightforward misuse, but a deliberately obfuscated command could get through. Anything you run by hand is unaffected. If a Proton change slips through, use Proton's Trash and version history.
 - **Blocked in wiki sessions (Bash):** commands containing `proton-drive`, the plugin's `scripts`/`hooks` paths, `hooks.json`, `proton-roots`, `.claude/settings`, `.claude/plugins/`, `claude plugin` or `disableAllHooks`.
-  - **Single exception:** a plain `bash <...>/src/wiki-tools/plugins/wiki/scripts/<pd-read|ocr|sync-status>.sh <args>`, with no `; & | < > $` or backticks.
+  - **Single exception:** a plain `bash <...>/src/wiki-tools/plugins/wiki/scripts/<pd-read|ocr|sync-status|lint>.sh <args>`, with no `; & | < > $` or backticks.
 - **Blocked in wiki sessions (Write/Edit):** the same protected paths, plus non-Markdown content containing `proton-drive`.
 - **Fails closed:** unparseable hook input is refused.
 - **Known false positives:**

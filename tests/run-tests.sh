@@ -77,5 +77,38 @@ out=$(cd "$tmp/wiki" && FAKE_PD_SYNTAX=changed HOME="$tmp/home" PATH="$fakebin:$
 case "$out" in *"syntax changed"*exit=1) r=refused ;; *) r="not refused: $out" ;; esac
 check "pd-read/refuse-changed-syntax"   refused "$r"
 
+# lint.sh against the fixture wiki in tests/lint-wiki (one planted problem per check).
+cp -r "$here/lint-wiki" "$tmp/lw"
+git -C "$tmp/lw" init -q
+lint_out=$(cd "$tmp/lw" && WIKI_LINT_TODAY=2026-10-16 bash "$scripts/lint.sh" 2>&1)
+expect() { # NAME TEXT
+  case "$lint_out" in *"$2"*) r=found ;; *) r=missing ;; esac
+  check "lint/$1" found "$r"
+}
+expect summary            'Pages: 6. Errors: 5. Warnings: 10. Info: 1.'
+expect no-frontmatter     '`rooms/no-frontmatter.md`: no YAML frontmatter'
+expect missing-fields     '`approvals/missing-fields.md`: missing title sources'
+expect broken-alias       '`[[missing-page]]` (no such page) linked from `contractors/broken-contractor.md`'
+expect broken-path-anchor '`[[also-missing]]` (no such page)'
+expect broken-in-log      '`[[ghost-from-log]]` (no such page) linked from `log.md`'
+expect orphan             '`rooms/no-frontmatter.md`: no inbound links from other pages'
+expect not-in-index       '`approvals/missing-fields.md`: not listed in index.md'
+expect no-sources         '`budget/no-sources.md`: `sources:` is empty'
+expect future-date        '`updated: 2027-01-01` is in the future'
+expect invalid-date       '`updated: 2026-31-12` is not a YYYY-MM-DD date'
+expect updated-before     'updated (2026-08-01) is before created (2026-09-01)'
+expect stale-words        '`decisions/stale-decision.md`: updated 283 days ago and still says: awaiting,pending'
+expect stale-status       'status_as_of 2026-01-01 is 287 days old'
+expect no-status          '`decisions/stale-decision.md` (decision): no `status_as_of`'
+expect clusters           '- **decisions**: `decisions/good-decision.md`, `decisions/stale-decision.md`'
+findings=$(printf '%s\n' "$lint_out" | sed '/^## Clusters/,$d')
+case "$findings" in *good-decision.md*) r=flagged ;; *) r=clean ;; esac
+check "lint/clean-page-not-flagged" clean "$r"
+case "$findings" in *broken-contractor\]\]*) r=flagged ;; *) r=clean ;; esac
+check "lint/case-insensitive-links" clean "$r"
+nowiki=$(cd "$tmp" && git init -q nowiki && cd nowiki && bash "$scripts/lint.sh" 2>&1)
+case "$nowiki" in *"no wiki/ folder"*) r=ok ;; *) r="$nowiki" ;; esac
+check "lint/no-wiki-folder" ok "$r"
+
 printf '\n%d checks, %d failed\n' "$total" "$fail"
 [ "$fail" -eq 0 ]

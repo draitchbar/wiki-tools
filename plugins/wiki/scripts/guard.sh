@@ -4,7 +4,7 @@
 #
 # Bash: blocks commands that mention the proton-drive binary or any protected
 # path/keyword. The only exception is a plain invocation of one of the
-# plugin's own scripts (pd-read.sh, ocr.sh, sync-status.sh) with no chaining,
+# plugin's own scripts (pd-read.sh, ocr.sh, sync-status.sh, lint.sh) with no chaining,
 # redirection or substitution.
 #
 # Write/Edit: blocks writes to protected paths, and blocks non-Markdown
@@ -44,7 +44,7 @@ case "$HOOK_TOOL" in
     cmd=$(norm "$HOOK_COMMAND")
     # Allowed: bash [quoted] <path>/src/wiki-tools/plugins/wiki/scripts/<script>.sh [args]
     # with no ; & | < > ` $ anywhere.
-    if printf '%s' "$cmd" | grep -Eq '^[[:space:]]*bash[[:space:]]+"?[^[:space:]";&|<>`$]*/src/wiki-tools/plugins/wiki/scripts/(pd-read|ocr|sync-status)\.sh"?([[:space:]][^;&|<>`$]*)?$'; then
+    if printf '%s' "$cmd" | grep -Eq '^[[:space:]]*bash[[:space:]]+"?[^[:space:]";&|<>`$]*/src/wiki-tools/plugins/wiki/scripts/(pd-read|ocr|sync-status|lint)\.sh"?([[:space:]][^;&|<>`$]*)?$'; then
       exit 0
     fi
     hit=$(contains_any "$cmd" "$PROTECTED_PATHS

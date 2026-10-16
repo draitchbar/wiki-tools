@@ -46,5 +46,7 @@ Use `/wiki:ingest <source> [filter]`. It:
 3. For exact figures, confirm against the cited source.
 4. Offer to save a valuable new synthesis as a page.
 
-## Lint
-Lint and source audits use the `wiki-lint` and `wiki-audit` skills (kfchou/wiki-skills). Run lint about every 5 ingests and save the report to `outputs/`.
+## Lint and audit
+- `/wiki:lint` runs the structural checks and the contradiction checks. Run it about every 5 ingests; the report goes to `outputs/lint-YYYY-MM-DD.md`.
+- `/wiki:audit <page>` re-reads a page's sources and checks every figure and claim against them. Use it on budget, decision and approval pages, and whenever lint reports a contradiction. The report goes to `outputs/audit-<slug>-YYYY-MM-DD.md`.
+- Reports live in `outputs/` and are committed; wiki pages don't link to them.
