@@ -27,7 +27,7 @@ Current sync status of this wiki:
 3. Ingest **one source at a time**. If the user named several, do them in turn, each with its own commit.
 
 ## Source: gmail
-1. Use the Gmail label and any sender named in CLAUDE.md, plus the filter. Search for threads newer than `last_checked_gmail` **and** without the label `wiki-ingested/<wiki>` (where `<wiki>` is the repo folder name), e.g. `label:Tisvilde -label:wiki-ingested/udbygning after:2026/09/06`.
+1. Use the Gmail label and any sender named in CLAUDE.md, plus the filter. Search for threads newer than `last_checked_gmail` **and** without the label `wiki-ingested/<wiki>` (where `<wiki>` is the repo folder name), e.g. `label:Tisvilde -label:wiki-ingested-udbygning after:2026/09/06`. In search queries, write the label with `-` instead of `/` (verified 16.10.2026).
    If the label doesn't exist yet, create it with `create_label`. If label writes fail, fall back to the date filter alone and tell the user.
 2. Search results can lag. For any thread the user names, or any thread whose last message looks older than expected, re-fetch it with `get_thread`; don't trust `search_threads` alone.
 3. Read message bodies only, not attachments. If an attachment matters, ask the user to save it to Proton Drive or `raw/`.
