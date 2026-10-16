@@ -1,0 +1,118 @@
+# wiki-tools
+
+Shared tooling for my Karpathy-style LLM wikis (udbygning, carleasing), used from Claude Code on both Linux and Windows.
+
+It is two things in one repo:
+
+1. **A local-directory plugin marketplace** with one plugin, `wiki`, containing:
+   - skills `/wiki:ingest`, `/wiki:sync-status` and `/wiki:commit-themes`;
+   - guard hooks that block `git push`, keep Proton Drive read-only and protect the guard machinery itself;
+   - a SessionStart hook that reports how stale each source in `raw/sync-log.md` is.
+2. **The shared wiki schema**, imported by each wiki's CLAUDE.md:
+   - `schema/wiki-conventions.md`: universal rules (both wikis);
+   - `schema/wiki-layout.md`: raw/wiki layout, frontmatter, ingest workflow (udbygning).
+
+The plugin is **enabled per wiki** (in each wiki's `.claude/settings.json`), never at user scope. So the guards apply only in wiki sessions.
+
+Design and rationale: `~/wiki-tier1-implementation-plan.md` (revision 2).
+
+## Layout
+
+```
+.claude-plugin/marketplace.json   marketplace "wiki-tools"
+schema/                           shared CLAUDE.md content (@-imported)
+plugins/wiki/
+  skills/{ingest,sync-status,commit-themes}/SKILL.md
+  hooks/hooks.json                PreToolUse guards + SessionStart status
+  scripts/
+    lib-hookjson.sh               jq-free hook-input parsing (fails closed)
+    block-push.sh                 blocks git push
+    guard.sh                      Proton/guard protection (Bash + Write/Edit)
+    sync-status.sh                staleness report from raw/sync-log.md
+    pd-read.sh                    read-only Proton Drive wrapper
+    ocr.sh                        ocrmypdf wrapper (Linux)
+templates/project-settings.json   starting point for a wiki's .claude/settings.json
+tests/                            fixtures + run-tests.sh
+```
+
+## Setup per machine
+
+The clone path **must be `~/src/wiki-tools`** on every machine. The skills, the guard's exception and the wikis' `allowed-tools` use that literal path.
+
+| | Linux | Windows |
+|---|---|---|
+| Prerequisites | git, bash | Git for Windows (Git Bash); Claude Code runs hooks in Git Bash |
+| Proton Drive CLI | `~/.local/bin/proton-drive` from [proton.me/download/drive/cli](https://proton.me/download/drive/cli/index.html) | Windows build on PATH; check `proton-drive version` in Git Bash |
+| OCR | `sudo apt install ocrmypdf tesseract-ocr-dan` | none; scans are read as page images |
+| uv (for kfchou/wiki-skills) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | `winget install astral-sh.uv` |
+
+```bash
+git clone git@github.com:draitchbar/wiki-tools.git ~/src/wiki-tools
+bash ~/src/wiki-tools/tests/run-tests.sh          # must end "0 failed"
+claude plugin marketplace add ~/src/wiki-tools     # registers the marketplace only
+proton-drive auth login                            # by hand; session goes to the OS keychain
+```
+
+Don't install or enable the plugin at user scope. Each wiki enables it in its own committed `.claude/settings.json` (see `templates/project-settings.json`).
+
+## Enabling it in a wiki
+
+1. Copy `templates/project-settings.json` to `<wiki>/.claude/settings.json` and adjust the Gmail tools to what that wiki uses.
+2. Make sure the wiki's `.gitignore` tracks the shared files:
+   ```
+   .claude/*
+   !.claude/settings.json
+   !.claude/proton-roots
+   ```
+3. For Proton access, add `<wiki>/.claude/proton-roots` with one remote folder per line, e.g. `/my-files/Bolig/sommerhus/tilbygning 2026`.
+4. At the top of the wiki's CLAUDE.md:
+   ```
+   @~/src/wiki-tools/schema/wiki-conventions.md
+   @~/src/wiki-tools/schema/wiki-layout.md      # only for raw/wiki wikis
+   ```
+5. Commit these yourself. The guard blocks Claude from writing `.claude/settings*.json` and `proton-roots`.
+
+## Maintenance
+
+Edit this repo in a Claude session opened in `~/src/wiki-tools`. The `wiki` plugin isn't enabled here, so the guards don't get in the way.
+
+1. Change scripts or hooks, adding or adjusting fixtures in `tests/fixtures/<script>/<pass|block>-<case>.json`.
+2. `bash tests/run-tests.sh` must pass.
+3. Review the diff, commit, push.
+4. On the other machine: `git pull`, run the tests, then start a new wiki session or run `/reload-plugins`.
+
+## Proton Drive CLI: recorded syntax (plan step 5.0)
+
+`pd-read.sh` refuses everything until this section is filled in and `PINNED_VERSION` is set in the script. By hand, run the commands below and paste their output here. Then check that `READ_OPS` and the download call in `pd-read.sh` match, and set `PINNED_VERSION`.
+
+```
+$ proton-drive version
+(not recorded yet)
+
+$ proton-drive filesystem --help
+(not recorded yet)
+
+$ proton-drive filesystem download --help
+(not recorded yet)
+```
+
+After a CLI update the wrapper refuses with "differs from pinned". Re-record the output, re-check the wrapper, and bump the pin.
+
+## Guard design and known limits
+
+- **Guardrail, not a security boundary.** The guards match command text. They reliably stop accidental or straightforward misuse, but a deliberately obfuscated command could get through. Anything you run by hand is unaffected. If a Proton change slips through, use Proton's Trash and version history.
+- **Blocked in wiki sessions (Bash):** commands containing `proton-drive`, the plugin's `scripts`/`hooks` paths, `hooks.json`, `proton-roots`, `.claude/settings`, `.claude/plugins/`, `claude plugin` or `disableAllHooks`.
+  - **Single exception:** a plain `bash <...>/src/wiki-tools/plugins/wiki/scripts/<pd-read|ocr|sync-status>.sh <args>`, with no `; & | < > $` or backticks.
+- **Blocked in wiki sessions (Write/Edit):** the same protected paths, plus non-Markdown content containing `proton-drive`.
+- **Fails closed:** unparseable hook input is refused.
+- **Known false positives:**
+  - A commit message containing "push", or mentioning `proton-roots` or `hooks.json`, is blocked. Rephrase the message.
+  - `git add .claude/settings.json` in a wiki is blocked. Commit `.claude/` files yourself.
+  - `cat .claude/settings.json` via Bash is blocked. Claude's Read tool still works.
+- **Proton outside the wikis:** calls from other directories are unguarded, by design.
+
+## Open checks (plan step 9)
+
+- **Plugin loading:** does `enabledPlugins` in a wiki's project settings load the plugin, with the marketplace registered only at user scope? If Claude Code asks for an install, run `claude plugin install wiki@wiki-tools --scope project` once per machine and note it here.
+- **Imports on Windows:** do `@~/src/wiki-tools/...` imports resolve on Windows?
+- **Skill injections:** do `` !`…` `` injections in skills pass the guard? They run `sync-status.sh` through an absolute path, which the exception allows.

@@ -1,0 +1,14 @@
+{
+  "name": "wiki-tools",
+  "owner": {
+    "name": "Mikkel Bollinger"
+  },
+  "description": "Personal tooling for LLM-maintained markdown wikis.",
+  "plugins": [
+    {
+      "name": "wiki",
+      "source": "./plugins/wiki",
+      "description": "Skills and guard hooks for Karpathy-style LLM wikis: ingest, sync status, themed commits, push block and read-only Proton Drive access."
+    }
+  ]
+}

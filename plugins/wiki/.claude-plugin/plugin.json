@@ -1,0 +1,7 @@
+{
+  "name": "wiki",
+  "description": "Skills and guard hooks for Karpathy-style LLM wikis: ingest, sync status, themed commits, push block and read-only Proton Drive access.",
+  "author": {
+    "name": "Mikkel Bollinger"
+  }
+}
