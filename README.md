@@ -111,6 +111,15 @@ After a CLI update the wrapper refuses with "differs from pinned". Re-record the
   - `cat .claude/settings.json` via Bash is blocked. Claude's Read tool still works.
 - **Proton outside the wikis:** calls from other directories are unguarded, by design.
 
+## Known issues
+
+- **No OCR on Windows (deliberately out of scope for now).** `ocr.sh` needs `ocrmypdf` and Tesseract's Danish data, which are installed on Linux only.
+  - **Normal case:** OCR scanned PDFs on Linux. The text is committed as `raw/ocr/<file>.txt`, so Windows reads it after `git pull`.
+  - **A new scan ingested first on Windows:** `ocr.sh` exits with "ocrmypdf not installed", and `/wiki:ingest` falls back to Claude reading the PDF pages as images. That uses more tokens and leaves no `raw/ocr/` text. Re-run the ingest of that file on Linux to produce it.
+  - **If Windows OCR is needed later:**
+    - *Native:* Tesseract (UB Mannheim installer, with Danish language data), Ghostscript and `pip install ocrmypdf`, all on PATH. `ocr.sh` should then work unchanged from Git Bash. Untested.
+    - *WSL:* `apt install ocrmypdf tesseract-ocr-dan` inside WSL, but `ocr.sh` would need to call `wsl ocrmypdf …`.
+
 ## Open checks (plan step 9)
 
 - **Plugin loading:** does `enabledPlugins` in a wiki's project settings load the plugin, with the marketplace registered only at user scope? If Claude Code asks for an install, run `claude plugin install wiki@wiki-tools --scope project` once per machine and note it here.
