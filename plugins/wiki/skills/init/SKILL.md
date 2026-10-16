@@ -57,7 +57,7 @@ Interview the user until the checklist below is settled. Rules:
 4. **Pages**: the folders under `wiki/` and their page types (`type:` = folder name in singular is the default), and which types carry decisions or statuses that need `status_as_of`.
 5. **Templates**: which types get a template and their sections. Start from `~/src/wiki-tools/templates/pages/entity.md` for people and organisations; design the others from purpose and research. Every template has the standard frontmatter from wiki-layout.md.
 6. **Language and formats**: language of pages and reports; date format in prose (files and frontmatter always ISO); currency; VAT basis rule.
-7. **Privacy**: what must never be copied into Markdown (e.g. ID numbers, income), and which files must never be committed.
+7. **Privacy**: what must never be copied into Markdown (e.g. ID numbers, income), and which files must never be committed. Write these as plain rules; don't add enforcement steps (pattern scans, pre-commit checks, hooks) unless the user asks for them.
 8. **Facts**: stable facts and contacts for CLAUDE.md (current status belongs in pages, not CLAUDE.md).
 
 ## 3. Research (after checklist item 1)
