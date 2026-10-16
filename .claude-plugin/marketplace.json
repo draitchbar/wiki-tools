@@ -8,7 +8,7 @@
     {
       "name": "wiki",
       "source": "./plugins/wiki",
-      "description": "Skills and guard hooks for Karpathy-style LLM wikis: ingest, sync status, themed commits, push block and read-only Proton Drive access."
+      "description": "Skills and guard hooks for Karpathy-style LLM wikis: init, ingest, sync status, lint, audit, themed commits, push block and read-only Proton Drive access."
     }
   ]
 }

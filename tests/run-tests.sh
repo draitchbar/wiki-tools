@@ -110,5 +110,78 @@ nowiki=$(cd "$tmp" && git init -q nowiki && cd nowiki && bash "$scripts/lint.sh"
 case "$nowiki" in *"no wiki/ folder"*) r=ok ;; *) r="$nowiki" ;; esac
 check "lint/no-wiki-folder" ok "$r"
 
+# sync-status.sh: "never" for sources /wiki:init created.
+git -C "$tmp" init -q ss
+mkdir -p "$tmp/ss/raw"
+printf 'last_checked_gmail: never\nlast_checked_proton: 2026-10-01\nlast_checked_web: soon\n' > "$tmp/ss/raw/sync-log.md"
+ss_out=$(cd "$tmp/ss" && CLAUDE_PROJECT_DIR= bash "$scripts/sync-status.sh" 2>&1)
+case "$ss_out" in *"- gmail: never checked"*) r=ok ;; *) r="$ss_out" ;; esac
+check "sync-status/never" ok "$r"
+case "$ss_out" in *"- proton: last checked 2026-10-01"*) r=ok ;; *) r="$ss_out" ;; esac
+check "sync-status/date-still-works" ok "$r"
+case "$ss_out" in *"- web: unreadable date 'soon'"*) r=ok ;; *) r="$ss_out" ;; esac
+check "sync-status/unreadable" ok "$r"
+
+# wiki-check.sh: a freshly initialised wiki passes; each planted fault fails.
+mkwiki() { # DIR
+  git -C "$tmp" init -q "$1"
+  w="$tmp/$1"
+  mkdir -p "$w/raw" "$w/wiki/notes" "$w/outputs" "$w/templates" "$w/.claude"
+  printf '# Test wiki\n\n@~/src/wiki-tools/schema/wiki-conventions.md\n@~/src/wiki-tools/schema/wiki-layout.md\n' > "$w/CLAUDE.md"
+  printf '.obsidian/\n.claude/*\n!.claude/settings.json\n!.claude/proton-roots\n' > "$w/.gitignore"
+  printf '# Sync Log\n\nlast_checked_gmail: never\nlast_checked_proton: never\n' > "$w/raw/sync-log.md"
+  printf '# Index\n\n## Notes\n\n| Page | Summary |\n|---|---|\n' > "$w/wiki/index.md"
+  printf '# Log\n\n## 2026-10-16 | init | Wiki created\n' > "$w/wiki/log.md"
+  printf -- '---\ntitle: Name\ntype: entity\nsources: []\nrelated: []\ncreated: YYYY-MM-DD\nupdated: YYYY-MM-DD\n---\n' > "$w/templates/entity.md"
+  touch "$w/outputs/.gitkeep" "$w/wiki/notes/.gitkeep"
+  cp "$here/../templates/project-settings.json" "$w/.claude/settings.json"
+  printf '/my-files/Test\n' > "$w/.claude/proton-roots"
+  git -C "$w" add -A && git -C "$w" -c user.name=t -c user.email=t@t commit -qm init
+}
+wc_run() { (cd "$tmp/$1" && bash "$scripts/wiki-check.sh" 2>&1); }
+wc_exit() { (cd "$tmp/$1" && bash "$scripts/wiki-check.sh" >/dev/null 2>&1); echo $?; }
+wc_expect() { # NAME DIR TEXT
+  out=$(wc_run "$2")
+  case "$out" in *"$3"*) r=found ;; *) r="missing in: $out" ;; esac
+  check "wiki-check/$1" found "$r"
+}
+mkwiki good
+check "wiki-check/good-wiki-passes" 0 "$(wc_exit good)"
+wc_expect good-summary good 'Failures: 0.'
+
+mkwiki f1; sed -i '/wiki-layout/d' "$tmp/f1/CLAUDE.md"
+wc_expect missing-import f1 "FAIL CLAUDE.md doesn't import \`wiki-layout.md\`"
+check "wiki-check/fault-exits-1" 1 "$(wc_exit f1)"
+
+mkwiki f2; printf 'last_checked_web: soon\n' >> "$tmp/f2/raw/sync-log.md"
+wc_expect bad-sync-value f2 "FAIL \`last_checked_web: soon\` in raw/sync-log.md"
+
+mkwiki f3; git -C "$tmp/f3" rm -q .claude/proton-roots
+wc_expect missing-roots f3 "FAIL Proton is a source but \`.claude/proton-roots\` is missing"
+
+mkwiki f4; sed -i '/Bash(git push \*)/d' "$tmp/f4/.claude/settings.json"
+wc_expect missing-permission f4 'FAIL permission rules missing from .claude/settings.json: "Bash(git push *)"'
+
+mkwiki f5; sed -i 's/"wiki@wiki-tools": true/"wiki@wiki-tools": false/' "$tmp/f5/.claude/settings.json"
+wc_expect plugin-disabled f5 'FAIL plugin `wiki@wiki-tools` is not enabled'
+
+mkwiki f6; git -C "$tmp/f6" rm -q --cached .claude/settings.json
+wc_expect settings-uncommitted f6 "FAIL \`.claude/settings.json\` isn't committed"
+
+mkwiki f7; printf 'relative/path\n' >> "$tmp/f7/.claude/proton-roots"
+wc_expect roots-relative f7 "isn't an absolute path: \`relative/path\`"
+
+mkwiki f8; rm -r "$tmp/f8/templates"
+wc_expect no-templates f8 'FAIL folder `templates/` is missing'
+
+mkwiki f9; printf 'extra\n' >> "$tmp/f9/CLAUDE.md"
+wc_expect uncommitted-setup f9 'FAIL uncommitted setup files: CLAUDE.md'
+
+mkwiki f10; printf -- '---\ntitle: X\ntype: entity\nsources: []\ncreated: 2026-10-16\nupdated: 2026-10-16\n---\nSee [[nowhere]].\n' > "$tmp/f10/wiki/notes/x.md"
+wc_expect lint-error f10 'FAIL lint finds 1 structural error(s)'
+
+nogit=$(cd "$tmp" && mkdir -p plain && cd plain && bash "$scripts/wiki-check.sh" >/dev/null 2>&1; echo $?)
+check "wiki-check/outside-git" 1 "$nogit"
+
 printf '\n%d checks, %d failed\n' "$total" "$fail"
 [ "$fail" -eq 0 ]

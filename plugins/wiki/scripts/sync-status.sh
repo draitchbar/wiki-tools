@@ -2,6 +2,7 @@
 # Print how long ago each source in raw/sync-log.md was last checked.
 # Runs as a SessionStart hook (stdout becomes session context) and from the
 # /wiki:sync-status skill. Prints nothing when the wiki has no sync-log.
+# A value of "never" (set by /wiki:init) means the source was never ingested.
 # Read-only.
 
 if [ -n "$CLAUDE_PROJECT_DIR" ] && [ -d "$CLAUDE_PROJECT_DIR" ]; then
@@ -24,7 +25,10 @@ while IFS= read -r line; do
   key=${line%%:*}
   key=${key#last_checked_}
   val=$(printf '%s' "${line#*:}" | tr -d '[:space:]')
-  if when=$(date -d "$val" +%s 2>/dev/null); then
+  if [ "$val" = never ]; then
+    out="$out
+- $key: never checked (first ingest asks for a starting point)"
+  elif when=$(date -d "$val" +%s 2>/dev/null); then
     days=$(( (today - when) / 86400 ))
     out="$out
 - $key: last checked $val ($days days ago)"

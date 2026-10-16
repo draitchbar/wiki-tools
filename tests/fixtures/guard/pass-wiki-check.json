@@ -1,0 +1,1 @@
+{"session_id":"t","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/wiki-check.sh","description":"Check wiki setup"},"cwd":"/home/u/wikis/udbygning"}

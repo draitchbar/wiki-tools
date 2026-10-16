@@ -7,6 +7,7 @@ allowed-tools:
   - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/sync-status.sh)
   - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh *)
   - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/ocr.sh *)
+  - Bash(git mv *)
   - Bash(git add *)
   - Bash(git commit *)
   - Bash(git status *)
@@ -26,9 +27,31 @@ Current sync status of this wiki:
 1. Read the wiki's CLAUDE.md (project facts, sources, page templates) and `raw/sync-log.md`.
 2. Parse the arguments: the first word is the source (`gmail`, `proton` or `raw`); anything after it is a filter. If the source is missing or unknown, stop and ask.
 3. Ingest **one source at a time**. If the user named several, do them in turn, each with its own commit.
+4. If the source's `last_checked_<source>` is `never`, or the source has no line yet, follow **First ingest of a source** below before anything else.
+5. When something in the material is unclear (who someone is, which offer is meant, an unstated VAT basis), ask the user rather than guess, and cite the answer as `"User statement (YYYY-MM-DD)"`.
+
+## First ingest of a source
+A source at `never` has not been checked against reality yet. Before ingesting it:
+1. **Check the source.**
+   - Gmail: confirm the label(s) and senders named in CLAUDE.md exist (`list_labels`, a `search_threads` per sender) and count the matching threads.
+   - Proton: `pd-read.sh list` on each root in `.claude/proton-roots`, and `size` on the root.
+   - raw: list what is in `raw/`.
+   Report what you found. If a label, sender or path is wrong: propose the corrected CLAUDE.md line, and for a wrong Proton root show the user what to change in `.claude/proton-roots` (they edit it; you can't).
+2. **Ask for the starting point**: a start date, or a subset (e.g. one folder, one sender). Suggest one based on the counts. Don't ingest "everything" by default. Record the choice in the sync-log history row.
+3. **Review the data model** (next section) against a sample of the material, then ingest.
+
+## Data-model review
+Run it at the first ingest of each source, and whenever material doesn't fit any page type in CLAUDE.md.
+1. Read the wiki's purpose (CLAUDE.md "Purpose"), its "Pages" section, `templates/`, the `wiki/index.md` tables and, if present, the newest `outputs/init-research-*.md`.
+2. Compare with the material in hand. Ask: does every important kind of thing in it have a page type and a folder? Are any types overlapping, unused or too coarse? Do templates have sections nothing will fill, or lack sections the material needs? Which types carry decisions or statuses that go out of date and need `status_as_of`?
+3. Propose concrete changes, each with its reason taken from the material: add/rename/split/merge a folder or type, add or change a template section, change which types get `status_as_of`. Show the exact edits (CLAUDE.md "Pages", templates, index tables, any `git mv` of existing pages and the links that change).
+4. Apply only after the user agrees. Commit the model change on its own, **before** the ingest commit: stage the named paths, prepend `## YYYY-MM-DD | schema | <summary>` to `wiki/log.md`, message `Schema: <summary>`. Use `git mv` for moved pages and rewrite path-style links to them; `[[wikilinks]]` need no change.
+5. If the user declines, ingest with the current model and note the open point in the log entry.
+Never edit the shared files in `~/src/wiki-tools/schema/`; suggest changes to them for a wiki-tools session instead.
 
 ## Source: gmail
 1. Use the Gmail label and any sender named in CLAUDE.md, plus the filter. Search for threads newer than `last_checked_gmail` **and** without the label `wiki-ingested/<wiki>` (where `<wiki>` is the repo folder name), e.g. `label:Tisvilde -label:wiki-ingested-udbygning after:2026/09/06`. In search queries, write the label with `-` instead of `/` (verified 16.10.2026).
+   At a first ingest, replace `after:` with the starting point the user chose.
    If the label doesn't exist yet, create it with `create_label`. If label writes fail, fall back to the date filter alone and tell the user.
 2. Search results can lag. For any thread the user names, or any thread whose last message looks older than expected, re-fetch it with `get_thread`; don't trust `search_threads` alone.
 3. Read message bodies only, not attachments. If an attachment matters, ask the user to save it to Proton Drive or `raw/`.
@@ -63,7 +86,7 @@ New or changed files in `raw/` that aren't listed in `raw/sync-log.md`'s history
 - Update `updated:` on every page you touch and `status_as_of:` on decision and approval pages.
 - Add or update rows in `wiki/index.md`.
 - Prepend an entry to `wiki/log.md`: `## YYYY-MM-DD | ingest | <short title>`, listing the sources read and the pages created or updated.
-- Update `last_checked_<source>` and add a history row in `raw/sync-log.md`.
+- Update `last_checked_<source>` (from `never` or a date to today) and add a history row in `raw/sync-log.md`, including the starting point chosen at a first ingest.
 
 ## Commit
 Make **one commit per ingested source** (e.g. one per Gmail thread batch, one per Proton batch):

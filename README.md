@@ -56,22 +56,22 @@ proton-drive auth login                            # by hand; session goes to th
 
 Don't install or enable the plugin at user scope. Each wiki enables it in its own committed `.claude/settings.json` (see `templates/project-settings.json`).
 
-## Enabling it in a wiki
+## Setting up a wiki
 
-1. Copy `templates/project-settings.json` to `<wiki>/.claude/settings.json` and adjust the Gmail tools to what that wiki uses.
-2. Make sure the wiki's `.gitignore` tracks the shared files:
-   ```
-   .claude/*
-   !.claude/settings.json
-   !.claude/proton-roots
-   ```
-3. For Proton access, add `<wiki>/.claude/proton-roots` with one remote folder per line, e.g. `/my-files/Bolig/sommerhus/tilbygning 2026`.
-4. At the top of the wiki's CLAUDE.md:
-   ```
-   @~/src/wiki-tools/schema/wiki-conventions.md
-   @~/src/wiki-tools/schema/wiki-layout.md      # only for raw/wiki wikis
-   ```
-5. Commit these yourself. The guard blocks Claude from writing `.claude/settings*.json` and `proton-roots`.
+1. Create the folder (e.g. `mkdir ~/wikis/<name>`) and `cd` into it.
+2. `claude plugin install wiki@wiki-tools --scope project`. This enables the plugin for this folder only, in `.claude/settings.json`.
+3. Start `claude` and run `/wiki:init <what the wiki is for>`.
+
+`/wiki:init` works in three modes:
+- **New** (empty folder): grills you on scope, researches the domain, shows the full plan (CLAUDE.md, page types and templates, sources) and creates the raw/wiki layout after your go.
+- **Adopt** (folder with content): the same, plus a move table that brings existing notes into `wiki/` (with `git mv` and frontmatter) and source files into `raw/`.
+- **Check** (already set up): runs `scripts/wiki-check.sh` and reports what's missing.
+
+It ends with a guide for the steps only you can do, because the guard blocks Claude from them: pasting `.claude/settings.json` (from `templates/project-settings.json`) and `.claude/proton-roots`, committing those two, restarting `claude` and approving the shared-schema imports. Setting up the NAS remote and pushing is also yours.
+
+Sources start at `last_checked_<source>: never`. The first `/wiki:ingest` of each source checks it, asks for a starting point and reviews the data model (folders, page types, templates) against the wiki's purpose.
+
+The shared starting template for people and organisations is `templates/pages/entity.md`; every other page type is designed per wiki by `/wiki:init`.
 
 ## Maintenance
 

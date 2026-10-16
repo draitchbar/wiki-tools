@@ -9,6 +9,11 @@ These rules apply to every LLM wiki. The wiki's own CLAUDE.md adds project facts
 
 Verify sub-agent claims against the source before putting them in a page or report.
 
+## Ask for context, don't guess
+- When the meaning of something is unclear, ask the user instead of guessing. Typical cases: who a person is, which of two offers or versions is meant, an unstated VAT basis, whether a decision still stands, how a new kind of material fits the wiki.
+- Record the answer as a source: `"User statement (YYYY-MM-DD)"`, in `sources:` and inline next to the claim.
+- In a non-interactive (headless) run nobody can answer: list the open questions in the final report instead of guessing.
+
 ## Verbatim figures (anti-drift)
 - Every amount, date, percentage, deadline or contract term is quoted **exactly as in the source**, with its source:
   - files: path and page, e.g. `(Proton: tilbud/tilbud kløvervej 8.pdf, p. 2)`
