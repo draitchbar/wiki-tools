@@ -13,7 +13,7 @@ If nothing is printed above, this wiki has no `raw/sync-log.md`; say so and stop
 
 Otherwise:
 1. Show the list above as a short table: source, last checked, days ago.
-2. Suggest which source to ingest first: the stalest source that is still active for the project (check the wiki's CLAUDE.md for which sources are in use). Sources with a manual step, such as a OneNote or bookmarks export, should say what the user needs to do first.
+2. Suggest which source to ingest first: the stalest source that is still active for the project (check the wiki's CLAUDE.md for which sources are in use). `/wiki:ingest` takes only `gmail`, `proton` or `raw`. For any other source (e.g. OneNote, bookmarks), say what the user needs to save into `raw/` first, then suggest `/wiki:ingest raw`.
 3. Give the exact command to run, e.g. `/wiki:ingest gmail` or `/wiki:ingest proton`.
 
 Don't ingest anything yourself; ingesting is the user's call.
