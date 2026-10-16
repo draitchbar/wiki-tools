@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Stand-in for the proton-drive CLI, used by run-tests.sh via PATH.
+# Prints the help text recorded from cli-drive@0.9.0 and echoes every other
+# call as "FAKE <args>", so tests never touch a real Proton account.
+# FAKE_PD_SYNTAX=changed simulates a CLI whose download syntax changed.
+
+case "$*" in
+  "filesystem --help")
+    cat <<'EOF'
+Usage:
+    filesystem list [-t TYPE] path
+    filesystem info path
+    filesystem size path
+    filesystem create-folder parentPath name
+    filesystem upload [-f STRATEGY] [-d STRATEGY] [-t] localPath... parentPath
+    filesystem download [-f STRATEGY] [-d STRATEGY] path... localFolder
+    filesystem rename path newName
+    filesystem copy [-n NAME] sourcePath... targetParentPath
+    filesystem move sourcePath... targetParentPath
+    filesystem trash path...
+    filesystem restore path...
+    filesystem delete path...
+    filesystem empty-trash
+Command not found: filesystem --help
+EOF
+    ;;
+  "filesystem download --help")
+    if [ "${FAKE_PD_SYNTAX:-}" = changed ]; then
+      echo "    filesystem download [-o OVERWRITE] localFolder path..."
+    else
+      cat <<'EOF'
+Usage:
+    filesystem download [-f STRATEGY] [-d STRATEGY] path... localFolder
+    -f, --file-conflict-strategy STRATEGY
+                             * remove: Delete the local file or folder and
+                             download the remote copy.
+EOF
+    fi
+    ;;
+  *)
+    printf 'FAKE %s\n' "$*"
+    ;;
+esac

@@ -52,14 +52,24 @@ check "pd-read/refuse-dotdot"           1 "$(pd list '/my-files/Bolig/sommerhus/
 check "pd-read/refuse-relative"         1 "$(pd list 'my-files/Bolig')"
 check "pd-read/refuse-extra-args"       1 "$(pd list '/my-files/Bolig/sommerhus/tilbygning 2026' --force)"
 check "pd-read/refuse-outside-git"      1 "$(cd "$tmp" && bash "$scripts/pd-read.sh" list '/my-files/Bolig/sommerhus/tilbygning 2026' >/dev/null 2>&1; echo $?)"
-# An in-root path gets past the path checks and stops at the CLI or version pin,
-# which proves the roots file (with CRLF) was parsed.
-inroot=$(pdout list '/my-files/Bolig/sommerhus/tilbygning 2026/tilbud')
-case "$inroot" in
-  *"not found on PATH"*|*"PINNED_VERSION"*|*"differs from pinned"*) r=accepted ;;
-  *) r="rejected: $inroot" ;;
-esac
-check "pd-read/in-root-path-accepted"   accepted "$r"
+# Behaviour against a fake CLI (tests/fake-proton-drive), never the real one.
+fakebin="$tmp/bin"
+mkdir -p "$fakebin"
+cp "$here/fake-proton-drive" "$fakebin/proton-drive"
+chmod u+x "$fakebin/proton-drive"
+fake() { (cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" "$@" 2>&1); }
+root='/my-files/Bolig/sommerhus/tilbygning 2026'
+
+out=$(fake list "$root/tilbud")
+check "pd-read/list-calls-cli"          "FAKE filesystem list --json $root/tilbud" "$out"
+out=$(fake size "$root")
+check "pd-read/size-calls-cli"          "FAKE filesystem size --json $root" "$out"
+out=$(fake download "$root/tilbud/a.pdf" | head -n 1)
+check "pd-read/download-args"           "FAKE filesystem download --json -f remove -d merge $root/tilbud/a.pdf $tmp/home/.cache/wiki-sources/wiki/proton/tilbud" "$out"
+check "pd-read/refuse-download-root"    1 "$(cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root" >/dev/null 2>&1; echo $?)"
+out=$(cd "$tmp/wiki" && FAKE_PD_SYNTAX=changed HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root/a.pdf" 2>&1; echo "exit=$?")
+case "$out" in *"syntax changed"*exit=1) r=refused ;; *) r="not refused: $out" ;; esac
+check "pd-read/refuse-changed-syntax"   refused "$r"
 
 printf '\n%d checks, %d failed\n' "$total" "$fail"
 [ "$fail" -eq 0 ]

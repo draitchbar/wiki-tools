@@ -83,20 +83,118 @@ Edit this repo in a Claude session opened in `~/src/wiki-tools`. The `wiki` plug
 
 ## Proton Drive CLI: recorded syntax (plan step 5.0)
 
-`pd-read.sh` refuses everything until this section is filled in and `PINNED_VERSION` is set in the script. By hand, run the commands below and paste their output here. Then check that `READ_OPS` and the download call in `pd-read.sh` match, and set `PINNED_VERSION`.
+`pd-read.sh` has no version pin. On every call it checks that the CLI's help still shows the syntax below (`check_syntax` in the script), and refuses if it doesn't. If that happens after a CLI update: re-run these commands, paste the new output here, review `pd-read.sh` against it, update `check_syntax` and `tests/fake-proton-drive`, and run the tests.
 
 ```
 $ proton-drive version
-(not recorded yet)
+Proton Drive CLI cli-drive@0.9.0+75612299
+Proton Drive SDK js@0.22.2+75612299
+You are running the latest version.
 
 $ proton-drive filesystem --help
-(not recorded yet)
+Usage:
+    filesystem list [-t TYPE] path
+    filesystem info path
+    filesystem size path
+    filesystem create-folder parentPath name
+    filesystem upload [-f STRATEGY] [-d STRATEGY] [-t] localPath... parentPath
+    filesystem download [-f STRATEGY] [-d STRATEGY] path... localFolder
+    filesystem rename path newName
+    filesystem copy [-n NAME] sourcePath... targetParentPath
+    filesystem move sourcePath... targetParentPath
+    filesystem trash path...
+    filesystem restore path...
+    filesystem delete path...
+    filesystem empty-trash
+
+General options:
+    -h|--help: Show extended help for a command (example fs upload --help)
+    -j|--json: Output in JSON format
+    -v|--verbose: Enable verbose output
+
+Any short names are supported (as long as they are unique):
+    filesystem upload -> fs up
+    sharing invite -> s inv
+Command not found: filesystem --help
 
 $ proton-drive filesystem download --help
-(not recorded yet)
+Usage:
+    filesystem download [-f STRATEGY] [-d STRATEGY] path... localFolder
+
+Downloads files and folders. It prompts for conflict resolution unless a
+strategy option is set. Proton Docs or Sheets will be skipped.
+
+Options:
+    -f, --file-conflict-strategy STRATEGY
+                             Conflict strategy applied to files. Values:
+                             * rename: Add a unique suffix to the name.
+                             * remove: Delete the local file or folder and
+                             download the remote copy.
+                             * skip: Skip the conflicting file or folder.
+    -d, --folder-conflict-strategy STRATEGY
+                             Conflict strategy applied to folders. Values:
+                             * merge: Merge folder contents.
+                             * rename: Add a unique suffix to the name.
+                             * remove: Delete the local file or folder and
+                             download the remote copy.
+                             * skip: Skip the conflicting file or folder.
+
+Remote paths:
+    Posix paths are always used, regardless of the host OS.
+    Node names are used for paths if available. When name cannot be decrypted
+    or conflicts with other node(s), node UIDs can be used instead.
+    Escape / in node names with a backslash.
+
+    Examples:
+    - /my-files/folder/file.txt
+    - /my-files/folder/foo\/bar
+    - /shared-with-me/NODE-UID/file.txt
+
+$ proton-drive filesystem list --help
+Usage:
+    filesystem list [-t TYPE] path
+
+Use / to list top-level sections. Your root folder is /my-files.
+
+Options:
+    -t, --type TYPE          Type of the node to filter by. Values: file,
+                             folder, album, photo.
+
+Remote paths:
+    Posix paths are always used, regardless of the host OS.
+    Node names are used for paths if available. When name cannot be decrypted
+    or conflicts with other node(s), node UIDs can be used instead.
+    Escape / in node names with a backslash.
+
+    Examples:
+    - /my-files/folder/file.txt
+    - /my-files/folder/foo\/bar
+    - /shared-with-me/NODE-UID/file.txt
+
+$ proton-drive filesystem info --help
+Usage:
+    filesystem info path
+
+Shows full node metadata including latest revision details.
+
+Remote paths:
+    Posix paths are always used, regardless of the host OS.
+    Node names are used for paths if available. When name cannot be decrypted
+    or conflicts with other node(s), node UIDs can be used instead.
+    Escape / in node names with a backslash.
+
+    Examples:
+    - /my-files/folder/file.txt
+    - /my-files/folder/foo\/bar
+    - /shared-with-me/NODE-UID/file.txt
 ```
 
-After a CLI update the wrapper refuses with "differs from pinned". Re-record the output, re-check the wrapper, and bump the pin.
+Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for `pd-read.sh`:
+- `download` prompts on conflicts unless `-f`/`-d` is set, so the wrapper must always pass a strategy (a prompt would hang a Claude Bash call).
+- `download` accepts folders as well as files; the wrapper checks the node type with `info` first to stay single-file.
+- **Proton Docs and Sheets are skipped by `download`.** Native Docs/Sheets must be exported by hand (Docs → .md, Sheets → .csv) and uploaded next to the originals.
+- `filesystem --help` prints the usage but also reports `Command not found: filesystem --help`; that's cosmetic.
+
 
 ## Guard design and known limits
 

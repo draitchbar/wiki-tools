@@ -3,31 +3,28 @@
 #
 #   bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh list     "<remote path>"
 #   bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh info     "<remote path>"
+#   bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh size     "<remote path>"
 #   bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh download "<remote file>"
 #
 # Rules:
 # - Only the read operations in READ_OPS are passed to the CLI.
 # - Remote paths must sit under a line of <wiki>/.claude/proton-roots.
 # - Downloads always go to ~/.cache/wiki-sources/<wiki>/proton/<path below root>.
-# - The CLI version must equal PINNED_VERSION, so a CLI update forces a review.
+# - No version pin: any CLI version works as long as its help output still
+#   shows the syntax this wrapper relies on (check_syntax below). If Proton
+#   changes that syntax, the wrapper refuses until it is reviewed.
 #
 # Run it from inside a wiki (any directory of its git repo).
-#
-# SETUP (plan step 5.0): run `proton-drive version`,
-# `proton-drive filesystem --help` and `proton-drive filesystem download --help`
-# by hand, paste them into README.md, then set PINNED_VERSION and check that
-# READ_OPS and the download call below match the recorded syntax. Until
-# PINNED_VERSION is set, the wrapper refuses everything.
+# The syntax was recorded in README.md from cli-drive@0.9.0 (16.10.2026).
 
 set -u
 
-PINNED_VERSION=""            # e.g. "0.8.0", copied from `proton-drive version`
-READ_OPS="list info"         # plus "download", handled separately below
+READ_OPS="list info size"    # plus "download", handled separately below
 CLI=proton-drive
 
 die() { printf 'pd-read: %s\n' "$1" >&2; exit 1; }
 
-[ $# -eq 2 ] || die "usage: pd-read.sh <list|info|download> \"<remote path>\""
+[ $# -eq 2 ] || die "usage: pd-read.sh <list|info|size|download> \"<remote path>\""
 op=$1
 remote=$2
 
@@ -62,20 +59,31 @@ while IFS= read -r r || [ -n "$r" ]; do
 done < "$roots_file"
 [ -n "$matched_root" ] || die "'$remote' is outside this wiki's Proton roots ($roots_file)."
 
-# 4. CLI present and at the pinned version.
+# 4. CLI present and still speaking the syntax this wrapper was written for.
 command -v "$CLI" >/dev/null 2>&1 || die "'$CLI' not found on PATH."
-[ -n "$PINNED_VERSION" ] || die "PINNED_VERSION is not set. Record the CLI help in README.md (plan step 5.0) first."
-have=$("$CLI" version 2>/dev/null | head -n 1)
-case "$have" in
-  *"$PINNED_VERSION"*) ;;
-  *) die "CLI version '$have' differs from pinned '$PINNED_VERSION'. Re-record the help output in README.md and update the wrapper." ;;
-esac
+
+check_syntax() { # TEXT EXPECTED...
+  text=$1; shift
+  for want in "$@"; do
+    case "$text" in
+      *"$want"*) ;;
+      *) die "proton-drive syntax changed (missing '$want'). Re-record the help output in README.md and review pd-read.sh before using it." ;;
+    esac
+  done
+}
+check_syntax "$("$CLI" filesystem --help 2>&1)" \
+  "filesystem list [-t TYPE] path" "filesystem info path" "filesystem size path"
+if [ "$op" = download ]; then
+  check_syntax "$("$CLI" filesystem download --help 2>&1)" \
+    "filesystem download [-f STRATEGY] [-d STRATEGY] path... localFolder" \
+    "--file-conflict-strategy" "remove:"
+fi
 
 export PROTON_DRIVE_LOG_LEVEL=WARNING
 
 # 5. Run. Nothing from the caller is passed through except the checked path.
 case "$op" in
-  list|info)
+  list|info|size)
     exec "$CLI" filesystem "$op" --json "$remote"
     ;;
   download)
@@ -83,9 +91,11 @@ case "$op" in
     rel=${remote#"$matched_root"/}
     dest_dir="$HOME/.cache/wiki-sources/$wiki/proton/$(dirname "$rel")"
     mkdir -p "$dest_dir" || die "cannot create $dest_dir"
-    # Argument order (remote, then local folder) as in Proton's support example;
-    # confirm against the recorded `filesystem download --help` (step 5.0).
-    "$CLI" filesystem download --json "$remote" "$dest_dir" || exit $?
+    # Recorded syntax: download [-f STRATEGY] [-d STRATEGY] path... localFolder.
+    # Conflict strategies are always set, because a prompt would hang a
+    # non-interactive call: -f remove replaces a stale copy in the cache
+    # (local only), -d merge merges a folder into its cached copy.
+    "$CLI" filesystem download --json -f remove -d merge "$remote" "$dest_dir" || exit $?
     printf 'pd-read: downloaded to %s/%s\n' "$dest_dir" "$(basename "$rel")"
     ;;
 esac
