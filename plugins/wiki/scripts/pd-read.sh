@@ -87,9 +87,21 @@ case "$op" in
     exec "$CLI" filesystem "$op" --json "$remote"
     ;;
   download)
-    [ "$remote" != "$matched_root" ] || die "download takes a single file, not a root folder; list it and download files one by one."
-    rel=${remote#"$matched_root"/}
-    dest_dir="$HOME/.cache/wiki-sources/$wiki/proton/$(dirname "$rel")"
+    # Single files only: `info --json` reports one top-level "type"
+    # ("file" or "folder"); folders have no activeRevision to mimic it.
+    node=$("$CLI" filesystem info --json "$remote" 2>&1) || die "cannot read info for '$remote': $node"
+    case "$node" in
+      *'"type":"folder"'*) die "'$remote' is a folder; list it and download its files one by one." ;;
+      *'"type":"file"'*) ;;
+      *) die "'$remote' is not a plain file (info: $(printf '%s' "$node" | head -c 200))" ;;
+    esac
+    if [ "$remote" = "$matched_root" ]; then
+      rel=$(basename "$remote")          # the root line names a single file
+    else
+      rel=${remote#"$matched_root"/}
+    fi
+    dest_dir="$HOME/.cache/wiki-sources/$wiki/proton"
+    [ "$(dirname "$rel")" = . ] || dest_dir="$dest_dir/$(dirname "$rel")"
     mkdir -p "$dest_dir" || die "cannot create $dest_dir"
     # Recorded syntax: download [-f STRATEGY] [-d STRATEGY] path... localFolder.
     # Conflict strategies are always set, because a prompt would hang a

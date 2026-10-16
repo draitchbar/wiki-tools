@@ -66,6 +66,12 @@ out=$(fake size "$root")
 check "pd-read/size-calls-cli"          "FAKE filesystem size --json $root" "$out"
 out=$(fake download "$root/tilbud/a.pdf" | head -n 1)
 check "pd-read/download-args"           "FAKE filesystem download --json -f remove -d merge $root/tilbud/a.pdf $tmp/home/.cache/wiki-sources/wiki/proton/tilbud" "$out"
+printf '/my-files/Bolig/fugtalarm.pdf\n' >> "$tmp/wiki/.claude/proton-roots"
+out=$(fake download "/my-files/Bolig/fugtalarm.pdf" | head -n 1)
+check "pd-read/download-file-root"      "FAKE filesystem download --json -f remove -d merge /my-files/Bolig/fugtalarm.pdf $tmp/home/.cache/wiki-sources/wiki/proton" "$out"
+out=$(fake download "$root/a.pdf" | head -n 1)
+check "pd-read/download-top-level"      "FAKE filesystem download --json -f remove -d merge $root/a.pdf $tmp/home/.cache/wiki-sources/wiki/proton" "$out"
+check "pd-read/refuse-download-folder"  1 "$(cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root/tilbud" >/dev/null 2>&1; echo $?)"
 check "pd-read/refuse-download-root"    1 "$(cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root" >/dev/null 2>&1; echo $?)"
 out=$(cd "$tmp/wiki" && FAKE_PD_SYNTAX=changed HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root/a.pdf" 2>&1; echo "exit=$?")
 case "$out" in *"syntax changed"*exit=1) r=refused ;; *) r="not refused: $out" ;; esac

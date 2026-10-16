@@ -37,6 +37,13 @@ Usage:
 EOF
     fi
     ;;
+  "filesystem info --json "*)
+    # Paths with a file extension are files, everything else is a folder.
+    case "${*##*/}" in
+      *.*) printf '{"uid":"u1","name":{"ok":true,"value":"x"},"type":"file","activeRevision":{"state":"active"}}\n' ;;
+      *)   printf '{"uid":"u2","name":{"ok":true,"value":"x"},"type":"folder","folder":{"isImported":false}}\n' ;;
+    esac
+    ;;
   *)
     printf 'FAKE %s\n' "$*"
     ;;
