@@ -11,3 +11,6 @@ This repo is maintained in a Claude session opened here, where the `wiki` plugin
 - The guards are a guardrail, not a security boundary. Don't weaken one without saying so in the commit message.
 - The script paths `~/src/wiki-tools/plugins/wiki/scripts/*.sh` are literal in the skills, the guard exception and the wikis' `allowed-tools`. If the clone path ever changes, update all three.
 - Remote is the private GitHub repo `draitchbar/wiki-tools`.
+
+## Open plans
+- `docs/tier2-plan.md`: Tier 2 (pruned, Tier 3 folded in). Not started.
