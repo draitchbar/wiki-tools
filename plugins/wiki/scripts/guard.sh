@@ -136,7 +136,7 @@ case "$HOOK_TOOL" in
     cmd=$(norm "$HOOK_COMMAND")
     # Allowed: bash [quoted] <path>/src/wiki-tools/plugins/wiki/scripts/<script>.sh [args]
     # with no ; & | < > ` $ anywhere.
-    if printf '%s' "$cmd" | grep -Eq '^[[:space:]]*bash[[:space:]]+"?[^[:space:]";&|<>`$]*/src/wiki-tools/plugins/wiki/scripts/(pd-read|ocr|sync-status|lint|wiki-check)\.sh"?([[:space:]][^;&|<>`$]*)?$'; then
+    if printf '%s' "$cmd" | grep -Eq '^[[:space:]]*bash[[:space:]]+"?[^[:space:]";&|<>`$]*/src/wiki-tools/plugins/wiki/scripts/(pd-read|ocr|sync-status|lint|wiki-check|sources)\.sh"?([[:space:]][^;&|<>`$]*)?$'; then
       exit 0
     fi
     allowed_source_script "$cmd" && exit 0

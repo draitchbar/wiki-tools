@@ -260,6 +260,40 @@ check "lib-source/match-sibling"    1 "$(lsrun 'printf "/data/one\n" | src_match
 check "lib-source/dots"             0 "$(lsrun 'src_has_dots "/a/./b"; echo $?')"
 check "lib-source/no-dots"          1 "$(lsrun 'src_has_dots "/a/.b/c"; echo $?')"
 
+# sources.sh against a copy of guard-wiki (gmail, scans, local type books).
+cp -r "$here/guard-wiki" "$tmp/sw"
+git -C "$tmp/sw" init -q
+mkdir -p "$tmp/sw/raw"
+printf 'last_checked_gmail: 2026-10-01\nlast_checked_raw: never\n' > "$tmp/sw/raw/sync-log.md"
+srun() { (cd "$tmp/sw" && bash "$scripts/sources.sh" "$@" 2>&1); }
+sexpect() { # NAME TEXT ARGS...
+  n=$1 t=$2; shift 2
+  out=$(srun "$@")
+  case "$out" in *"$t"*) r=found ;; *) r="missing in: $out" ;; esac
+  check "sources/$n" found "$r"
+}
+sexpect list-raw        '- raw: built in (raw/), last checked: never' list
+sexpect list-standard   '- gmail: type gmail (standard), valid, available here: yes, last checked: 2026-10-01' list
+sexpect list-local      '- books: type bookish (local), valid' list
+sexpect list-no-state   'last checked: no last_checked_scans line' list
+sexpect show-header     'Source scans: valid' show scans
+sexpect show-instance   '  - ~/Pictures/Receipts' show scans
+sexpect show-contract   '# Source type: Local folder' show scans
+sexpect show-raw        'raw is built in' show raw
+sexpect show-unknown    "no source 'nosuch' in this wiki" show nosuch
+sexpect catalog         '- bookish (local, script): Bookish (local test type)' catalog
+sexpect contract        'type: gmail' contract gmail
+sexpect settings-allow  '"Bash(bash .claude/sources/types/bookish/fetch.sh *)",' settings
+sexpect settings-deny   '"mcp__claude_ai_Gmail__send_message",' settings
+sexpect settings-type   '"Bash(bash ~/src/wiki-tools/plugins/wiki/sources/local-folder/read.sh *)"' settings local-folder
+sed -i 's/^platforms:/platforms:\n  - macos/; /^  - linux$/d' "$tmp/sw/.claude/sources/types/bookish/SOURCE.md"
+sexpect show-platform   "isn't available on" show books
+printf -- '---\nkey: bad\ntype: gmail\n---\n' > "$tmp/sw/.claude/sources/instances/bad.md"
+sed -i 's/^key: bad/key: worse/' "$tmp/sw/.claude/sources/instances/bad.md"
+sexpect show-invalid    "doesn't validate" show bad
+printf '/my-files/X\n' > "$tmp/sw/.claude/proton-roots"
+sexpect list-old-layout 'Old layout: .claude/proton-roots' list
+
 # local-folder/read.sh against a throwaway wiki and folder.
 lfs="$here/../plugins/wiki/sources/local-folder/read.sh"
 git -C "$tmp" init -q lfw

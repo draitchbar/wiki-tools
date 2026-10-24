@@ -4,7 +4,9 @@ description: Fact-check one wiki page against its sources. Each figure, date and
 argument-hint: "<page slug or path>"
 disable-model-invocation: true
 allowed-tools:
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh *)
+  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh *)
+  - Bash(bash ~/src/wiki-tools/plugins/wiki/sources/*/*.sh *)
+  - Bash(bash .claude/sources/types/*/*.sh *)
   - Bash(pdftotext *)
   - Bash(libreoffice --headless --convert-to *)
   - Bash(git add *)
@@ -30,8 +32,7 @@ Claims with no plausible source in `sources:` are **uncited**. Claims sourced to
 ## 3. Verify, one subagent per source, in parallel
 Group the claims by source and dispatch one `Agent` per source in a single message. Each subagent gets:
 - the source reference and how to read it:
-  - **Gmail** `"Gmail: <subject> (<date>)"`: find the thread with `search_threads` (subject and date), then read it in full with `get_thread`. Search results can lag, so always use `get_thread`.
-  - **Proton** `"Proton Drive: <path>"`: the path is relative to the wiki's root in `.claude/proton-roots`. Run `bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh download "<root>/<path>"` (exactly this form: one command, no pipes), then read the downloaded file. Use `pdftotext -layout` for text PDFs, `libreoffice --headless --convert-to csv "<file>" --outdir <scratchpad>` for XLSX (`txt` for DOCX/RTF/ODT), `raw/ocr/<name>.txt` for scans if it exists, otherwise the Read tool on page images. Proton Docs and Sheets can't be downloaded; mark them `source-missing`.
+  - **A source of this wiki**: a citation starts with a type's `cite_prefix` (e.g. `Gmail:`, `Proton:`, `Folder scans:`). Map it to the instance: run `bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list`, then `sources.sh show <key>` for the instance whose type has that prefix (if several instances share a type, the citation or the page's context names which; else try each). Give the subagent the contract's **Resolve citation**, **Fetch** and **Caveats** sections verbatim, the instance's parameters, and the file-reading rules in `~/src/wiki-tools/plugins/wiki/skills/ingest/reading-files.md`. If no instance matches, mark the claims `source-missing` and say which prefix had no source.
   - **Local file** (`raw/...` or another repo path): read it directly.
   - **URL**: fetch it with WebFetch and note the access date.
 - the list of claims against that source (exact text and line);
@@ -75,7 +76,7 @@ Summary: N claims. N supported, N mismatch, N partial, N not found, N source mis
 ## 5. Offer fixes (never apply without confirmation)
 For each mismatch or partial, propose the exact edit, show it as a diff and wait for the user's go-ahead:
 - correct the value to the source's exact wording;
-- add an inline citation `(Proton: <path>, p. N)` or `(Gmail: "<subject>", <date>)` next to the claim (verbatim-figures rule);
+- add an inline citation in the source's **Cite** format next to the claim (verbatim-figures rule);
 - if two sources disagree, keep both values with their citations and flag the conflict. Don't choose one.
 
 For uncited claims, offer to add citations where a source is known, or to mark the claim as unverified.
