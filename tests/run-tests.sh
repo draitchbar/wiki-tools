@@ -5,6 +5,9 @@
 #
 # Fixtures live in tests/fixtures/<script>/<pass|block>-<case>.json, where
 # <script> is block-push or guard. "pass" expects exit 0, "block" expects 2.
+# They run with CLAUDE_PROJECT_DIR on a copy of tests/guard-wiki (its
+# .claude/sources/ has a gmail, a local-folder and a local-type instance)
+# and HOME=/home/u, the home directory the fixtures use.
 # Also runs pd-read.sh refusal checks that need no Proton CLI.
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -22,6 +25,11 @@ check() { # NAME EXPECTED ACTUAL
   fi
 }
 
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+cp -r "$here/guard-wiki" "$tmp/gw"
+hook() { CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u bash "$scripts/$1.sh"; }
+
 for f in "$here"/fixtures/*/*.json; do
   script=$(basename "$(dirname "$f")")
   case=$(basename "$f" .json)
@@ -30,13 +38,27 @@ for f in "$here"/fixtures/*/*.json; do
     block-*) want=2 ;;
     *) printf 'skip  %s (name must start with pass- or block-)\n' "$case"; continue ;;
   esac
-  bash "$scripts/$script.sh" < "$f" >/dev/null 2>&1
+  hook "$script" < "$f" >/dev/null 2>&1
   check "$script/$case" "$want" "$?"
 done
 
+# guard.sh fails closed on source files it can't read, and knows Windows paths.
+fx="$here/fixtures/guard"
+gbroken() { # NAME SETUP-SNIPPET (run in a fresh copy of guard-wiki)
+  rm -rf "$tmp/gb"; cp -r "$here/guard-wiki" "$tmp/gb"
+  (cd "$tmp/gb" && eval "$2")
+  CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u bash "$scripts/guard.sh" < "$fx/pass-ordinary-bash.json" >/dev/null 2>&1
+  check "guard/fail-closed-$1" 2 "$?"
+}
+gbroken instance-no-frontmatter 'printf "key: x\n" > .claude/sources/instances/x.md'
+gbroken instance-unknown-type   'printf -- "---\nkey: x\ntype: nosuch\n---\n" > .claude/sources/instances/x.md'
+gbroken local-type-shadows      'mkdir -p .claude/sources/types/gmail && cp .claude/sources/types/bookish/SOURCE.md .claude/sources/types/gmail/'
+gbroken contract-no-frontmatter 'printf "# no fm\n" > .claude/sources/types/bookish/SOURCE.md'
+win='{"session_id":"t","cwd":"C:\\Users\\u\\wikis\\udbygning","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"C:\\Users\\u\\Pictures\\Receipts\\a.txt","content":"x"},"tool_use_id":"x"}'
+printf '%s' "$win" | CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/c/Users/u bash "$scripts/guard.sh" >/dev/null 2>&1
+check "guard/windows-drive-root" 2 "$?"
+
 # pd-read.sh refusals, run inside a throwaway git repo with a roots file.
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
 git -C "$tmp" init -q wiki
 mkdir -p "$tmp/wiki/.claude"
 printf '/my-files/Bolig/sommerhus/tilbygning 2026\r\n' > "$tmp/wiki/.claude/proton-roots"

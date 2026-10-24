@@ -6,6 +6,7 @@
 #   HOOK_COMMAND    tool_input.command, unescaped
 #   HOOK_FILE       tool_input.file_path, unescaped
 #   HOOK_CONTENT    tool_input.content and tool_input.new_string, unescaped
+#   HOOK_CWD        cwd (the directory Claude is in), unescaped
 #   HOOK_PARSE_OK   1 if tool_name was found, 0 otherwise
 # The "description" field is never read, so prose can't trigger a guard.
 #
@@ -39,6 +40,7 @@ norm() {
 HOOK_TOOL=$(json_str tool_name)
 HOOK_COMMAND=$(json_str command | json_unescape)
 HOOK_FILE=$(json_str file_path | json_unescape)
+HOOK_CWD=$(json_str cwd | json_unescape)
 HOOK_CONTENT="$(json_str content | json_unescape) $(json_str new_string | json_unescape)"
 
 if [ -n "$HOOK_TOOL" ]; then HOOK_PARSE_OK=1; else HOOK_PARSE_OK=0; fi

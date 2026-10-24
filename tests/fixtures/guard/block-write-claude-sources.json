@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/udbygning","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/home/u/wikis/udbygning/.claude/sources/instances/x.md","content":"x"},"tool_use_id":"x"}
