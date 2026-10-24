@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/udbygning","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh proton download \"/my-files/Bolig/sommerhus/tilbygning 2026/tilbud/a.pdf\"","description":"x"},"tool_use_id":"x"}

@@ -58,12 +58,23 @@ win='{"session_id":"t","cwd":"C:\\Users\\u\\wikis\\udbygning","hook_event_name":
 printf '%s' "$win" | CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/c/Users/u bash "$scripts/guard.sh" >/dev/null 2>&1
 check "guard/windows-drive-root" 2 "$?"
 
+# Every Proton test runs with the fake CLI (tests/sources/proton-drive/
+# fake-proton-drive) first on PATH, never the real one. Abort if the fake
+# isn't the proton-drive that PATH finds.
+fakebin="$tmp/bin"
+mkdir -p "$fakebin"
+cp "$here/sources/proton-drive/fake-proton-drive" "$fakebin/proton-drive" && chmod u+x "$fakebin/proton-drive"
+if [ "$(PATH="$fakebin:$PATH" command -v proton-drive)" != "$fakebin/proton-drive" ]; then
+  printf 'ABORT: the fake proton-drive is not first on PATH; refusing to run Proton tests against a real CLI.\n'
+  exit 1
+fi
+
 # pd-read.sh refusals, run inside a throwaway git repo with a roots file.
 git -C "$tmp" init -q wiki
 mkdir -p "$tmp/wiki/.claude"
 printf '/my-files/Bolig/sommerhus/tilbygning 2026\r\n' > "$tmp/wiki/.claude/proton-roots"
-pd() { (cd "$tmp/wiki" && bash "$scripts/pd-read.sh" "$@" >/dev/null 2>&1); echo $?; }
-pdout() { (cd "$tmp/wiki" && bash "$scripts/pd-read.sh" "$@" 2>&1); }
+pd() { (cd "$tmp/wiki" && PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" "$@" >/dev/null 2>&1); echo $?; }
+pdout() { (cd "$tmp/wiki" && PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" "$@" 2>&1); }
 
 check "pd-read/refuse-trash"            1 "$(pd trash '/my-files/Bolig/sommerhus/tilbygning 2026/a.pdf')"
 check "pd-read/refuse-upload"           1 "$(pd upload '/my-files/Bolig/sommerhus/tilbygning 2026')"
@@ -73,12 +84,9 @@ check "pd-read/refuse-sibling-prefix"   1 "$(pd list '/my-files/Bolig/sommerhus/
 check "pd-read/refuse-dotdot"           1 "$(pd list '/my-files/Bolig/sommerhus/tilbygning 2026/../..')"
 check "pd-read/refuse-relative"         1 "$(pd list 'my-files/Bolig')"
 check "pd-read/refuse-extra-args"       1 "$(pd list '/my-files/Bolig/sommerhus/tilbygning 2026' --force)"
-check "pd-read/refuse-outside-git"      1 "$(cd "$tmp" && bash "$scripts/pd-read.sh" list '/my-files/Bolig/sommerhus/tilbygning 2026' >/dev/null 2>&1; echo $?)"
-# Behaviour against a fake CLI (tests/fake-proton-drive), never the real one.
-fakebin="$tmp/bin"
-mkdir -p "$fakebin"
-cp "$here/fake-proton-drive" "$fakebin/proton-drive"
-chmod u+x "$fakebin/proton-drive"
+check "pd-read/refuse-outside-git"      1 "$(cd "$tmp" && PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" list '/my-files/Bolig/sommerhus/tilbygning 2026' >/dev/null 2>&1; echo $?)"
+# Behaviour against the fake CLI. pd-read.sh is the transition shim for key
+# "proton" with .claude/proton-roots; proton-drive/read.sh checks follow.
 fake() { (cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" "$@" 2>&1); }
 root='/my-files/Bolig/sommerhus/tilbygning 2026'
 
@@ -98,6 +106,32 @@ check "pd-read/refuse-download-root"    1 "$(cd "$tmp/wiki" && HOME="$tmp/home" 
 out=$(cd "$tmp/wiki" && FAKE_PD_SYNTAX=changed HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root/a.pdf" 2>&1; echo "exit=$?")
 case "$out" in *"syntax changed"*exit=1) r=refused ;; *) r="not refused: $out" ;; esac
 check "pd-read/refuse-changed-syntax"   refused "$r"
+
+# proton-drive/read.sh with instance files (new layout).
+pdr="$here/../plugins/wiki/sources/proton-drive/read.sh"
+git -C "$tmp" init -q pdw
+mkdir -p "$tmp/pdw/.claude/sources/instances"
+printf -- '---\nkey: drive\ntype: proton-drive\nroots:\n  - /my-files/Bil\n  - /my-files/Bolig/fugtalarm.pdf\n---\n' > "$tmp/pdw/.claude/sources/instances/drive.md"
+printf -- '---\nkey: mail\ntype: gmail\nlabels: X\n---\n' > "$tmp/pdw/.claude/sources/instances/mail.md"
+printf '/my-files\n' > "$tmp/pdw/.claude/proton-roots"
+pdn() { (cd "$tmp/pdw" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" 2>&1); }
+pdnx() { (cd "$tmp/pdw" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" >/dev/null 2>&1); echo $?; }
+check "proton-drive/list"                 "FAKE filesystem list --json /my-files/Bil/2026" "$(pdn drive list /my-files/Bil/2026)"
+out=$(pdn drive download "/my-files/Bil/2026/kontrakt.pdf" | head -n 1)
+check "proton-drive/download-to-key"      "FAKE filesystem download --json -f remove -d merge /my-files/Bil/2026/kontrakt.pdf $tmp/home/.cache/wiki-sources/pdw/drive/2026" "$out"
+out=$(pdn drive download "/my-files/Bolig/fugtalarm.pdf" | tail -n 1)
+check "proton-drive/download-file-root"   "pd-read: downloaded to $tmp/home/.cache/wiki-sources/pdw/drive/fugtalarm.pdf" "$out"
+check "proton-drive/refuse-outside"       1 "$(pdnx drive list /my-files/Bolig)"
+check "proton-drive/refuse-sibling"       1 "$(pdnx drive list /my-files/Bil-old)"
+check "proton-drive/refuse-dotdot"        1 "$(pdnx drive list /my-files/Bil/../Bolig)"
+check "proton-drive/refuse-write-op"      1 "$(pdnx drive upload /my-files/Bil)"
+check "proton-drive/refuse-two-args"      1 "$(pdnx list /my-files/Bil)"
+check "proton-drive/refuse-wrong-type"    1 "$(pdnx mail list /my-files/Bil)"
+check "proton-drive/refuse-no-instance"   1 "$(pdnx nosuch list /my-files/Bil)"
+check "proton-drive/legacy-only-proton"   1 "$(pdnx other list /my-files/Bil)"
+check "proton-drive/legacy-proton-roots"  "FAKE filesystem list --json /my-files/X" "$(pdn proton list /my-files/X)"
+printf -- '---\nkey: proton\ntype: proton-drive\nroots:\n  - /my-files/Bil\n---\n' > "$tmp/pdw/.claude/sources/instances/proton.md"
+check "proton-drive/instance-beats-legacy" 1 "$(pdnx proton list /my-files/X)"
 
 # lint.sh against the fixture wiki in tests/lint-wiki (one planted problem per check).
 cp -r "$here/lint-wiki" "$tmp/lw"
@@ -329,6 +363,7 @@ sexpect show-platform   "isn't available on" show books
 printf -- '---\nkey: bad\ntype: gmail\n---\n' > "$tmp/sw/.claude/sources/instances/bad.md"
 sed -i 's/^key: bad/key: worse/' "$tmp/sw/.claude/sources/instances/bad.md"
 sexpect show-invalid    "doesn't validate" show bad
+rm "$tmp/sw/.claude/sources/instances/proton.md"
 printf '/my-files/X\n' > "$tmp/sw/.claude/proton-roots"
 sexpect list-old-layout 'Old layout: .claude/proton-roots' list
 
