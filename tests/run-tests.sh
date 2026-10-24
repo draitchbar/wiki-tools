@@ -128,6 +128,20 @@ case "$findings" in *good-decision.md*) r=flagged ;; *) r=clean ;; esac
 check "lint/clean-page-not-flagged" clean "$r"
 case "$findings" in *broken-contractor\]\]*) r=flagged ;; *) r=clean ;; esac
 check "lint/case-insensitive-links" clean "$r"
+case "$lint_out" in *"matches no source"*) r=flagged ;; *) r=clean ;; esac
+check "lint/no-prefix-check-without-instances" clean "$r"
+# The same wiki with a gmail instance: citations must match a source.
+cp -r "$here/lint-wiki" "$tmp/lw2"
+git -C "$tmp/lw2" init -q
+mkdir -p "$tmp/lw2/.claude/sources/instances"
+printf -- '---\nkey: gmail\ntype: gmail\nlabels: X\n---\n' > "$tmp/lw2/.claude/sources/instances/gmail.md"
+printf -- '---\ntitle: Cites\ntype: note\nsources:\n  - "Gmail: A (2026-09-01)"\n  - "Proton: x.pdf, p. 1"\n  - raw/a.pdf\n  - "User statement (2026-10-01)"\n  - https://example.com\nrelated: []\ncreated: 2026-10-01\nupdated: 2026-10-01\n---\n' > "$tmp/lw2/wiki/cites.md"
+lint2=$(cd "$tmp/lw2" && WIKI_LINT_TODAY=2026-10-16 bash "$scripts/lint.sh" 2>&1)
+case "$lint2" in *'`cites.md`: source `Proton: x.pdf, p. 1` matches no source of this wiki'*) r=found ;; *) r=missing ;; esac
+check "lint/unknown-source-prefix" found "$r"
+n=$(printf '%s\n' "$lint2" | grep -c 'matches no source')
+check "lint/known-prefixes-pass" 2 "$n"   # cites.md Proton + broken-contractor.md "Proton Drive"
+
 nowiki=$(cd "$tmp" && git init -q nowiki && cd nowiki && bash "$scripts/lint.sh" 2>&1)
 case "$nowiki" in *"no wiki/ folder"*) r=ok ;; *) r="$nowiki" ;; esac
 check "lint/no-wiki-folder" ok "$r"
@@ -143,6 +157,11 @@ case "$ss_out" in *"- proton: last checked 2026-10-01"*) r=ok ;; *) r="$ss_out" 
 check "sync-status/date-still-works" ok "$r"
 case "$ss_out" in *"- web: unreadable date 'soon'"*) r=ok ;; *) r="$ss_out" ;; esac
 check "sync-status/unreadable" ok "$r"
+mkdir -p "$tmp/ss/.claude/sources/instances"
+printf -- '---\nkey: scans\ntype: local-folder\nroots:\n  - /x\n---\n' > "$tmp/ss/.claude/sources/instances/scans.md"
+ss_out=$(cd "$tmp/ss" && CLAUDE_PROJECT_DIR= bash "$scripts/sync-status.sh" 2>&1)
+case "$ss_out" in *"- scans: no last_checked_scans line yet"*) r=ok ;; *) r="$ss_out" ;; esac
+check "sync-status/instance-without-line" ok "$r"
 
 # wiki-check.sh: a freshly initialised wiki passes; each planted fault fails.
 mkwiki() { # DIR
@@ -150,14 +169,18 @@ mkwiki() { # DIR
   w="$tmp/$1"
   mkdir -p "$w/raw" "$w/wiki/notes" "$w/outputs" "$w/templates" "$w/.claude"
   printf '# Test wiki\n\n@~/src/wiki-tools/schema/wiki-conventions.md\n@~/src/wiki-tools/schema/wiki-layout.md\n' > "$w/CLAUDE.md"
-  printf '.obsidian/\n.claude/*\n!.claude/settings.json\n!.claude/proton-roots\n' > "$w/.gitignore"
-  printf '# Sync Log\n\nlast_checked_gmail: never\nlast_checked_proton: never\n' > "$w/raw/sync-log.md"
+  printf '.obsidian/\n.claude/*\n!.claude/settings.json\n!.claude/sources/\n' > "$w/.gitignore"
+  printf '# Sync Log\n\nlast_checked_raw: never\nlast_checked_gmail: never\nlast_checked_scans: never\n' > "$w/raw/sync-log.md"
+  mkdir -p "$w/.claude/sources/instances"
+  printf -- '---\nkey: gmail\ntype: gmail\nlabels: Test\nstate:\n  - last_checked\n---\n' > "$w/.claude/sources/instances/gmail.md"
+  printf -- '---\nkey: scans\ntype: local-folder\nroots:\n  - /x/scans\nstate:\n  - last_checked\n---\n' > "$w/.claude/sources/instances/scans.md"
   printf '# Index\n\n## Notes\n\n| Page | Summary |\n|---|---|\n' > "$w/wiki/index.md"
   printf '# Log\n\n## 2026-10-16 | init | Wiki created\n' > "$w/wiki/log.md"
   printf -- '---\ntitle: Name\ntype: entity\nsources: []\nrelated: []\ncreated: YYYY-MM-DD\nupdated: YYYY-MM-DD\n---\n' > "$w/templates/entity.md"
   touch "$w/outputs/.gitkeep" "$w/wiki/notes/.gitkeep"
-  cp "$here/../templates/project-settings.json" "$w/.claude/settings.json"
-  printf '/my-files/Test\n' > "$w/.claude/proton-roots"
+  # Template plus the rules of the two source types (wiki-check only looks for them).
+  rules=$(cd "$w" && bash "$scripts/sources.sh" settings | grep -oE '"[^"]+"' | grep -vxE '"(permissions|allow|deny)"' | paste -sd, -)
+  sed "s|  \"enabledPlugins\"|  \"x-source-rules\": [$rules],\n  \"enabledPlugins\"|" "$here/../templates/project-settings.json" > "$w/.claude/settings.json"
   git -C "$w" add -A && git -C "$w" -c user.name=t -c user.email=t@t commit -qm init
 }
 wc_run() { (cd "$tmp/$1" && bash "$scripts/wiki-check.sh" 2>&1); }
@@ -178,8 +201,8 @@ check "wiki-check/fault-exits-1" 1 "$(wc_exit f1)"
 mkwiki f2; printf 'last_checked_web: soon\n' >> "$tmp/f2/raw/sync-log.md"
 wc_expect bad-sync-value f2 "FAIL \`last_checked_web: soon\` in raw/sync-log.md"
 
-mkwiki f3; git -C "$tmp/f3" rm -q .claude/proton-roots
-wc_expect missing-roots f3 "FAIL Proton is a source but \`.claude/proton-roots\` is missing"
+mkwiki f3; printf '/my-files/Test\n' > "$tmp/f3/.claude/proton-roots"
+wc_expect old-layout f3 "FAIL old source layout"
 
 mkwiki f4; sed -i '/Bash(git push \*)/d' "$tmp/f4/.claude/settings.json"
 wc_expect missing-permission f4 'FAIL permission rules missing from .claude/settings.json: "Bash(git push *)"'
@@ -190,8 +213,8 @@ wc_expect plugin-disabled f5 'FAIL plugin `wiki@wiki-tools` is not enabled'
 mkwiki f6; git -C "$tmp/f6" rm -q --cached .claude/settings.json
 wc_expect settings-uncommitted f6 "FAIL \`.claude/settings.json\` isn't committed"
 
-mkwiki f7; printf 'relative/path\n' >> "$tmp/f7/.claude/proton-roots"
-wc_expect roots-relative f7 "isn't an absolute path: \`relative/path\`"
+mkwiki f7; sed -i 's#  - /x/scans#  - relative/path#' "$tmp/f7/.claude/sources/instances/scans.md"
+wc_expect roots-relative f7 "root 'relative/path' isn't an absolute path"
 
 mkwiki f8; rm -r "$tmp/f8/templates"
 wc_expect no-templates f8 'FAIL folder `templates/` is missing'
@@ -201,6 +224,21 @@ wc_expect uncommitted-setup f9 'FAIL uncommitted setup files: CLAUDE.md'
 
 mkwiki f10; printf -- '---\ntitle: X\ntype: entity\nsources: []\ncreated: 2026-10-16\nupdated: 2026-10-16\n---\nSee [[nowhere]].\n' > "$tmp/f10/wiki/notes/x.md"
 wc_expect lint-error f10 'FAIL lint finds 1 structural error(s)'
+
+mkwiki f11; git -C "$tmp/f11" rm -q --cached .claude/sources/instances/scans.md
+wc_expect instance-uncommitted f11 "FAIL \`.claude/sources/instances/scans.md\` isn't committed"
+
+mkwiki f12; sed -i '/last_checked_scans/d' "$tmp/f12/raw/sync-log.md"
+wc_expect instance-no-sync-line f12 "FAIL source \`scans\` has no \`last_checked_scans\` line"
+
+mkwiki f13; sed -i 's/"mcp__claude_ai_Gmail__send_message",//' "$tmp/f13/.claude/settings.json"
+wc_expect source-rule-missing f13 'FAIL source permission rules missing from .claude/settings.json: "mcp__claude_ai_Gmail__send_message"'
+
+mkwiki f14; sed -i '/!.claude\/sources/d' "$tmp/f14/.gitignore"
+wc_expect gitignore-sources f14 "FAIL \`.gitignore\` lacks \`!.claude/sources/\`"
+
+mkwiki f15; printf -- '---\nkey: bad\ntype: nosuch\n---\n' > "$tmp/f15/.claude/sources/instances/bad.md"
+wc_expect instance-invalid f15 "FAIL source \`bad\` doesn't validate: unknown source type 'nosuch'"
 
 nogit=$(cd "$tmp" && mkdir -p plain && cd plain && bash "$scripts/wiki-check.sh" >/dev/null 2>&1; echo $?)
 check "wiki-check/outside-git" 1 "$nogit"

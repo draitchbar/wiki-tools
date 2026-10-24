@@ -2,7 +2,9 @@
 # Print how long ago each source in raw/sync-log.md was last checked.
 # Runs as a SessionStart hook (stdout becomes session context) and from the
 # /wiki:sync-status skill. Prints nothing when the wiki has no sync-log.
-# A value of "never" (set by /wiki:init) means the source was never ingested.
+# A value of "never" (set by /wiki:init and /wiki:add-source) means the
+# source was never ingested. Instances in .claude/sources/instances/ that
+# have no line yet are listed too.
 # Read-only.
 
 if [ -n "$CLAUDE_PROJECT_DIR" ] && [ -d "$CLAUDE_PROJECT_DIR" ]; then
@@ -37,6 +39,12 @@ while IFS= read -r line; do
 - $key: unreadable date '$val'"
   fi
 done < "$log"
+
+. "$(dirname "$0")/lib-source.sh"
+for k in $(src_instances "$root"); do
+  grep -q "^last_checked_$k:" "$log" || out="$out
+- $k: no last_checked_$k line yet (treated as never checked)"
+done
 
 [ -n "$out" ] || exit 0
 printf 'Wiki sync status (raw/sync-log.md):%s\n' "$out"

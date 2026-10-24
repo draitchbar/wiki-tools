@@ -5,7 +5,7 @@
 #
 # Run from inside a wiki (any directory of its git repo). Used by /wiki:init
 # in check mode. Prints a Markdown pass/fail list with a fix for each failure
-# and writes nothing. Makes no calls to Gmail or Proton Drive; sources are
+# and writes nothing. Makes no calls to any source; sources are
 # checked at their first ingest.
 #
 # Exit 0 when every check passes, 1 when any check fails.
@@ -25,6 +25,9 @@ root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || {
 
 fails=0
 out=""
+
+. "$here/lib-source.sh"
+instances=$(src_instances "$root")
 pass() { out="$out
 - PASS $1"; }
 fail() { out="$out
@@ -76,6 +79,10 @@ if [ -f "$log" ]; then
       fail "\`$key: $val\` in raw/sync-log.md is neither a YYYY-MM-DD date nor \`never\`" "correct the value"
     fi
   done < "$log"
+  for k in $instances; do
+    grep -q "^last_checked_$k:" "$log" ||
+      fail "source \`$k\` has no \`last_checked_$k\` line in raw/sync-log.md" "add \`last_checked_$k: never\`"
+  done
   if [ "$keys" -gt 0 ]; then pass "raw/sync-log.md has $keys source line(s)"
   else fail "raw/sync-log.md has no \`last_checked_<source>:\` lines" "add one line per source, value \`never\`"; fi
 fi
@@ -83,7 +90,7 @@ fi
 # 4. .gitignore.
 gi="$root/.gitignore"
 if [ -f "$gi" ]; then
-  for pat in '.obsidian/' '.claude/*' '!.claude/settings.json'; do
+  for pat in '.obsidian/' '.claude/*' '!.claude/settings.json' ${instances:+'!.claude/sources/'}; do
     if grep -qxF -- "$pat" "$gi"; then pass "\`.gitignore\` has \`$pat\`"
     else fail "\`.gitignore\` lacks \`$pat\`" "add the line \`$pat\`"; fi
   done
@@ -107,27 +114,53 @@ else
   else
     info "settings template not found at $template; permissions not compared"
   fi
+  if [ -n "$instances" ]; then
+    missing=$(for k in $instances; do
+        c=$(src_contract "$root" "$(src_field "$root/.claude/sources/instances/$k.md" type)" 2>/dev/null) || continue
+        src_list "$c" read_tools; src_list "$c" bookkeeping_tools; src_list "$c" forbidden_tools
+      done | awk '!seen[$0]++' |
+      while IFS= read -r rule; do
+        grep -qF -- "\"$rule\"" "$st" || printf ' "%s"' "$rule"
+      done)
+    if [ -z "$missing" ]; then pass "all permission rules of the sources' types are present"
+    else fail "source permission rules missing from .claude/settings.json:$missing" "add them as \`sources.sh settings\` prints (allow: read and bookkeeping tools, deny: forbidden tools)"; fi
+  fi
   if tracked .claude/settings.json; then pass "\`.claude/settings.json\` is committed"
   else fail "\`.claude/settings.json\` isn't committed" "\`git add -- .claude/settings.json && git commit\` (you, not Claude)"; fi
 fi
 
-# 6. Proton roots, required when Proton is a source.
-pr="$root/.claude/proton-roots"
-if grep -q '^last_checked_proton:' "$log" 2>/dev/null; then
-  if [ ! -f "$pr" ]; then
-    fail "Proton is a source but \`.claude/proton-roots\` is missing" "paste the roots shown by /wiki:init, then commit the file"
-  else
-    roots=$(grep -cE '^/' "$pr" || true)
-    bad=$(grep -vE '^(/|#|[[:space:]]*$)' "$pr" | head -n 1)
-    if [ -n "$bad" ]; then fail "\`.claude/proton-roots\` has a line that isn't an absolute path: \`$bad\`" "one absolute path per line, e.g. /my-files/..."
-    elif [ "$roots" -gt 0 ]; then pass "\`.claude/proton-roots\` lists $roots root(s)"
-    else fail "\`.claude/proton-roots\` lists no paths" "add the Proton folder, one absolute path per line"; fi
-    if tracked .claude/proton-roots; then pass "\`.claude/proton-roots\` is committed"
-    else fail "\`.claude/proton-roots\` isn't committed" "\`git add -- .claude/proton-roots && git commit\` (you, not Claude)"; fi
-  fi
-elif [ -f "$pr" ]; then
-  info "\`.claude/proton-roots\` exists but raw/sync-log.md has no \`last_checked_proton\` line"
+# 6. Sources in .claude/sources/: every instance valid, available, committed.
+sd="$root/.claude/sources"
+if [ -f "$root/.claude/proton-roots" ] && [ ! -f "$sd/instances/proton.md" ]; then
+  fail "old source layout: \`.claude/proton-roots\` without \`.claude/sources/instances/proton.md\`" "run /wiki:init (check mode) and follow its migration"
 fi
+if [ -z "$instances" ]; then
+  info "no sources besides \`raw/\` (no files in \`.claude/sources/instances/\`)"
+fi
+for k in $instances; do
+  f=".claude/sources/instances/$k.md"
+  t=$(src_field "$root/$f" type)
+  if errs=$(src_validate_instance "$root" "$k" 2>&1); then
+    pass "source \`$k\` (type $t) is valid"
+    c=$(src_contract "$root" "$t")
+    src_list "$c" platforms | grep -qx "$(src_platform)" ||
+      info "source \`$k\` (type $t) isn't available on $(src_platform); it supports $(src_list "$c" platforms | paste -sd' ' -)"
+  else
+    fail "source \`$k\` doesn't validate: $(printf '%s' "$errs" | sed "s#$root/##g" | paste -sd';' -)" "correct \`$f\` (you, not Claude)"
+  fi
+  if tracked "$f"; then pass "\`$f\` is committed"
+  else fail "\`$f\` isn't committed" "\`git add -- $f && git commit\` (you, not Claude)"; fi
+done
+for c in "$sd"/types/*/SOURCE.md; do
+  [ -f "$c" ] || continue
+  t=${c%/SOURCE.md}; t=${t##*/}
+  if errs=$(src_validate_contract "$c" 2>&1); then pass "local source type \`$t\` is valid"
+  else fail "local source type \`$t\` doesn't validate: $(printf '%s' "$errs" | sed "s#$root/##g" | paste -sd';' -)" "correct \`.claude/sources/types/$t/\` (you, not Claude)"; fi
+  for s in SOURCE.md $(src_list "$c" scripts); do
+    tracked ".claude/sources/types/$t/$s" ||
+      fail "\`.claude/sources/types/$t/$s\` isn't committed" "\`git add -- .claude/sources/types/$t && git commit\` (you, not Claude)"
+  done
+done
 
 # 7. Structural lint (errors only; warnings are normal on a young wiki).
 if [ -d "$root/wiki" ]; then

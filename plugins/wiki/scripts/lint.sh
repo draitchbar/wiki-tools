@@ -13,7 +13,9 @@
 #   ERROR  missing frontmatter, missing required fields, broken [[links]]
 #   WARN   orphan pages, pages missing from index.md, pages without sources,
 #          bad or inconsistent dates, stale pages
-#   INFO   decision/approval pages without status_as_of
+#   INFO   decision/approval pages without status_as_of, `sources:` entries
+#          that match no source of the wiki (only once it has
+#          .claude/sources/instances/)
 #
 # Environment (for tests): WIKI_LINT_TODAY=YYYY-MM-DD overrides today's date.
 
@@ -87,7 +89,7 @@ cut -f1 "$tmp/slugs" | LC_ALL=C sort -u > "$tmp/known"
 # ---- findings, one file per category ---------------------------------------
 : > "$tmp/e_nofm"; : > "$tmp/e_fields"; : > "$tmp/e_broken"
 : > "$tmp/w_orphan"; : > "$tmp/w_noindex"; : > "$tmp/w_nosrc"; : > "$tmp/w_dates"; : > "$tmp/w_stale"
-: > "$tmp/i_status"
+: > "$tmp/i_status"; : > "$tmp/i_srcprefix"
 
 days_since() { # YYYY-MM-DD -> days before today, or empty if unparseable
   case "$1" in [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;; *) return 1 ;; esac
@@ -140,6 +142,28 @@ while IFS="$US" read -r p hasfm title type created updated status nsrc; do
   esac
 done < "$tmp/fm"
 
+# Citations that match no source: an entry must start with a configured
+# type's cite_prefix, "raw/", "User statement" or a URL.
+. "$(dirname "$0")/lib-source.sh"
+if [ -n "$(src_instances "$root")" ]; then
+  prefixes=$(for k in $(src_instances "$root"); do
+    c=$(src_contract "$root" "$(src_field "$(src_instance_dir "$root")/$k.md" type)" 2>/dev/null) && src_field "$c" cite_prefix
+  done | LC_ALL=C sort -u)
+  while IFS= read -r p; do
+    src_list "$wiki/$p" sources | sed -e "s/^[\"']//" -e "s/[\"']\$//" | while IFS= read -r s; do
+      case "$s" in raw/*|"User statement"*|http://*|https://*) continue ;; esac
+      ok=0
+      while IFS= read -r x; do
+        [ -n "$x" ] || continue
+        case "$s" in "$x:"*|"$x "*) ok=1; break ;; esac
+      done <<EOF
+$prefixes
+EOF
+      [ "$ok" = 1 ] || echo "- \`$p\`: source \`$s\` matches no source of this wiki"
+    done
+  done < "$tmp/pages" > "$tmp/i_srcprefix"
+fi
+
 # Broken links (grouped by target, with how many pages reference it).
 LC_ALL=C sort -u "$tmp/links" | while IFS="$(printf '\t')" read -r src t; do
   grep -qx -F "$t" "$tmp/known" || printf '%s\t%s\n' "$t" "$src"
@@ -163,7 +187,7 @@ done < "$tmp/slugs"
 count() { wc -l < "$1" | tr -d ' '; }
 n_err=$(( $(count "$tmp/e_nofm") + $(count "$tmp/e_fields") + $(count "$tmp/e_broken") ))
 n_warn=$(( $(count "$tmp/w_orphan") + $(count "$tmp/w_noindex") + $(count "$tmp/w_nosrc") + $(count "$tmp/w_dates") + $(count "$tmp/w_stale") ))
-n_info=$(count "$tmp/i_status")
+n_info=$(( $(count "$tmp/i_status") + $(count "$tmp/i_srcprefix") ))
 
 section() { # FILE TITLE
   [ -s "$1" ] || return 0
@@ -182,6 +206,7 @@ section "$tmp/w_nosrc"    "WARN: no sources"
 section "$tmp/w_dates"    "WARN: bad dates"
 section "$tmp/w_stale"    "WARN: possibly stale (not updated in ${STALE_DAYS}+ days)"
 section "$tmp/i_status"   "INFO: missing status_as_of"
+section "$tmp/i_srcprefix" "INFO: citations with no matching source"
 
 # Clusters for the judgement pass: one per top-level folder of wiki/.
 printf '\n## Clusters for contradiction checks\n\n'
