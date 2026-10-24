@@ -238,5 +238,42 @@ check "lib-source/match-sibling"    1 "$(lsrun 'printf "/data/one\n" | src_match
 check "lib-source/dots"             0 "$(lsrun 'src_has_dots "/a/./b"; echo $?')"
 check "lib-source/no-dots"          1 "$(lsrun 'src_has_dots "/a/.b/c"; echo $?')"
 
+# local-folder/read.sh against a throwaway wiki and folder.
+lfs="$here/../plugins/wiki/sources/local-folder/read.sh"
+git -C "$tmp" init -q lfw
+mkdir -p "$tmp/lfw/.claude/sources/instances" "$tmp/scans/2026/sub" "$tmp/scans-old" "$tmp/other"
+printf -- '---\nkey: scans\ntype: local-folder\nroots:\n  - %s/scans\n  - %s/other/one.pdf\n---\n' "$tmp" "$tmp" > "$tmp/lfw/.claude/sources/instances/scans.md"
+printf -- '---\nkey: notafolder\ntype: gmail\nlabels: X\n---\n' > "$tmp/lfw/.claude/sources/instances/notafolder.md"
+printf 'old\n' > "$tmp/scans/2026/old.pdf"; touch -d 2026-01-01 "$tmp/scans/2026/old.pdf"
+printf 'new\n' > "$tmp/scans/2026/sub/new file.pdf"; touch -d 2026-10-10 "$tmp/scans/2026/sub/new file.pdf"
+printf 'one\n' > "$tmp/other/one.pdf"; touch -d 2026-09-01 "$tmp/other/one.pdf"
+printf 'x\n' > "$tmp/scans-old/x.pdf"
+lf() { (cd "$tmp/lfw" && HOME="$tmp/home" bash "$lfs" "$@" 2>&1); }
+lfx() { (cd "$tmp/lfw" && HOME="$tmp/home" bash "$lfs" "$@" >/dev/null 2>&1); echo $?; }
+check "local-folder/refuse-unknown-op"   1 "$(lfx scans delete "$tmp/scans/2026/old.pdf")"
+check "local-folder/refuse-extra-args"   1 "$(lfx scans list "$tmp/scans" --force)"
+check "local-folder/refuse-no-instance"  1 "$(lfx nosuch list "$tmp/scans")"
+check "local-folder/refuse-bad-key"      1 "$(lfx ../x list "$tmp/scans")"
+check "local-folder/refuse-wrong-type"   1 "$(lfx notafolder list "$tmp/scans")"
+check "local-folder/refuse-outside"      1 "$(lfx scans list "$tmp")"
+check "local-folder/refuse-sibling"      1 "$(lfx scans list "$tmp/scans-old")"
+check "local-folder/refuse-dotdot"       1 "$(lfx scans list "$tmp/scans/../scans-old")"
+check "local-folder/refuse-relative"     1 "$(lfx scans list scans)"
+check "local-folder/refuse-bad-date"     1 "$(lfx scans new yesterday)"
+check "local-folder/refuse-copy-folder"  1 "$(lfx scans copy "$tmp/scans/2026")"
+check "local-folder/refuse-outside-git"  1 "$(cd "$tmp" && bash "$lfs" scans list "$tmp/scans" >/dev/null 2>&1; echo $?)"
+out=$(lf scans list "$tmp/scans/2026" | awk '{print $1, $NF}' | paste -sd' ' -)
+check "local-folder/list"                "f $tmp/scans/2026/old.pdf d $tmp/scans/2026/sub" "$out"
+out=$(lf scans new 2026-10-01 | sed 's/.* [0-9]* //')
+check "local-folder/new-since"           "$tmp/scans/2026/sub/new file.pdf" "$out"
+out=$(lf scans new never | wc -l | tr -d ' ')
+check "local-folder/new-never"           3 "$out"
+out=$(lf scans copy "$tmp/scans/2026/sub/new file.pdf")
+check "local-folder/copy"                "local-folder: copied to $tmp/home/.cache/wiki-sources/lfw/scans/2026/sub/new file.pdf" "$out"
+check "local-folder/copy-content"        new "$(cat "$tmp/home/.cache/wiki-sources/lfw/scans/2026/sub/new file.pdf" 2>&1)"
+out=$(lf scans copy "$tmp/other/one.pdf")
+check "local-folder/copy-file-root"      "local-folder: copied to $tmp/home/.cache/wiki-sources/lfw/scans/one.pdf" "$out"
+check "local-folder/source-untouched"    "old" "$(cat "$tmp/scans/2026/old.pdf")"
+
 printf '\n%d checks, %d failed\n' "$total" "$fail"
 [ "$fail" -eq 0 ]
