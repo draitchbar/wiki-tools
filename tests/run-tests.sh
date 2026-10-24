@@ -183,5 +183,60 @@ wc_expect lint-error f10 'FAIL lint finds 1 structural error(s)'
 nogit=$(cd "$tmp" && mkdir -p plain && cd plain && bash "$scripts/wiki-check.sh" >/dev/null 2>&1; echo $?)
 check "wiki-check/outside-git" 1 "$nogit"
 
+# lib-source.sh against the fixture plugin and wiki in tests/sources/lib-source.
+ls_dir="$here/sources/lib-source"
+cp -r "$ls_dir" "$tmp/ls"
+git -C "$tmp/ls/wiki" init -q
+lsrun() { # SHELL-SNIPPET: run with lib-source loaded and SRC_PLUGIN on the fixture
+  (cd "$tmp/ls/wiki" && . "$scripts/lib-source.sh" && SRC_PLUGIN="$tmp/ls/plugin" && eval "$1") 2>&1
+}
+lsw="$tmp/ls/wiki"
+check "lib-source/field"            "Standard test type" "$(lsrun 'src_field "$SRC_PLUGIN/sources/std/SOURCE.md" title')"
+check "lib-source/list"             "linux windows" "$(lsrun 'src_list "$SRC_PLUGIN/sources/std/SOURCE.md" platforms | paste -sd" " -')"
+check "lib-source/list-stops"       "read.sh" "$(lsrun 'src_list "$SRC_PLUGIN/sources/std/SOURCE.md" scripts')"
+check "lib-source/values-scalar"    "Tisvilde" "$(lsrun 'src_values .claude/sources/instances/loc1.md labels')"
+check "lib-source/values-list"      "/data/one ~/two" "$(lsrun 'src_values .claude/sources/instances/good.md roots | paste -sd" " -')"
+check "lib-source/names"            "roots note" "$(lsrun 'src_list "$SRC_PLUGIN/sources/std/SOURCE.md" parameters | src_names | paste -sd" " -')"
+check "lib-source/instances"        "bad-root good loc1 missing-param unknown-type uses-broken wrong-key" "$(lsrun 'src_instances "$PWD" | paste -sd" " -')"
+check "lib-source/contract-std"     "$tmp/ls/plugin/sources/std/SOURCE.md" "$(lsrun 'src_contract "$PWD" std')"
+check "lib-source/contract-local"   "$lsw/.claude/sources/types/loc/SOURCE.md" "$(lsrun 'src_contract "$PWD" loc')"
+check "lib-source/contract-unknown" 1 "$(lsrun 'src_contract "$PWD" nosuch >/dev/null 2>&1; echo $?')"
+check "lib-source/contract-badname" 1 "$(lsrun 'src_contract "$PWD" ../std >/dev/null 2>&1; echo $?')"
+check "lib-source/catalog"          "loc:local std:standard" "$(lsrun 'src_catalog "$PWD" | cut -f1,2 | tr "\t" : | grep -v broken | sort | paste -sd" " -')"
+check "lib-source/valid-std"        0 "$(lsrun 'src_validate_contract "$SRC_PLUGIN/sources/std/SOURCE.md"; echo $?')"
+check "lib-source/valid-good"       0 "$(lsrun 'src_validate_instance "$PWD" good; echo $?')"
+check "lib-source/valid-loc1"       0 "$(lsrun 'src_validate_instance "$PWD" loc1; echo $?')"
+lsbad() { # NAME KEY EXPECTED-TEXT
+  out=$(lsrun "src_validate_instance \"\$PWD\" $2; echo exit=\$?")
+  case "$out" in *"$3"*exit=1) r=ok ;; *) r="$out" ;; esac
+  check "lib-source/$1" ok "$r"
+}
+lsbad missing-param   missing-param "required parameter 'roots' is empty"
+lsbad relative-root   bad-root      "root 'relative/path' isn't an absolute path"
+lsbad dotdot-root     bad-root      "root '/data/../etc' contains '.' or '..'"
+lsbad wrong-key       wrong-key     "key 'other' doesn't match the file name"
+lsbad unknown-type    unknown-type  "unknown source type 'nosuch'"
+lsbad broken-folder   uses-broken   "type 'other' doesn't match its folder 'broken'"
+lsbad broken-access   uses-broken   "access must be mcp, script or filesystem"
+lsbad broken-platform uses-broken   "unknown platform 'beos'"
+lsbad broken-state    uses-broken   "state must include last_checked"
+lsbad broken-prefix   uses-broken   "missing 'cite_prefix'"
+lsbad broken-script   uses-broken   "script name '../evil.sh' must be a plain <name>.sh"
+lsbad missing-script  uses-broken   "script 'missing.sh' is listed but missing"
+mkdir -p "$lsw/.claude/sources/types/std"
+cp "$tmp/ls/plugin/sources/std/SOURCE.md" "$lsw/.claude/sources/types/std/"
+lsbad shadowing       good          "shadows the standard type"
+rm -r "$lsw/.claude/sources/types/std"
+sed 's/$/\r/' "$lsw/.claude/sources/instances/good.md" > "$lsw/.claude/sources/instances/crlf.md"
+sed -i 's/^key: good/key: crlf/' "$lsw/.claude/sources/instances/crlf.md"
+check "lib-source/crlf"             0 "$(lsrun 'src_validate_instance "$PWD" crlf; echo $?')"
+check "lib-source/crlf-values"      "/data/one ~/two" "$(lsrun 'src_values .claude/sources/instances/crlf.md roots | paste -sd" " -')"
+check "lib-source/expand"           "$HOME/two" "$(lsrun 'src_expand "~/two/"')"
+check "lib-source/expand-backslash" "C:/Users/x" "$(lsrun 'src_expand "C:\\Users\\x\\"')"
+check "lib-source/match-root"       "/data/one" "$(lsrun 'printf "/data/one\n/data/two\n" | src_match_root /data/one/a/b')"
+check "lib-source/match-sibling"    1 "$(lsrun 'printf "/data/one\n" | src_match_root /data/one-old >/dev/null; echo $?')"
+check "lib-source/dots"             0 "$(lsrun 'src_has_dots "/a/./b"; echo $?')"
+check "lib-source/no-dots"          1 "$(lsrun 'src_has_dots "/a/.b/c"; echo $?')"
+
 printf '\n%d checks, %d failed\n' "$total" "$fail"
 [ "$fail" -eq 0 ]
