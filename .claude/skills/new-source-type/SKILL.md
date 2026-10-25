@@ -49,7 +49,8 @@ Model them on `plugins/wiki/sources/local-folder/read.sh`:
 - **Tests must never reach the real CLI or account.** Put the fake first on `PATH` for *every* call of the wrapper, refusals included, and abort the run if `command -v <cli>` under that `PATH` isn't the fake (see the Proton block in `run-tests.sh`). A missing fake must fail loudly, not fall through to the user's installed CLI.
 - `tests/run-tests.sh`: a section for the type: every refusal (unknown op, extra args, outside roots, sibling prefix, `..`, relative path, wrong instance type, outside git, changed CLI syntax) and every happy path against the fake.
 - Guard fixtures in `tests/fixtures/guard/`: `pass-<type>-wrapper` (a plain call), `block-<type>-wrapper-chained`, and `block-<type>-cli-direct` if it has guard words. If the guard wiki needs an instance of the type, add it to `tests/guard-wiki/.claude/sources/instances/`.
-- `src_validate_contract plugins/wiki/sources/<type>/SOURCE.md` must pass (the `lib-source` checks in run-tests cover the library, not your file: run it by hand).
+- **No wrapper (an MCP type):** the wrapper and guard-fixture bullets above don't apply. Add `sexpect` checks in the `sources.sh` block of `run-tests.sh` for `settings <type>` (a forbidden tool appears) and `catalog` (the type is listed).
+- Every standard contract is validated by the `contract/<type>-valid` loop in `run-tests.sh`; no need to run `src_validate_contract` by hand.
 - Run `bash tests/run-tests.sh`; it must end "0 failed".
 
 ## 6. Docs
