@@ -36,6 +36,8 @@ info() { out="$out
 - INFO $1"; }
 
 tracked() { git -C "$root" ls-files --error-unmatch -- "$1" >/dev/null 2>&1; }
+# changed FILE: true if a tracked file has uncommitted changes.
+changed() { [ -n "$(git -C "$root" status --porcelain -- "$1" 2>/dev/null)" ]; }
 
 # 1. Layout.
 for d in raw wiki outputs templates; do
@@ -79,6 +81,8 @@ if [ -f "$log" ]; then
       fail "\`$key: $val\` in raw/sync-log.md is neither a YYYY-MM-DD date nor \`never\`" "correct the value"
     fi
   done < "$log"
+  grep -q "^last_checked_raw:" "$log" ||
+    fail "raw/sync-log.md has no \`last_checked_raw\` line (raw/ is always a source)" "add \`last_checked_raw: <date of the newest raw row in the history, or never>\`"
   for k in $instances; do
     grep -q "^last_checked_$k:" "$log" ||
       fail "source \`$k\` has no \`last_checked_$k\` line in raw/sync-log.md" "add \`last_checked_$k: never\`"
@@ -125,7 +129,8 @@ else
     if [ -z "$missing" ]; then pass "all permission rules of the sources' types are present"
     else fail "source permission rules missing from .claude/settings.json:$missing" "add them as \`sources.sh settings\` prints (allow: read and bookkeeping tools, deny: forbidden tools)"; fi
   fi
-  if tracked .claude/settings.json; then pass "\`.claude/settings.json\` is committed"
+  if tracked .claude/settings.json && changed .claude/settings.json; then fail "\`.claude/settings.json\` has uncommitted changes" "review them, then \`git add -- .claude/settings.json && git commit\` (you, not Claude)"
+  elif tracked .claude/settings.json; then pass "\`.claude/settings.json\` is committed"
   else fail "\`.claude/settings.json\` isn't committed" "\`git add -- .claude/settings.json && git commit\` (you, not Claude)"; fi
 fi
 
@@ -148,7 +153,8 @@ for k in $instances; do
   else
     fail "source \`$k\` doesn't validate: $(printf '%s' "$errs" | sed "s#$root/##g" | paste -sd';' -)" "correct \`$f\` (you, not Claude)"
   fi
-  if tracked "$f"; then pass "\`$f\` is committed"
+  if tracked "$f" && changed "$f"; then fail "\`$f\` has uncommitted changes" "review them, then \`git add -- $f && git commit\` (you, not Claude)"
+  elif tracked "$f"; then pass "\`$f\` is committed"
   else fail "\`$f\` isn't committed" "\`git add -- $f && git commit\` (you, not Claude)"; fi
 done
 for c in "$sd"/types/*/SOURCE.md; do
@@ -157,8 +163,9 @@ for c in "$sd"/types/*/SOURCE.md; do
   if errs=$(src_validate_contract "$c" 2>&1); then pass "local source type \`$t\` is valid"
   else fail "local source type \`$t\` doesn't validate: $(printf '%s' "$errs" | sed "s#$root/##g" | paste -sd';' -)" "correct \`.claude/sources/types/$t/\` (you, not Claude)"; fi
   for s in SOURCE.md $(src_list "$c" scripts); do
-    tracked ".claude/sources/types/$t/$s" ||
-      fail "\`.claude/sources/types/$t/$s\` isn't committed" "\`git add -- .claude/sources/types/$t && git commit\` (you, not Claude)"
+    tf=".claude/sources/types/$t/$s"
+    if ! tracked "$tf"; then fail "\`$tf\` isn't committed" "\`git add -- .claude/sources/types/$t && git commit\` (you, not Claude)"
+    elif changed "$tf"; then fail "\`$tf\` has uncommitted changes" "review them, then \`git add -- $tf && git commit\` (you, not Claude)"; fi
   done
 done
 

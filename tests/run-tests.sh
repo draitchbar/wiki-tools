@@ -331,6 +331,12 @@ wc_expect gitignore-sources f14 "FAIL \`.gitignore\` lacks \`!.claude/sources/\`
 
 mkwiki f15; printf -- '---\nkey: bad\ntype: nosuch\n---\n' > "$tmp/f15/.claude/sources/instances/bad.md"
 wc_expect instance-invalid f15 "FAIL source \`bad\` doesn't validate: unknown source type 'nosuch'"
+mkwiki f16; printf '\nNotes.\n' >> "$tmp/f16/.claude/sources/instances/scans.md"
+wc_expect instance-dirty f16 'FAIL `.claude/sources/instances/scans.md` has uncommitted changes'
+mkwiki f17; sed -i 's/"wiki@wiki-tools": true/"wiki@wiki-tools": true /' "$tmp/f17/.claude/settings.json"
+wc_expect settings-dirty f17 'FAIL `.claude/settings.json` has uncommitted changes'
+mkwiki f18; sed -i '/last_checked_raw/d' "$tmp/f18/raw/sync-log.md"
+wc_expect no-raw-line f18 'FAIL raw/sync-log.md has no `last_checked_raw` line'
 
 nogit=$(cd "$tmp" && mkdir -p plain && cd plain && bash "$scripts/wiki-check.sh" >/dev/null 2>&1; echo $?)
 check "wiki-check/outside-git" 1 "$nogit"
