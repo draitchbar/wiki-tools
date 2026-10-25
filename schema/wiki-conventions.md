@@ -12,6 +12,7 @@ Verify sub-agent claims against the source before putting them in a page or repo
 ## Ask for context, don't guess
 - When the meaning of something is unclear, ask the user instead of guessing. Typical cases: who a person is, which of two offers or versions is meant, an unstated VAT basis, whether a decision still stands, how a new kind of material fits the wiki.
 - Record the answer as a source: `"User statement (YYYY-MM-DD)"`, in `sources:` and inline next to the claim.
+- A pointer from the user ("the new contract is on Proton") is a pointer, not a fact about the document. Record facts about a file (signed or not, which version, its date) only after reading it; until then write "the user says X is in Y".
 - In a non-interactive (headless) run nobody can answer: list the open questions in the final report instead of guessing.
 
 ## Verbatim figures (anti-drift)

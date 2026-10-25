@@ -63,7 +63,7 @@ Search results can lag. For any thread the user names, or any thread whose last 
 `get_thread` per thread. Read message bodies only, not attachments. If an attachment matters, ask the user to save it to another source of this wiki (a drive or folder instance) or to `raw/`.
 
 ## Mark ingested
-After the pages are updated for a thread, apply the label `wiki-ingested/<wiki>` with `label_thread`. `label_thread` takes the label's ID (e.g. `Label_12`), not its name: look the ID up once with `list_labels`. If the label doesn't exist yet, create it with `create_label`, which returns the ID. If label writes fail, fall back to the date filter alone and tell the user.
+After the pages are updated for a thread, apply the label `wiki-ingested/<wiki>` with `label_thread`. Label threads you read and skipped as out of scope too, so they don't come back in the next search, and name them in the sync-log history row. `label_thread` takes the label's ID (e.g. `Label_12`), not its name: look the ID up once with `list_labels`. If the label doesn't exist yet, create it with `create_label`, which returns the ID. If label writes fail, fall back to the date filter alone and tell the user.
 
 ## Cite
 `"Gmail: <thread subject> (<message date YYYY-MM-DD>)"` in `sources:`; inline `(Gmail: "<subject>", <date in the wiki's prose format>)`.

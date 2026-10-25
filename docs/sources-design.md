@@ -103,9 +103,17 @@ Skills' `allowed-tools` become generic: core commands plus `Bash(bash ~/src/wiki
 - `scripts/sources.sh` (read-only: `list`, `show`, `catalog`, `contract`, `settings`) is the one place that resolves an instance to its contract; the skills call it instead of reading contracts themselves.
 - The guard collects `guard_words` from **all** contracts (standard and local), not only from configured instances, so a CLI stays blocked in every wiki whether or not it uses the type. Roots are protected only for `access: filesystem` instances (remote roots, like Proton's, are the wrapper's job).
 - Roots are a `roots:` list in the instance file, not a separate roots file; the whole `.claude/sources/` tree is protected anyway.
-- To keep the guard fast, it checks only that each instance and contract has frontmatter and that the type resolves; full validation is `wiki-check.sh`'s job.
+- To keep the guard fast, it checks only that each instance and contract has frontmatter, that the type resolves and that filesystem instances have roots; full validation is `wiki-check.sh`'s and the installer's job. While a source file is broken, only read-only diagnostics pass (git status/log/diff/show, `sources.sh list`/`show`).
+- Protected files reach the wiki through `scripts/install-source-file.sh`, run by the user outside Claude, one file at a time: it checks the file in a scratch copy, shows the diff and asks before writing. Claude shows each file's content and never writes it.
 
-## Remaining (plan step 8)
-1. Migrate udbygning and carleasing with `/wiki:init` (check mode).
-2. Add Brave bookmarks to udbygning as a wiki-local type with `/wiki:add-source bookmarks` (replaces Tier 2 item D).
-3. Remove the transition code: `.claude/proton-roots` fallback in `proton-drive/read.sh`, `scripts/pd-read.sh`, `proton-roots` in the guard's protected words and paths, the old-layout checks in `sources.sh`/`wiki-check.sh`, init's migration section.
+## Field reports (2026-10-25)
+Both wikis were migrated on 2026-10-25 and their sessions reported back. Fixed since, on main: same-day files (last_checked is a day), Gmail `exclude` and `recipients`, manual keys, the installer, guard diagnostics, Proton `new <date>`, Check after an instance change, placeholder values, lint and audit records before fixes, audit and lint judgement rules, `decode-download.sh`, wiki-check dirty files and the raw line.
+
+Notes for later:
+- **onenote** (udbygning, local type): the onenote MCP server's `authenticate` printed "Enter this code: undefined"; the real error was an Azure app registration not found (AADSTS700016 / 50059), swallowed by the server. If the type is ever promoted, its Caveats should cover login failures and the shared-notebook API limit.
+- **bookmarks** stayed a manual key in udbygning; the Brave bookmarks local type is still to be drafted.
+
+## Remaining
+1. ~~Migrate udbygning and carleasing~~ (done 2026-10-25).
+2. Add Brave bookmarks to udbygning as a wiki-local type with `/wiki:add-source` (replaces Tier 2 item D).
+3. Remove the transition code: `.claude/proton-roots` fallback in `proton-drive/read.sh`, `scripts/pd-read.sh`, `proton-roots` and `proton-drive` in the guard's protected words and paths, the old-layout checks in `sources.sh`/`wiki-check.sh`, init's migration section.

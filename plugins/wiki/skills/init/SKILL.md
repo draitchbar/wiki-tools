@@ -34,7 +34,7 @@ Set up this folder as an LLM wiki in the shared raw/wiki layout (`~/src/wiki-too
 ## 0. Prerequisites and mode
 1. `uname -s`. If it isn't `Linux`, stop: "/wiki:init supports Linux only for now (Windows is deferred)."
 2. Find the folder root: the git toplevel, or the current folder if it isn't a repo yet.
-3. Check that `.claude/settings.json` enables `wiki@wiki-tools`. If not, stop and show the user step 2 of the setup: `claude plugin install wiki@wiki-tools --scope project`, then restart `claude` here.
+3. Read `.claude/settings.json` with the Read tool (the guard blocks Bash commands such as `grep` or `cat` on it) and check that it enables `wiki@wiki-tools`. If not, stop and show the user step 2 of the setup: `claude plugin install wiki@wiki-tools --scope project`, then restart `claude` here.
 4. Pick the mode:
    - **Check**: `CLAUDE.md` imports `@~/src/wiki-tools/schema/wiki-conventions.md` and `wiki/` exists. Go to **Check mode** at the end; skip everything else.
    - **New**: the folder contains nothing but `.claude/`, `.git/`, `.obsidian/`.
