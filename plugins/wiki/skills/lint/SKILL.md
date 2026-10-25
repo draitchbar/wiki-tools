@@ -65,7 +65,14 @@ Summary: N errors, N warnings, N info, N judgement findings.
 
 Don't link the report from wiki pages; it lives in `outputs/`.
 
-## Phase 4: offer fixes (never apply without confirmation)
+## Phase 4: record the lint (before any fix)
+
+1. Prepend to `wiki/log.md`: `## YYYY-MM-DD | lint | N errors, N warnings, N judgement findings`, with one line pointing at the report path and the line `Fixes: offered; accepted ones follow as lint-fix entries.`
+2. Commit the report and the log entry, staging named paths only (`git add -- outputs/lint-YYYY-MM-DD.md wiki/log.md`). Message: `Lint: <summary>`. Never push.
+
+`wiki/log.md` is append-only: never edit this entry later, even when fixes follow.
+
+## Phase 5: offer fixes (never apply without confirmation)
 
 Offer concrete fixes grouped by kind, and show the exact change before writing each one:
 - **Broken links:** remove the link, or point it at the right page.
@@ -74,7 +81,8 @@ Offer concrete fixes grouped by kind, and show the exact change before writing e
 - **Stale pages:** list them with the sources to re-check. Don't change status text without a source.
 - **Contradictions and VAT ambiguities:** don't pick a value. Suggest `/wiki:audit <page>` on the affected page, which re-reads the sources.
 
-## Record
+Record each batch of fixes the user accepts, now or later in another session, on its own:
+1. Prepend `## YYYY-MM-DD | lint-fix | <what was fixed>` to `wiki/log.md`, with a line `From: outputs/lint-YYYY-MM-DD.md` and the pages changed.
+2. Commit the changed pages and that log entry, named paths only. Message: `Lint fixes: <what>`. Never push.
 
-1. Prepend to `wiki/log.md`: `## YYYY-MM-DD | lint | N errors, N warnings, N judgement findings`, with one line pointing at the report path and one listing the fixes applied (or "none").
-2. Commit the report, the log entry and any confirmed fixes, staging named paths only (`git add -- outputs/lint-YYYY-MM-DD.md wiki/log.md …`). Message: `Lint: <summary>`. Never push.
+If the user declines every fix, there is nothing more to record.
