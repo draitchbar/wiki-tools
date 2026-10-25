@@ -8,7 +8,7 @@ For wikis that follow the raw/wiki pattern. Each wiki's CLAUDE.md names its fold
   - `raw/ocr/<file>.txt`: OCR text layers of scanned PDFs (created by the ingest skill).
 - `wiki/`: pages written and maintained by Claude.
   - `wiki/index.md`: master catalogue, a table per section.
-  - `wiki/log.md`: append-only operations log, newest entry first, headed `## YYYY-MM-DD | <op> | <title>`, where `<op>` is `init`, `ingest`, `research`, `schema`, `lint`, `lint-fix` or `audit`. Entries are never edited; a later change gets its own entry.
+  - `wiki/log.md`: append-only operations log, newest entry first, headed `## YYYY-MM-DD | <op> | <title>`, where `<op>` is `init`, `ingest`, `research`, `schema`, `lint`, `lint-fix`, `audit` or `audit-fix`. Entries are never edited; a later change gets its own entry.
 - `outputs/`: reports: `lint-YYYY-MM-DD.md`, `audit-<slug>-YYYY-MM-DD.md`, `init-research-YYYY-MM-DD.md`.
 - `templates/`: one `<type>.md` per page type that has a template; new pages start from it.
 - `.claude/sources/`: the wiki's sources (guard-protected; the user installs each file with `~/src/wiki-tools/plugins/wiki/scripts/install-source-file.sh` and commits them):

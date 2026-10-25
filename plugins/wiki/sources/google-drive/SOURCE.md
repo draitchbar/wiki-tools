@@ -56,7 +56,7 @@ Not supported; the date state is enough.
 `"Google Drive: <folder path>/<path below the folder> (modified YYYY-MM-DD)"` in `sources:`, adding `, p. N` where a page applies; inline `(Google Drive: <folder path>/<file>, modified <date in the wiki's prose format>)`.
 
 ## Resolve citation
-Find the instance folder whose path starts the citation, then `search_files` with `title = '<file name>'` and `parentId = '<id of the folder or subfolder that holds it>'`. Read it as in **Fetch**. If the modification date differs from the citation, the file has changed since: say so and quote the current version. If the file is gone, mark it `source-missing`.
+Find the instance folder whose path starts the citation, then `search_files` with `title = '<file name>'` and `parentId = '<id of the folder or subfolder that holds it>'`. Read it as in **Fetch**. If the modification date differs from the citation, the file was saved again since: check the claim against the current version. If it still says the same, the claim is supported and the citation needs no edit for the date alone; if it says something else, quote the current version. If the file is gone, mark it `source-missing`.
 
 ## Caveats
 - The tool names assume the claude.ai Google Drive connector (`mcp__claude_ai_Google_Drive__*`). A different Drive MCP server needs its own type.
