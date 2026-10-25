@@ -417,6 +417,27 @@ for c in "$here"/../plugins/wiki/sources/*/SOURCE.md; do
   r=$(bash -c '. "$1"; src_validate_contract "$2" 2>&1 && echo valid' _ "$scripts/lib-source.sh" "$c")
   check "contract/$t-valid" valid "$r"
 done
+# Check needed: the instance file changed since the last ingest.
+sexpect check-uncommitted 'Check needed: the instance file has uncommitted changes since the last ingest (2026-10-01).' show gmail
+swc() { # DATE MESSAGE: commit everything in the sw wiki at that time
+  git -C "$tmp/sw" add -A >/dev/null 2>&1
+  GIT_COMMITTER_DATE="$1" GIT_AUTHOR_DATE="$1" git -C "$tmp/sw" -c user.name=t -c user.email=t@t commit -qm "$2" >/dev/null 2>&1
+}
+swc 2026-10-01T10:00:00 init
+check "sources/check-same-commit" absent "$(srun show gmail | grep -q 'Check needed' && echo present || echo absent)"
+printf '\nNotes.\n' >> "$tmp/sw/.claude/sources/instances/gmail.md"; swc 2026-10-01T15:00:00 'edit instance'
+sexpect check-committed-after "Check needed: the instance file changed (2026-10-01) since the last ingest (2026-10-01)." show gmail
+sed -i 's/^last_checked_gmail: .*/last_checked_gmail: 2026-10-02/' "$tmp/sw/raw/sync-log.md"; swc 2026-10-02T09:00:00 ingest
+check "sources/check-not-needed" absent "$(srun show gmail | grep -q 'Check needed' && echo present || echo absent)"
+check "sources/check-not-for-never" absent "$(srun show books | grep -q 'Check needed' && echo present || echo absent)"
+# Placeholders in parameter values.
+for v in FOLDER-ID-TBD '<label>' 'todo' '?' '...'; do
+  printf -- '---\nkey: ph\ntype: gmail\nlabels: %s\n---\n' "$v" > "$tmp/sw/.claude/sources/instances/ph.md"
+  check "sources/placeholder-$v" found "$(srun show ph | grep -q "parameter 'labels' holds a placeholder" && echo found)"
+done
+printf -- '---\nkey: ph\ntype: gmail\nlabels: Todoroki\nsenders:\n  - xxl@example.com\n---\n' > "$tmp/sw/.claude/sources/instances/ph.md"
+check "sources/placeholder-word-inside" valid "$(srun show ph | grep -q '^Source ph: valid' && echo valid)"
+rm "$tmp/sw/.claude/sources/instances/ph.md"
 sed -i 's/^platforms:/platforms:\n  - macos/; /^  - linux$/d' "$tmp/sw/.claude/sources/types/bookish/SOURCE.md"
 sexpect show-platform   "isn't available on" show books
 printf -- '---\nkey: bad\ntype: gmail\n---\n' > "$tmp/sw/.claude/sources/instances/bad.md"

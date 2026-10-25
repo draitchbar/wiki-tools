@@ -13,6 +13,9 @@
 
 SRC_PLUGIN=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SRC_NAME_RE='^[a-z0-9][a-z0-9-]*$'
+# A parameter value that is still a placeholder: TBD, TODO, FIXME or XXX as
+# a word, a <...> template slot, or just "?" or "...".
+SRC_PLACEHOLDER_RE='(^|[^a-z0-9])(tbd|todo|fixme|xxx)([^a-z0-9]|$)|<[^>]*>|^[[:space:]]*(\?|\.\.\.|…)[[:space:]]*$'
 
 src_err() { printf '%s\n' "$1" >&2; }
 
@@ -197,6 +200,11 @@ src_validate_instance() {
   src_validate_contract "$c" || bad=1
   for p in $(src_list "$c" parameters | grep -F '(required)' | src_names); do
     [ -n "$(src_values "$f" "$p")" ] || _src_ie "required parameter '$p' is empty"
+  done
+  # Placeholders left from a draft (FOLDER-ID-TBD, <label>, ...).
+  for p in $(src_list "$c" parameters | src_names); do
+    src_values "$f" "$p" | grep -Eiq "$SRC_PLACEHOLDER_RE" &&
+      _src_ie "parameter '$p' holds a placeholder ('$(src_values "$f" "$p" | grep -Ei "$SRC_PLACEHOLDER_RE" | head -n 1)'); put in the real value"
   done
   while IFS= read -r r; do
     [ -n "$r" ] || continue

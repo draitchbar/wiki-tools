@@ -73,7 +73,34 @@ case "$op" in
 $errs"
     c=$(src_contract "$root" "$(src_field "$f" type)")
     platform_ok "$c" || die "source '$k' (type $(src_field "$f" type)) isn't available on $plat; it supports: $(src_list "$c" platforms | paste -sd' ' -)."
-    printf 'Source %s: valid, available on %s, last checked: %s\n\n' "$k" "$plat" "$(state_of "$k")"
+    printf 'Source %s: valid, available on %s, last checked: %s\n' "$k" "$plat" "$(state_of "$k")"
+    # The instance file changed since the last ingest (a migration, a new
+    # root or label): its parameters haven't met reality yet.
+    last=$(state_of "$k")
+    case "$last" in
+      [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
+        rel=${f#"$root"/}
+        if [ -n "$(git -C "$root" status --porcelain -- "$rel" 2>/dev/null)" ]; then
+          printf 'Check needed: the instance file has uncommitted changes since the last ingest (%s).\n' "$last"
+        else
+          # Exact commit times: the instance file vs the last commit that
+          # changed its last_checked line; by date if that line was never
+          # committed.
+          changed=$(git -C "$root" log -1 --format='%ct %cs' -- "$rel" 2>/dev/null)
+          stamped=$(git -C "$root" log -1 --format=%ct -G"^last_checked_$k:" -- raw/sync-log.md 2>/dev/null)
+          if [ -n "$changed" ]; then
+            if [ -n "$stamped" ]; then
+              [ "${changed%% *}" -le "$stamped" ] || need=1
+            else
+              [ "${changed#* }" \< "$last" ] || need=1
+            fi
+            [ -z "${need:-}" ] ||
+              printf 'Check needed: the instance file changed (%s) since the last ingest (%s).\n' "${changed#* }" "$last"
+          fi
+        fi
+        ;;
+    esac
+    printf '\n'
     printf '===== Instance file %s =====\n' "${f#"$root"/}"
     tr -d '\r' < "$f"
     printf '\n===== Contract %s =====\n' "$c"
