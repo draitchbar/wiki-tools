@@ -38,6 +38,7 @@ plugins/wiki/
     block-push.sh                 blocks git push
     guard.sh                      source/guard protection (Bash + Write/Edit), rules from the contracts
     sources.sh                    read-only view of a wiki's sources (list, show, catalog, contract, settings)
+    install-source-file.sh        the user (never Claude) checks and installs one file into .claude/sources/
     sync-status.sh                staleness report from raw/sync-log.md
     pd-read.sh                    transition shim for proton-drive/read.sh (until the wikis are migrated)
     ocr.sh                        ocrmypdf wrapper (Linux)
@@ -98,7 +99,7 @@ The wiki skills know no particular source. They talk to every source through its
 - **Manual key**: a `last_checked_<key>` line with no instance file (carleasing's `web`). Its material enters via `raw/` or as user statements; sync-status and `sources.sh list` show it, `/wiki:ingest` can't read it, and lint accepts citations starting `<key>:`.
 - **Read-only by contract.** The only writes a type may declare are narrow bookkeeping (Gmail's `wiki-ingested/<wiki>` label). The guard reads every contract and instance at hook time; `.claude/sources/` and `plugins/wiki/sources/` are protected, so Claude drafts these files and you save and commit them.
 
-**Add a source to a wiki**: `/wiki:add-source <type> [key]` in the wiki. It reads the contract, asks for the parameters, agrees the state, and drafts the instance file, the CLAUDE.md line, the sync-log line and the settings rules (`sources.sh settings <type>`). For a type that doesn't exist, it drafts a local type with you.
+**Add a source to a wiki**: `/wiki:add-source <type> [key]` in the wiki. It reads the contract, asks for the parameters, agrees the state, and drafts the instance file, the CLAUDE.md line, the sync-log line and the settings rules (`sources.sh settings <type>`). For a type that doesn't exist, it drafts a local type with you. You install each drafted file yourself, one at a time, in a terminal outside Claude: `bash ~/src/wiki-tools/plugins/wiki/scripts/install-source-file.sh instances/<key>.md`, paste, Ctrl-D, review the diff, `y`. It checks the file first and lists missing settings rules; it never commits.
 
 **Add or promote a standard type**: in a session here, `/new-source-type <type>` or `/new-source-type promote <wiki path> <type>`. It researches the connector or CLI read-only, fills the contract, writes the wrapper, tests and guard fixtures, and ends with a green `run-tests.sh`. Promotion is your call, when a local type has proved useful.
 

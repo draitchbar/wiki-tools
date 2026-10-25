@@ -37,7 +37,7 @@ Sources of this wiki:
 
 ## First ingest of a source
 A source at `never` has not been checked against reality yet. Before ingesting it:
-1. **Check the source** as its contract's **Check** section says (for `raw`: list what is in `raw/`). Report what you found. If a parameter is wrong, propose the corrected instance file; the user saves it (`.claude/sources/` is protected, you can't write it).
+1. **Check the source** as its contract's **Check** section says (for `raw`: list what is in `raw/`). Report what you found. If a parameter is wrong, propose the corrected instance file; the user installs it with `install-source-file.sh` (wiki-conventions **Protected files**; `.claude/sources/` is protected, you can't write it).
 2. **Ask for the starting point**: a start date, or a subset (e.g. one folder, one sender). Suggest one based on the counts. Don't ingest "everything" by default. Record the choice in the sync-log history row.
 3. **Review the data model** (next section) against a sample of the material, then ingest.
 

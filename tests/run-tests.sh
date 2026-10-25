@@ -407,6 +407,56 @@ rm "$tmp/sw/.claude/sources/instances/proton.md"
 printf '/my-files/X\n' > "$tmp/sw/.claude/proton-roots"
 sexpect list-old-layout 'Old layout: .claude/proton-roots' list
 
+# install-source-file.sh against a throwaway wiki (the user's installer).
+isf="$scripts/install-source-file.sh"
+git -C "$tmp" init -q iw
+printf '# W\n' > "$tmp/iw/CLAUDE.md"
+mkdir -p "$tmp/iw/.claude"
+printf '{\n  "permissions": {\n    "allow": [\n      "mcp__claude_ai_Gmail__search_threads"\n    ]\n  }\n}\n' > "$tmp/iw/.claude/settings.json"
+inst() { # ANSWER TARGET CONTENT: run with the content on stdin; prints output, then exit code
+  out=$(cd "$tmp/iw" && printf '%b' "$3" | env -u CLAUDECODE WIKI_INSTALL_ANSWER="$1" bash "$isf" "$2" 2>&1)
+  printf '%s\n@%s' "$out" "$?"
+}
+iexpect() { # NAME TEXT EXIT ANSWER TARGET CONTENT
+  n=$1 t=$2 x=$3; shift 3
+  o=$(inst "$@")
+  case "$o" in *"$t"*"@$x") r=ok ;; *) r="$o" ;; esac
+  check "install/$n" ok "$r"
+}
+gm='---\nkey: gmail\ntype: gmail\nlabels: Tisvilde\n---\n\nNotes.\n'
+iexpect no-frontmatter  'first line pasted: "key: gmail"' 1 y instances/gmail.md 'key: gmail\ntype: gmail\n'
+[ -f "$tmp/iw/.claude/sources/instances/gmail.md" ] && r=written || r=absent
+check "install/no-frontmatter-not-written" absent "$r"
+iexpect key-mismatch    "key 'mail' doesn't match the file name" 1 y instances/gmail.md '---\nkey: mail\ntype: gmail\nlabels: X\n---\n'
+iexpect unknown-type    "unknown source type 'nosuch' (looked in" 1 y instances/x.md '---\nkey: x\ntype: nosuch\n---\n'
+iexpect bad-target      'target must be instances/<key>.md' 1 y sources/instances/gmail.md "$gm"
+iexpect dotdot-target   'must be a plain name' 1 y 'types/bookish/../x.sh' 'x\n'
+iexpect standard-name   "'gmail' is a standard type" 1 y types/gmail/SOURCE.md 'x\n'
+iexpect empty-paste     'nothing pasted' 1 y instances/gmail.md ''
+iexpect answer-no       'Not installed.' 1 n instances/gmail.md "$gm"
+o=$(cd "$tmp/iw" && printf '%b' "$gm" | CLAUDECODE=1 WIKI_INSTALL_ANSWER=y bash "$isf" instances/gmail.md 2>&1; printf '@%s' "$?")
+case "$o" in *'outside Claude'*@1) r=ok ;; *) r="$o" ;; esac
+check "install/refused-in-claude" ok "$r"
+iexpect gmail-new       'New file .claude/sources/instances/gmail.md' 0 y instances/gmail.md "$gm"
+iexpect gmail-rules     '"mcp__claude_ai_Gmail__send_message",' 0 y instances/gmail.md "${gm}More.\n"
+o=$(inst y instances/gmail.md "${gm}More.\n")
+case "$o" in *'"mcp__claude_ai_Gmail__search_threads"'*) r=listed ;; *) r=omitted ;; esac
+check "install/present-rule-omitted" omitted "$r"
+iexpect unchanged       'already exactly this' 0 y instances/gmail.md "${gm}More.\n"
+iexpect diff-shown      '+Changed.' 0 y instances/gmail.md "${gm}Changed.\n"
+iexpect crlf            'Installed' 0 y instances/gmail.md '---\r\nkey: gmail\r\ntype: gmail\r\nlabels: Y\r\n---\r\n'
+grep -q $'\r' "$tmp/iw/.claude/sources/instances/gmail.md" && r=crlf || r=lf
+check "install/crlf-stripped" lf "$r"
+iexpect fs-no-roots     "required parameter 'roots' is empty" 1 y instances/scans.md '---\nkey: scans\ntype: local-folder\n---\n'
+bk=$(sed 's/$/\\n/' "$here/guard-wiki/.claude/sources/types/bookish/SOURCE.md" | tr -d '\n')
+iexpect script-first    "SOURCE.md doesn't exist yet" 1 y types/bookish/fetch.sh '#!/bin/bash\n'
+iexpect contract-note   "script 'fetch.sh' is listed but missing (install it next)" 0 y types/bookish/SOURCE.md "$bk"
+iexpect script-unlisted "other.sh isn't listed under scripts" 1 y types/bookish/other.sh '#!/bin/bash\n'
+iexpect script-ok       'Installed .claude/sources/types/bookish/fetch.sh' 0 y types/bookish/fetch.sh '#!/bin/bash\necho hi\n'
+iexpect local-instance  'Installed .claude/sources/instances/books.md' 0 y instances/books.md '---\nkey: books\ntype: bookish\nshelf: Byg\n---\n'
+iexpect breaks-other    "required parameter 'colour' is empty" 1 y types/bookish/SOURCE.md "$(printf '%s' "$bk" | sed 's/  - shelf (required): shelf name/  - shelf (required): shelf name\\n  - colour (required): x/')"
+[ -z "$(git -C "$tmp/iw" status --porcelain -- .claude/sources | grep -v '^??')" ] && r=untouched || r=staged
+check "install/no-git" untouched "$r"
 # local-folder/read.sh against a throwaway wiki and folder.
 lfs="$here/../plugins/wiki/sources/local-folder/read.sh"
 git -C "$tmp" init -q lfw
