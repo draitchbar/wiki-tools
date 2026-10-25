@@ -108,7 +108,7 @@ src_contract() {
   fi
   if [ -f "$std" ]; then printf '%s\n' "$std"
   elif [ -f "$loc" ]; then printf '%s\n' "$loc"
-  else src_err "unknown source type '$t' (no standard type and no $loc)"; return 1
+  else src_err "unknown source type '$t' (looked in $std and $loc)"; return 1
   fi
 }
 

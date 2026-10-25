@@ -10,7 +10,10 @@
 #   scripts      wrapper scripts allowed as a plain `bash <path> <args>` call;
 #   roots        of filesystem instances: blocked in Bash, read-only for
 #                Write/Edit.
-# A source file that can't be read blocks every call (fail closed).
+# A source file that can't be used (no frontmatter, unknown type, a
+# filesystem instance without roots) blocks every Bash and Write/Edit call
+# (fail closed), except read-only diagnostics: git status/log/diff/show and
+# sources.sh list/show.
 #
 # Bash: blocks commands that mention a protected path, a core keyword, a
 # guard word or a filesystem root. Exceptions: a plain invocation of one of
@@ -65,13 +68,20 @@ elif [ -n "$HOOK_CWD" ] && [ -d "$HOOK_CWD" ]; then
   wiki_root=$(src_wiki_root "$HOOK_CWD")
 fi
 
-broken() { block "source file '$1' can't be read ($2). Fix or remove it yourself, outside Claude; until then every tool call is refused (fail closed)."; }
+# A source file the guard can't read: remember the first one. Bash and
+# Write/Edit are then refused, except the read-only diagnostics below.
+BROKEN=""
+broken() { # FILE REASON
+  [ -z "$BROKEN" ] || return 0
+  BROKEN="source file '$1' can't be used: $2. Until it is fixed, Bash and Write/Edit are refused (fail closed), except git status/log/diff/show and sources.sh list/show; Read still works on the file. The user fixes it with install-source-file.sh or an editor, outside Claude."
+}
+first_line() { printf 'its first line is "%s"' "$(head -n 1 "$1" 2>/dev/null | tr -d '\r' | cut -c1-60)"; }
 
 # Collect guard words from every contract, roots from filesystem instances.
 GUARD_WORDS=""
 for c in "$SRC_PLUGIN"/sources/*/SOURCE.md ${wiki_root:+"$wiki_root"/.claude/sources/types/*/SOURCE.md}; do
   [ -f "$c" ] || continue
-  src_has_fm "$c" || broken "$c" "no frontmatter"
+  src_has_fm "$c" || { broken "$c" "no frontmatter block ($(first_line "$c"))"; continue; }
   GUARD_WORDS="$GUARD_WORDS
 $(src_list "$c" guard_words | tr '[:upper:]' '[:lower:]')"
 done
@@ -79,10 +89,12 @@ ROOTS=""
 if [ -n "$wiki_root" ]; then
   for k in $(src_instances "$wiki_root"); do
     f="$(src_instance_dir "$wiki_root")/$k.md"
-    src_has_fm "$f" || broken "$f" "no frontmatter"
+    src_has_fm "$f" || { broken "$f" "no frontmatter block ($(first_line "$f"))"; continue; }
     t=$(src_field "$f" type)
-    c=$(src_contract "$wiki_root" "$t" 2>&1) || broken "$f" "$c"
+    c=$(src_contract "$wiki_root" "$t" 2>&1) || { broken "$f" "$c"; continue; }
     [ "$(src_field "$c" access)" = filesystem ] || continue
+    # The guard can't protect folders it can't read.
+    [ -n "$(src_values "$f" roots)" ] || { broken "$f" "a filesystem instance (type $t) with no roots"; continue; }
     while IFS= read -r r; do
       [ -n "$r" ] || continue
       # As written, expanded, and with Git Bash's /c/ as c:/ and back.
@@ -122,6 +134,14 @@ allowed_source_script() {
   src_list "$c" scripts | tr '[:upper:]' '[:lower:]' | grep -qxF -- "$s"
 }
 
+# diagnostic_ok CMD: read-only calls allowed while a source file is broken:
+# a plain git status/log/diff/show (no --output) or sources.sh list/show.
+diagnostic_ok() {
+  case "$1" in *--output*) return 1 ;; esac
+  printf '%s' "$1" | grep -Eq '^[[:space:]]*git[[:space:]]+(status|log|diff|show)([[:space:]]'"$NOCHAIN"'*)?$' && return 0
+  printf '%s' "$1" | grep -Eq '^[[:space:]]*bash[[:space:]]+"?[^[:space:]";&|<>`$]*/src/wiki-tools/plugins/wiki/scripts/sources\.sh"?[[:space:]]+(list|show)([[:space:]]'"$NOCHAIN"'*)?$'
+}
+
 # under_root PATH: the root PATH is in, if any. PATH is normalised.
 under_root() {
   printf '%s\n' "$ROOTS" | while IFS= read -r r; do
@@ -134,6 +154,10 @@ case "$HOOK_TOOL" in
   Bash)
     [ -n "$HOOK_COMMAND" ] || block "Bash call without a command; refusing (fail closed)."
     cmd=$(norm "$HOOK_COMMAND")
+    if [ -n "$BROKEN" ]; then
+      diagnostic_ok "$cmd" && exit 0
+      block "$BROKEN"
+    fi
     # Allowed: bash [quoted] <path>/src/wiki-tools/plugins/wiki/scripts/<script>.sh [args]
     # with no ; & | < > ` $ anywhere.
     if printf '%s' "$cmd" | grep -Eq '^[[:space:]]*bash[[:space:]]+"?[^[:space:]";&|<>`$]*/src/wiki-tools/plugins/wiki/scripts/(pd-read|ocr|sync-status|lint|wiki-check|sources)\.sh"?([[:space:]][^;&|<>`$]*)?$'; then
@@ -150,6 +174,7 @@ $GUARD_WORDS")
     ;;
   Write|Edit|MultiEdit)
     [ -n "$HOOK_FILE" ] || block "$HOOK_TOOL call without file_path; refusing (fail closed)."
+    [ -z "$BROKEN" ] || block "$BROKEN"
     path=$(norm "$HOOK_FILE")
     hit=$(contains_any "$path" "$PROTECTED_PATHS")
     [ -z "$hit" ] || block "'$HOOK_FILE' is protected ('$hit'). The user edits it themselves."

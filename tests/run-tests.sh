@@ -54,6 +54,32 @@ gbroken instance-no-frontmatter 'printf "key: x\n" > .claude/sources/instances/x
 gbroken instance-unknown-type   'printf -- "---\nkey: x\ntype: nosuch\n---\n" > .claude/sources/instances/x.md'
 gbroken local-type-shadows      'mkdir -p .claude/sources/types/gmail && cp .claude/sources/types/bookish/SOURCE.md .claude/sources/types/gmail/'
 gbroken contract-no-frontmatter 'printf "# no fm\n" > .claude/sources/types/bookish/SOURCE.md'
+gbroken filesystem-no-roots     'printf -- "---\nkey: x\ntype: local-folder\n---\n" > .claude/sources/instances/x.md'
+# While broken: read-only diagnostics pass, everything else is refused.
+rm -rf "$tmp/gb"; cp -r "$here/guard-wiki" "$tmp/gb"
+printf 'key: x\n' > "$tmp/gb/.claude/sources/instances/x.md"
+gdiag() { # NAME EXPECTED-EXIT TOOL-INPUT-JSON (Bash command or Write)
+  printf '{"session_id":"t","cwd":"/home/u/wikis/udbygning","hook_event_name":"PreToolUse","tool_name":"%s","tool_input":%s,"tool_use_id":"x"}' "$3" "$4" |
+    CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u bash "$scripts/guard.sh" >/dev/null 2>&1
+  check "guard/broken-$1" "$2" "$?"
+}
+gdiag git-status        0 Bash '{"command":"git status"}'
+gdiag git-diff-sources  0 Bash '{"command":"git diff .claude/sources/instances/x.md"}'
+gdiag git-log           0 Bash '{"command":"git log --oneline -5 -- .claude/sources"}'
+gdiag git-show          0 Bash '{"command":"git show HEAD:.claude/sources/instances/x.md"}'
+gdiag sources-show      0 Bash '{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh show x"}'
+gdiag sources-list      0 Bash '{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list"}'
+gdiag sources-settings  2 Bash '{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh settings"}'
+gdiag lint              2 Bash '{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/lint.sh"}'
+gdiag git-diff-output   2 Bash '{"command":"git diff --output=/tmp/x"}'
+gdiag git-status-chain  2 Bash '{"command":"git status && rm -rf wiki"}'
+gdiag git-status-redir  2 Bash '{"command":"git status > wiki/x.md"}'
+gdiag git-commit        2 Bash '{"command":"git commit -m x"}'
+gdiag write-md          2 Write '{"file_path":"/home/u/wikis/udbygning/wiki/a.md","content":"x"}'
+msg=$(printf '{"session_id":"t","cwd":"/x","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"tool_use_id":"x"}' |
+  CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u bash "$scripts/guard.sh" 2>&1)
+case "$msg" in *'its first line is "key: x"'*'Read still works'*) r=ok ;; *) r="$msg" ;; esac
+check "guard/broken-message" ok "$r"
 win='{"session_id":"t","cwd":"C:\\Users\\u\\wikis\\udbygning","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"C:\\Users\\u\\Pictures\\Receipts\\a.txt","content":"x"},"tool_use_id":"x"}'
 printf '%s' "$win" | CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/c/Users/u bash "$scripts/guard.sh" >/dev/null 2>&1
 check "guard/windows-drive-root" 2 "$?"

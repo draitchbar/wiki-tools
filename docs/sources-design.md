@@ -84,7 +84,7 @@ Frontmatter: `key`, `type`, the type's parameters (e.g. `roots:` list), `state:`
 - At hook time `guard.sh` (via `lib-source.sh`) reads the instance files and their contracts (standard + local) and collects `guard_words`, `scripts`, and every instance's `roots`.
 - Bash exception: a plain `bash <path>/plugins/wiki/{scripts,sources/<type>}/<script>.sh …` or `bash <wiki>/.claude/sources/types/<type>/<script>.sh …` where the script is listed in that type's contract; same no-`; & | < > $` rule.
 - Blocked: Bash mentioning a `guard_word` or a local-folder root (outside the exception); Write/Edit inside any root; Write/Edit to protected paths; non-Markdown content containing a `guard_word`.
-- Fails closed: an unparseable instance or contract blocks Bash/Write with a message naming the file (user fixes it by hand).
+- Fails closed: an instance or contract that can't be used blocks Bash/Write with a message naming the file; read-only diagnostics (git status/log/diff/show, sources.sh list/show) still pass (user fixes the file outside Claude).
 - Still a guardrail, not a security boundary (commit message must say what changes).
 
 ### 6. Permissions
