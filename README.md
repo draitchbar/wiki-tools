@@ -29,6 +29,7 @@ plugins/wiki/
   hooks/hooks.json                PreToolUse guards + SessionStart status
   sources/                        standard source types
     gmail/SOURCE.md               Gmail via the claude.ai connector (MCP)
+    google-drive/SOURCE.md        Google Drive folders via the claude.ai connector (MCP)
     proton-drive/{SOURCE.md,read.sh}  Proton Drive via a read-only CLI wrapper
     local-folder/{SOURCE.md,read.sh}  folders outside the wiki, read-only
   scripts/
@@ -91,7 +92,7 @@ The shared starting template for people and organisations is `templates/pages/en
 The wiki skills know no particular source. They talk to every source through its **contract**.
 
 - **Source type**: a `SOURCE.md` contract (template: `templates/source-type/SOURCE.md`). Frontmatter (flat, bash-parseable): access kind, platforms, the parameters an instance must supply, the state it needs, `cite_prefix`, allowed read and bookkeeping tools, forbidden tools, guard words and wrapper scripts. Body: one section per operation, **Check**, **List new**, **Fetch**, **Mark ingested**, **Cite**, **Resolve citation**, plus **Caveats**.
-  - **Standard types** live in `plugins/wiki/sources/<type>/`: `gmail`, `proton-drive`, `local-folder`.
+  - **Standard types** live in `plugins/wiki/sources/<type>/`: `gmail`, `google-drive`, `proton-drive`, `local-folder`. `gmail` and `google-drive` need their claude.ai connector connected once (Settings → Connectors); it then works on every platform.
   - **Local types** live in a wiki's `.claude/sources/types/<type>/`. They may ship wrapper scripts and have no test harness. A local type can't reuse a standard type's name.
 - **Source instance**: a wiki's use of a type, `.claude/sources/instances/<key>.md` (type, parameters, agreed state fields). The key is the `/wiki:ingest <key>` argument and names the state lines (`last_checked_<key>`, ...) in `raw/sync-log.md`. One wiki may have several instances of one type.
 - **Manual key**: a `last_checked_<key>` line with no instance file (carleasing's `web`). Its material enters via `raw/` or as user statements; sync-status and `sources.sh list` show it, `/wiki:ingest` can't read it, and lint accepts citations starting `<key>:`.

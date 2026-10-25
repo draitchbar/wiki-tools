@@ -360,6 +360,14 @@ sexpect contract        'type: gmail' contract gmail
 sexpect settings-allow  '"Bash(bash .claude/sources/types/bookish/fetch.sh *)",' settings
 sexpect settings-deny   '"mcp__claude_ai_Gmail__send_message",' settings
 sexpect settings-type   '"Bash(bash ~/src/wiki-tools/plugins/wiki/sources/local-folder/read.sh *)"' settings local-folder
+sexpect settings-gdrive '"mcp__claude_ai_Google_Drive__trash_file"' settings google-drive
+sexpect catalog-gdrive  '- google-drive (standard, mcp): Google Drive' catalog
+# Every standard contract validates.
+for c in "$here"/../plugins/wiki/sources/*/SOURCE.md; do
+  t=$(basename "$(dirname "$c")")
+  r=$(bash -c '. "$1"; src_validate_contract "$2" 2>&1 && echo valid' _ "$scripts/lib-source.sh" "$c")
+  check "contract/$t-valid" valid "$r"
+done
 sed -i 's/^platforms:/platforms:\n  - macos/; /^  - linux$/d' "$tmp/sw/.claude/sources/types/bookish/SOURCE.md"
 sexpect show-platform   "isn't available on" show books
 printf -- '---\nkey: bad\ntype: gmail\n---\n' > "$tmp/sw/.claude/sources/instances/bad.md"
