@@ -156,6 +156,25 @@ check "proton-drive/refuse-wrong-type"    1 "$(pdnx mail list /my-files/Bil)"
 check "proton-drive/refuse-no-instance"   1 "$(pdnx nosuch list /my-files/Bil)"
 check "proton-drive/legacy-only-proton"   1 "$(pdnx other list /my-files/Bil)"
 check "proton-drive/legacy-proton-roots"  "FAKE filesystem list --json /my-files/X" "$(pdn proton list /my-files/X)"
+# new: walk the roots against the fake's canned tree (FAKE_PD_TREE=1).
+pdtree() { (cd "$tmp/pdw" && FAKE_PD_TREE=1 HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" 2>&1); }
+out=$(pdtree drive new 2026-10-20)
+check "proton-drive/new-same-day"       yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-20 15:21 12 /my-files/Bil/2026/kontrakt.pdf' && echo yes)"
+check "proton-drive/new-quoted-name"    yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-20 12:00 21 /my-files/Bil/a "quoted" name.pdf' && echo yes)"
+check "proton-drive/new-deep-escaped"   yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-25 07:00 8 /my-files/Bil/2026/sub\/slash/deep.pdf' && echo yes)"
+check "proton-drive/new-proton-doc"     yes "$(printf '%s\n' "$out" | grep -qxF 'p 2026-10-21 09:30 11 /my-files/Bil/Kommentarer' && echo yes)"
+check "proton-drive/new-file-root"      yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-22 08:00 13 /my-files/Bolig/fugtalarm.pdf' && echo yes)"
+check "proton-drive/new-older-dropped"  no  "$(printf '%s\n' "$out" | grep -q 'old.pdf' && echo yes || echo no)"
+check "proton-drive/new-no-folders"     no  "$(printf '%s\n' "$out" | grep -q '^d ' && echo yes || echo no)"
+check "proton-drive/new-undecryptable"  yes "$(printf '%s\n' "$out" | grep -q 'cannot be decrypted' && echo yes)"
+check "proton-drive/new-walk-count"     yes "$(printf '%s\n' "$out" | grep -qxF 'pd-read: walked 3 folders' && echo yes)"
+check "proton-drive/new-sorted"         "2026-10-20 2026-10-20 2026-10-21 2026-10-22 2026-10-25" "$(printf '%s\n' "$out" | grep '^[fp] ' | cut -d' ' -f2 | paste -sd' ' -)"
+check "proton-drive/new-never"          yes "$(pdtree drive new never | grep -q 'old.pdf' && echo yes)"
+check "proton-drive/new-bad-date"       1 "$(cd "$tmp/pdw" && FAKE_PD_TREE=1 PATH="$fakebin:$PATH" bash "$pdr" drive new yesterday >/dev/null 2>&1; echo $?)"
+check "proton-drive/new-path-not-date"  1 "$(cd "$tmp/pdw" && FAKE_PD_TREE=1 PATH="$fakebin:$PATH" bash "$pdr" drive new /my-files/Bil >/dev/null 2>&1; echo $?)"
+out=$(cd "$tmp/pdw" && FAKE_PD_FORMAT=changed FAKE_PD_TREE=1 PATH="$fakebin:$PATH" bash "$pdr" drive new never 2>&1; echo "exit=$?")
+case "$out" in *"no longer has the shape"*exit=1) r=refused ;; *) r="$out" ;; esac
+check "proton-drive/new-format-changed" refused "$r"
 printf -- '---\nkey: proton\ntype: proton-drive\nroots:\n  - /my-files/Bil\n---\n' > "$tmp/pdw/.claude/sources/instances/proton.md"
 check "proton-drive/instance-beats-legacy" 1 "$(pdnx proton list /my-files/X)"
 

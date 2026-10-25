@@ -37,7 +37,53 @@ Usage:
 EOF
     fi
     ;;
-  "filesystem info --json "*)
+  "filesystem list --json "*|"filesystem info --json "*)
+    if [ "${FAKE_PD_TREE:-}" != 1 ]; then
+      case "$*" in
+        "filesystem list"*) printf 'FAKE %s\n' "$*"; exit 0 ;;
+      esac
+    else
+      # A canned tree for `read.sh <key> new`, recorded in the shape of
+      # cli-drive@0.9.0 (one node per line; uids and digests left out).
+      # FAKE_PD_FORMAT=changed drops modificationTime, as a changed CLI might.
+      node() { # TYPE NAME MODIFIED [MEDIATYPE]
+        m=",\"modificationTime\":\"$3\""
+        [ "${FAKE_PD_FORMAT:-}" != changed ] || m=""
+        case "$1" in
+          folder) printf '{"uid":"u","name":{"ok":true,"value":"%s"},"type":"folder","isShared":false,"creationTime":"2026-01-01T00:00:00.000Z"%s,"folder":{"isImported":false}}' "$2" "$m" ;;
+          *) printf '{"uid":"u","name":{"ok":true,"value":"%s"},"type":"file","mediaType":"%s","creationTime":"2026-01-01T00:00:00.000Z"%s,"totalStorageSize":999,"activeRevision":{"state":"active","claimedSize":%s}}' "$2" "${4:-application/pdf}" "$m" "${#2}" ;;
+        esac
+      }
+      p=$4
+      case "$*" in
+        "filesystem info"*)
+          case "$p" in
+            /my-files/Bil|/my-files/Bil/2026|'/my-files/Bil/2026/sub\/slash') node folder "${p##*/}" 2026-01-01T00:00:00.000Z ;;
+            /my-files/Bolig/fugtalarm.pdf) node file fugtalarm.pdf 2026-10-22T08:00:00.000Z ;;
+            *) node file "${p##*/}" 2026-01-01T00:00:00.000Z ;;
+          esac
+          echo; exit 0 ;;
+      esac
+      echo '['
+      case "$p" in
+        /my-files/Bil)
+          node folder 2026 2026-01-01T00:00:00.000Z; echo ,
+          node file old.pdf 2026-09-01T10:00:00.000Z; echo ,
+          node file 'a \"quoted\" name.pdf' 2026-10-20T12:00:00.000Z; echo ,
+          node file Kommentarer 2026-10-21T09:30:00.000Z application/vnd.proton.doc; echo
+          ;;
+        /my-files/Bil/2026)
+          node file kontrakt.pdf 2026-10-20T15:21:07.000Z; echo ,
+          node folder 'sub\/slash' 2026-01-01T00:00:00.000Z; echo ,
+          printf '{"uid":"u","name":{"ok":false,"error":"x"},"type":"file"}\n'
+          ;;
+        '/my-files/Bil/2026/sub\/slash')
+          node file deep.pdf 2026-10-25T07:00:00.000Z; echo
+          ;;
+      esac
+      echo ']'
+      exit 0
+    fi
     # Paths with a file extension are files, everything else is a folder.
     case "${*##*/}" in
       *.*) printf '{"uid":"u1","name":{"ok":true,"value":"x"},"type":"file","activeRevision":{"state":"active"}}\n' ;;

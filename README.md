@@ -222,6 +222,18 @@ Remote paths:
     - /shared-with-me/NODE-UID/file.txt
 ```
 
+`read.sh <key> new` also reads the JSON of `list --json` and `info --json` (recorded 25.10.2026, cli-drive@0.9.0; uids, digests and other fields left out). It relies on one node per line and on `name.value`, `type` and `modificationTime`, plus `claimedSize` (or `totalStorageSize`) and `mediaType` when present, and refuses if a node line lacks the first three. The plain (non-JSON) `list` output shows the creation time, not the modification time, so it can't be used. Folder times don't change when a file inside does.
+
+```
+$ proton-drive filesystem list --json "/my-files/Bolig/sommerhus/tilbygning 2026/tilbud"
+[
+{"uid":"…","parentUid":"…","name":{"ok":true,"value":"tilbud budget.xlsx"},…,"type":"file","mediaType":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",…,"creationTime":"2026-04-20T17:32:02.000Z","modificationTime":"2026-08-13T07:25:37.000Z","totalStorageSize":15202,"activeRevision":{…,"claimedSize":15143,"claimedModificationTime":"2026-08-06T07:19:44.225Z",…},…},
+{"uid":"…","parentUid":"…","name":{"ok":true,"value":"Pierre mail 28062026"},…,"type":"file","mediaType":"application/vnd.proton.doc",…,"modificationTime":"2026-07-02T17:49:32.000Z",…},
+{"uid":"…","parentUid":"…","name":{"ok":true,"value":"tilbud 04-2026"},…,"type":"folder",…,"creationTime":"2026-08-09T06:16:01.000Z","modificationTime":"2026-08-09T06:16:01.000Z","folder":{"isImported":false},…},
+…
+]
+```
+
 Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for the wrapper (`read.sh`):
 - `download` prompts on conflicts unless `-f`/`-d` is set, so the wrapper must always pass a strategy (a prompt would hang a Claude Bash call).
 - `download` accepts folders as well as files; the wrapper checks the node type with `info` first to stay single-file.

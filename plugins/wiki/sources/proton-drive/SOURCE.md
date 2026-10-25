@@ -32,15 +32,16 @@ bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh <key> list     "
 bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh <key> info     "<remote path>"
 bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh <key> size     "<remote path>"
 bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh <key> download "<remote file>"
+bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh <key> new      "<YYYY-MM-DD|never>"
 ```
 
-Output of `list`, `info` and `size` is the CLI's JSON.
+Output of `list`, `info` and `size` is the CLI's JSON (one node per line, 5 to 40 KB per folder: use it sparingly). `new` walks every root and prints one line per file modified on or after the date (UTC), oldest first: `<f|p> <YYYY-MM-DD HH:MM> <bytes> <remote path>`; `p` is a Proton Doc or Sheet, which can't be downloaded. A `\/` in a path is a `/` inside a name; pass the path to `download` exactly as printed. The walk takes about 3 s per folder: give the Bash call a timeout of 10 minutes (600000 ms).
 
 ## Check
-`list` each root (or `info` for a root that names a single file) and `size` on each root folder. Report the main subfolders, file counts and size. If a root is wrong, propose the corrected instance file for the user to save.
+`new never` (one call: every file below the roots) and `size` on each root folder. Report the main subfolders, file counts, the newest modification date and the size. If a root is wrong, propose the corrected instance file for the user to install (`install-source-file.sh`).
 
 ## List new
-`list` the root, or the subfolder the user's filter names, and descend into subfolders as needed. Pick files whose modification time is on or after `last_checked_<key>` (at a first ingest: the chosen starting point, or the chosen subset). `last_checked` is a day, not a time, so a file uploaded later on that day is still new; skip files that the `raw/sync-log.md` history or a page's `sources:` already names with the same modification time.
+One call: `new "<last_checked_<key>>"` (at a first ingest: `new "<starting point>"`, or `new never` for everything). It includes files from the `last_checked` day itself, because that day may not have been read in full; skip files that the `raw/sync-log.md` history or a page's `sources:` already names with the same modification time. Apply the user's filter to the printed paths. Use `list` only to look at one folder in detail.
 
 ## Fetch
 `download` each file on its own. The wrapper prints where it landed in `~/.cache/wiki-sources/<wiki>/<key>/`. Read that file with the core file-reading rules. Never copy downloaded files into the repo.
