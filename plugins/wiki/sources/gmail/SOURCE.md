@@ -8,8 +8,9 @@ platforms:
 parameters:
   - labels (optional): Gmail label(s) whose threads belong to this wiki
   - senders (optional): sender names or addresses whose threads belong to this wiki
+  - exclude (optional): Gmail search terms that drop threads from every search, e.g. -category:promotions
 state:
-  - last_checked: date of the newest ingest (YYYY-MM-DD, or never); searches use after:<last_checked>
+  - last_checked: date of the newest ingest (YYYY-MM-DD, or never); searches use after: the day before it, and the ingested label drops what was already read
 cite_prefix: Gmail
 read_tools:
   - mcp__claude_ai_Gmail__search_threads
@@ -53,7 +54,7 @@ The instance's parameters are in its file `.claude/sources/instances/<key>.md`; 
 Confirm that the label(s) exist (`list_labels`) and run one `search_threads` per label and per sender to count the matching threads. Report the counts. If a label or sender is wrong, propose the corrected instance file for the user to save.
 
 ## List new
-Search for threads newer than `last_checked_<key>` **and** without the label `wiki-ingested/<wiki>`, combining the instance's labels and senders and the user's filter, e.g. `label:Tisvilde -label:wiki-ingested-udbygning after:2026/09/06`. In search queries, write labels with `-` instead of `/` (verified 16.10.2026). At a first ingest, replace `after:` with the starting point the user chose.
+Search for threads from the day before `last_checked_<key>` on **and** without the label `wiki-ingested/<wiki>`, combining the instance's labels and senders, its `exclude` terms and the user's filter, e.g. `label:Tisvilde -label:wiki-ingested-udbygning -category:promotions after:2026/09/05` for `last_checked_<key>: 2026-09-06`. `last_checked` is a day, not a time: mail that arrived later on that day hasn't been read yet, and the label keeps the threads that were read out of the result. In search queries, write labels with `-` instead of `/` (verified 16.10.2026). At a first ingest, replace `after:` with the starting point the user chose.
 
 Search results can lag. For any thread the user names, or any thread whose last message looks older than expected, re-fetch it with `get_thread`; don't trust `search_threads` alone.
 
@@ -61,7 +62,7 @@ Search results can lag. For any thread the user names, or any thread whose last 
 `get_thread` per thread. Read message bodies only, not attachments. If an attachment matters, ask the user to save it to another source of this wiki (a drive or folder instance) or to `raw/`.
 
 ## Mark ingested
-After the pages are updated for a thread, apply the label `wiki-ingested/<wiki>` with `label_thread`. If the label doesn't exist yet, create it with `create_label`. If label writes fail, fall back to the date filter alone and tell the user.
+After the pages are updated for a thread, apply the label `wiki-ingested/<wiki>` with `label_thread`. `label_thread` takes the label's ID (e.g. `Label_12`), not its name: look the ID up once with `list_labels`. If the label doesn't exist yet, create it with `create_label`, which returns the ID. If label writes fail, fall back to the date filter alone and tell the user.
 
 ## Cite
 `"Gmail: <thread subject> (<message date YYYY-MM-DD>)"` in `sources:`; inline `(Gmail: "<subject>", <date in the wiki's prose format>)`.
@@ -72,3 +73,4 @@ Find the thread with `search_threads` on the subject and date, then read it in f
 ## Caveats
 - The tool names assume the claude.ai Gmail connector (`mcp__claude_ai_Gmail__*`). A different Gmail MCP server needs its own type.
 - Attachments are not read.
+- The deny rules include `create_draft`, `update_draft` and `delete_draft`, so sessions in the wiki can't draft emails. They live in the wiki's own `.claude/settings.json`, so drafting from a session in any other folder still works.

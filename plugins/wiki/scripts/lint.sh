@@ -143,15 +143,16 @@ while IFS="$US" read -r p hasfm title type created updated status nsrc; do
 done < "$tmp/fm"
 
 # Citations that match no source: an entry must start with a configured
-# type's cite_prefix, "raw/", "User statement" or a URL.
+# type's cite_prefix, a manual key ("web: ..."), "raw/" or "raw:",
+# "User statement" or a URL.
 . "$(dirname "$0")/lib-source.sh"
 if [ -n "$(src_instances "$root")" ]; then
-  prefixes=$(for k in $(src_instances "$root"); do
-    c=$(src_contract "$root" "$(src_field "$(src_instance_dir "$root")/$k.md" type)" 2>/dev/null) && src_field "$c" cite_prefix
-  done | LC_ALL=C sort -u)
+  prefixes=$( { for k in $(src_instances "$root"); do
+      c=$(src_contract "$root" "$(src_field "$(src_instance_dir "$root")/$k.md" type)" 2>/dev/null) && src_field "$c" cite_prefix
+    done; src_manual_keys "$root"; } | LC_ALL=C sort -u)
   while IFS= read -r p; do
     src_list "$wiki/$p" sources | sed -e "s/^[\"']//" -e "s/[\"']\$//" | while IFS= read -r s; do
-      case "$s" in raw/*|"User statement"*|http://*|https://*) continue ;; esac
+      case "$s" in raw/*|raw:*|"User statement"*|http://*|https://*) continue ;; esac
       ok=0
       while IFS= read -r x; do
         [ -n "$x" ] || continue

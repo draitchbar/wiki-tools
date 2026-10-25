@@ -52,6 +52,9 @@ case "$op" in
         printf -- '- %s: type %s: UNKNOWN TYPE\n' "$k" "${t:-?}"
       fi
     done
+    for k in $(src_manual_keys "$root"); do
+      printf -- '- %s: manual key (no source file; enters via raw/ or user statements; /wiki:ingest cannot read it), last checked: %s\n' "$k" "$(state_of "$k")"
+    done
     if [ -f "$root/.claude/proton-roots" ] && [ ! -f "$(src_instance_dir "$root")/proton.md" ]; then
       printf '\nOld layout: .claude/proton-roots without .claude/sources/instances/proton.md. Run /wiki:init (check mode) to migrate.\n'
     fi

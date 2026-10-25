@@ -8,7 +8,7 @@ platforms:
 parameters:
   - roots (required): absolute remote paths starting /my-files/ (folders or single files); everything below them is readable, nothing else
 state:
-  - last_checked: date of the newest ingest (YYYY-MM-DD, or never); files modified after it are new
+  - last_checked: date of the newest ingest (YYYY-MM-DD, or never); files modified on or after it are candidates
 cite_prefix: Proton
 read_tools:
   - Bash(bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh *)
@@ -40,7 +40,7 @@ Output of `list`, `info` and `size` is the CLI's JSON.
 `list` each root (or `info` for a root that names a single file) and `size` on each root folder. Report the main subfolders, file counts and size. If a root is wrong, propose the corrected instance file for the user to save.
 
 ## List new
-`list` the root, or the subfolder the user's filter names, and descend into subfolders as needed. Pick files whose modification time is after `last_checked_<key>` (at a first ingest: after the chosen starting point, or the chosen subset).
+`list` the root, or the subfolder the user's filter names, and descend into subfolders as needed. Pick files whose modification time is on or after `last_checked_<key>` (at a first ingest: the chosen starting point, or the chosen subset). `last_checked` is a day, not a time, so a file uploaded later on that day is still new; skip files that the `raw/sync-log.md` history or a page's `sources:` already names with the same modification time.
 
 ## Fetch
 `download` each file on its own. The wrapper prints where it landed in `~/.cache/wiki-sources/<wiki>/<key>/`. Read that file with the core file-reading rules. Never copy downloaded files into the repo.

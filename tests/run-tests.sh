@@ -169,7 +169,8 @@ cp -r "$here/lint-wiki" "$tmp/lw2"
 git -C "$tmp/lw2" init -q
 mkdir -p "$tmp/lw2/.claude/sources/instances"
 printf -- '---\nkey: gmail\ntype: gmail\nlabels: X\n---\n' > "$tmp/lw2/.claude/sources/instances/gmail.md"
-printf -- '---\ntitle: Cites\ntype: note\nsources:\n  - "Gmail: A (2026-09-01)"\n  - "Proton: x.pdf, p. 1"\n  - raw/a.pdf\n  - "User statement (2026-10-01)"\n  - https://example.com\nrelated: []\ncreated: 2026-10-01\nupdated: 2026-10-01\n---\n' > "$tmp/lw2/wiki/cites.md"
+mkdir -p "$tmp/lw2/raw"; printf 'last_checked_raw: never\nlast_checked_web: never\n' > "$tmp/lw2/raw/sync-log.md"
+printf -- '---\ntitle: Cites\ntype: note\nsources:\n  - "Gmail: A (2026-09-01)"\n  - "Proton: x.pdf, p. 1"\n  - raw/a.pdf\n  - "raw: b.pdf, p. 2"\n  - "web: fdm.dk, leasing guide"\n  - "User statement (2026-10-01)"\n  - https://example.com\nrelated: []\ncreated: 2026-10-01\nupdated: 2026-10-01\n---\n' > "$tmp/lw2/wiki/cites.md"
 lint2=$(cd "$tmp/lw2" && WIKI_LINT_TODAY=2026-10-16 bash "$scripts/lint.sh" 2>&1)
 case "$lint2" in *'`cites.md`: source `Proton: x.pdf, p. 1` matches no source of this wiki'*) r=found ;; *) r=missing ;; esac
 check "lint/unknown-source-prefix" found "$r"
@@ -336,7 +337,7 @@ check "lib-source/no-dots"          1 "$(lsrun 'src_has_dots "/a/.b/c"; echo $?'
 cp -r "$here/guard-wiki" "$tmp/sw"
 git -C "$tmp/sw" init -q
 mkdir -p "$tmp/sw/raw"
-printf 'last_checked_gmail: 2026-10-01\nlast_checked_raw: never\n' > "$tmp/sw/raw/sync-log.md"
+printf 'last_checked_gmail: 2026-10-01\nlast_checked_raw: never\nlast_checked_web: 2026-10-02\n' > "$tmp/sw/raw/sync-log.md"
 srun() { (cd "$tmp/sw" && bash "$scripts/sources.sh" "$@" 2>&1); }
 sexpect() { # NAME TEXT ARGS...
   n=$1 t=$2; shift 2
@@ -348,6 +349,7 @@ sexpect list-raw        '- raw: built in (raw/), last checked: never' list
 sexpect list-standard   '- gmail: type gmail (standard), valid, available here: yes, last checked: 2026-10-01' list
 sexpect list-local      '- books: type bookish (local), valid' list
 sexpect list-no-state   'last checked: no last_checked_scans line' list
+sexpect list-manual     '- web: manual key (no source file; enters via raw/ or user statements; /wiki:ingest cannot read it), last checked: 2026-10-02' list
 sexpect show-header     'Source scans: valid' show scans
 sexpect show-instance   '  - ~/Pictures/Receipts' show scans
 sexpect show-contract   '# Source type: Local folder' show scans

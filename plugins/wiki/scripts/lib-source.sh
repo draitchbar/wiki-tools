@@ -83,6 +83,18 @@ src_instances() {
   done | LC_ALL=C sort
 }
 
+# src_manual_keys ROOT: keys with a last_checked_<key> line in
+# raw/sync-log.md but no instance file (other than raw), sorted. Such a
+# key is kept by hand: its material enters via raw/ or user statements.
+src_manual_keys() {
+  local k
+  [ -f "$1/raw/sync-log.md" ] || return 0
+  sed -n 's/^last_checked_\([A-Za-z0-9_-]*\):.*/\1/p' "$1/raw/sync-log.md" | LC_ALL=C sort -u |
+    while IFS= read -r k; do
+      [ "$k" = raw ] || [ -f "$(src_instance_dir "$1")/$k.md" ] || printf '%s\n' "$k"
+    done
+}
+
 # src_contract ROOT TYPE: path of the type's SOURCE.md.
 # A local type may not shadow a standard one.
 src_contract() {

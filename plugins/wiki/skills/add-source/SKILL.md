@@ -66,7 +66,7 @@ Show everything at once, then ask "Go?":
 
 ## 5. Write
 After "go":
-1. Edit CLAUDE.md and `raw/sync-log.md` yourself. Commit them: `git add -- CLAUDE.md raw/sync-log.md`, message `Add source <key> (<type>)`. Never push.
+1. Edit CLAUDE.md and `raw/sync-log.md` yourself. Commit them: `git add -- CLAUDE.md raw/sync-log.md`, message `Add source <key>` (never name the type in the message: a type such as `proton-drive` is a guard word, and the guard blocks the whole command). Never push.
 2. Give the user a numbered guide for the protected files:
    1. Create `.claude/sources/instances/<key>.md` with the content above (and the local type files, if any).
    2. Add the settings rules to `.claude/settings.json`.

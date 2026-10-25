@@ -51,7 +51,7 @@ Run it at the first ingest of each source, and whenever material doesn't fit any
 Never edit the shared files in `~/src/wiki-tools/schema/`; suggest changes to them for a wiki-tools session instead.
 
 ## Reading the material
-1. **List new** items as the contract says, from the instance's state (`last_checked_<key>` and any other state field the instance agreed) and the user's filter. At a first ingest, use the starting point instead.
+1. **List new** items as the contract says, from the instance's state (`last_checked_<key>` and any other state field the instance agreed) and the user's filter. At a first ingest, use the starting point instead. `last_checked` is a day, not a time: items from that same day may have arrived after the last ingest, so include them, then drop any that the `raw/sync-log.md` history or a page's `sources:` already names.
 2. **Fetch** each item as the contract says. Read fetched files with the core rules in `~/src/wiki-tools/plugins/wiki/skills/ingest/reading-files.md`: pdftotext, LibreOffice, `ocr.sh`, page images.
 3. Apply the contract's **Caveats** (formats it can't export, lag, things to tell the user).
 4. If a wrapper refuses (outside roots, syntax check, unknown op), stop and show the user the message. Don't try another route.

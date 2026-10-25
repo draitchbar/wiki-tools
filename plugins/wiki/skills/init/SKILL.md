@@ -143,16 +143,20 @@ Also list files that adopt mode left in place, and any open questions.
 1. Run `bash ~/src/wiki-tools/plugins/wiki/scripts/wiki-check.sh`.
 2. Check that the shared conventions are actually loaded: they are if your instructions contain the heading "Ask for context, don't guess" from wiki-conventions.md and "Data model" from wiki-layout.md. If not, the imports weren't approved: tell the user to restart `claude` here and approve the import prompt.
 3. Report every FAIL with its fix as a short numbered list, and say which ones only the user can do (settings, files under `.claude/sources/`, commits of `.claude/` files).
-4. **Migration**: if `sources.sh list` or wiki-check reports the old layout (a `.claude/proton-roots` file or `last_checked_<key>` lines with no instance file), follow **Migrate to `.claude/sources/`** below.
+4. **Migration**: if `sources.sh list` or wiki-check reports the old layout (a `.claude/proton-roots` file, or no `.claude/sources/instances/` while `raw/sync-log.md` has `last_checked_<key>` lines other than `raw`), follow **Migrate to `.claude/sources/`** below. A manual key in an already migrated wiki (`sources.sh list` says "manual key") is not the old layout.
 5. If everything passes: say so, and suggest `/wiki:sync-status`, then the first `/wiki:ingest <source>`.
 Check mode writes nothing except the migration commit the user approves, and calls no source.
 
 ## Migrate to `.claude/sources/`
 For wikis set up before source types existed (sources hard-wired as `gmail`, `proton`, `raw`). Pages, citations and existing `last_checked_<key>` lines stay as they are; only the source configuration moves.
-1. Run `bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list` and `sources.sh catalog`, and read CLAUDE.md "Sources", `raw/sync-log.md` and `.claude/settings.json`. Read `.claude/proton-roots` with the Read tool if it exists.
+1. Run `bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list`, then, as a separate call, `bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh catalog` (one command per call: the guard blocks core scripts that are chained, piped or redirected). Read CLAUDE.md "Sources", `raw/sync-log.md` and `.claude/settings.json`. Read `.claude/proton-roots` with the Read tool if it exists.
 2. For each `last_checked_<key>` line other than `raw` that has no instance file, propose an instance, keeping the key:
-   - `gmail` → type `gmail`, labels and senders from CLAUDE.md.
+   - `gmail` → type `gmail`: labels and senders from CLAUDE.md, and any exclusions in the old search query (e.g. `-category:promotions`) as `exclude`.
    - `proton` → type `proton-drive`, `roots:` = the lines of `.claude/proton-roots`.
-   - any other key (e.g. one fed through `raw/` by hand) → ask: map it to a type from the catalog, draft a local type (add-source's **New local type**), or keep it as a manual key (sync-status still shows it; `/wiki:ingest` can't read it).
+   - any other key (e.g. one fed through `raw/` by hand) → ask: map it to a type from the catalog, draft a local type (add-source's **New local type**), or keep it as a manual key. A manual key keeps its `last_checked_<key>` line and no instance file; sync-status and `sources.sh list` show it, `/wiki:ingest` can't read it, and `/wiki:lint` accepts citations starting `<key>:`. Its CLAUDE.md line: `- \`<key>\` (manual): <what it holds>; enters as files in \`raw/\` or as user statements; cite as \`<key>: <what>\` or by URL; update \`last_checked_<key>\` by hand.`
 3. Show, in one go: each instance file; the settings diff (rules from `sources.sh settings <type> ...` that are missing, and Gmail rules the template no longer carries, which now come from the gmail type); the `.gitignore` change (add `!.claude/sources/`; `!.claude/proton-roots` can go once `.claude/proton-roots` is deleted); the CLAUDE.md "Sources" lines in add-source's format. Ask "Go?".
-4. After "go": edit CLAUDE.md and `.gitignore` yourself and commit them (`Migrate sources to .claude/sources/`). Then give the user the guide: create the instance files, apply the settings diff, `git rm .claude/proton-roots` once the `proton` instance exists, commit those files themselves, restart `claude`, and run `/wiki:init` again to check.
+4. After "go": edit CLAUDE.md and `.gitignore` yourself and commit them with the message `Migrate sources to instance files`. Commit messages must not name `.claude/sources` or a source CLI such as the Proton one: the guard blocks the whole command. Then give the user the guide as one copy-paste block, in this order:
+   1. Create the instance files (full content of each).
+   2. Apply the settings diff to `.claude/settings.json`.
+   3. Commit, with the old roots file removed in the same commit: `git rm -q .claude/proton-roots` (only if it exists), then `git add -- .claude/sources .claude/settings.json && git commit -m "Add source instance files"`.
+   4. Restart `claude`, and run `/wiki:init` again to check.

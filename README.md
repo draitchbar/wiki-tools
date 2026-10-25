@@ -94,6 +94,7 @@ The wiki skills know no particular source. They talk to every source through its
   - **Standard types** live in `plugins/wiki/sources/<type>/`: `gmail`, `proton-drive`, `local-folder`.
   - **Local types** live in a wiki's `.claude/sources/types/<type>/`. They may ship wrapper scripts and have no test harness. A local type can't reuse a standard type's name.
 - **Source instance**: a wiki's use of a type, `.claude/sources/instances/<key>.md` (type, parameters, agreed state fields). The key is the `/wiki:ingest <key>` argument and names the state lines (`last_checked_<key>`, ...) in `raw/sync-log.md`. One wiki may have several instances of one type.
+- **Manual key**: a `last_checked_<key>` line with no instance file (carleasing's `web`). Its material enters via `raw/` or as user statements; sync-status and `sources.sh list` show it, `/wiki:ingest` can't read it, and lint accepts citations starting `<key>:`.
 - **Read-only by contract.** The only writes a type may declare are narrow bookkeeping (Gmail's `wiki-ingested/<wiki>` label). The guard reads every contract and instance at hook time; `.claude/sources/` and `plugins/wiki/sources/` are protected, so Claude drafts these files and you save and commit them.
 
 **Add a source to a wiki**: `/wiki:add-source <type> [key]` in the wiki. It reads the contract, asks for the parameters, agrees the state, and drafts the instance file, the CLAUDE.md line, the sync-log line and the settings rules (`sources.sh settings <type>`). For a type that doesn't exist, it drafts a local type with you.
