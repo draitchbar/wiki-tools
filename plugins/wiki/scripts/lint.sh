@@ -47,7 +47,7 @@ slug_of() { # PATH -> lowercase basename without .md
 while IFS= read -r p; do printf '%s\t%s\n' "$(slug_of "$p")" "$p"; done < "$tmp/all" > "$tmp/slugs"
 
 # Frontmatter facts, one TSV line per page:
-# path, has_fm, title, type, created, updated, status_as_of, n_sources.
+# path, has_fm, title, type, created, updated, status_as_of, n_sources, as_of.
 # Fields are separated by \037 (unit separator): unlike a tab it is not
 # whitespace, so `read` keeps empty fields instead of merging them.
 US=$(printf '\037')
@@ -64,6 +64,7 @@ while IFS= read -r p; do
         else if (key == "created") created = val($0)
         else if (key == "updated") updated = val($0)
         else if (key == "status_as_of") status = val($0)
+        else if (key == "as_of") asof = val($0)
         else if (key == "sources") {
           v = val($0); seen_sources = 1
           if (v != "" && v != "[]") { n = split(v, parts, ","); nsrc += n }
@@ -71,7 +72,7 @@ while IFS= read -r p; do
       } else if (cur == "sources" && $0 ~ /^[[:space:]]+-[[:space:]]*[^[:space:]]/) nsrc++
     }
     END {
-      printf "%s" US "%d" US "%s" US "%s" US "%s" US "%s" US "%s" US "%s\n", path, hasfm, title, type, created, updated, status, (seen_sources ? nsrc + 0 : -1)
+      printf "%s" US "%d" US "%s" US "%s" US "%s" US "%s" US "%s" US "%s" US "%s\n", path, hasfm, title, type, created, updated, status, (seen_sources ? nsrc + 0 : -1), asof
     }' "$wiki/$p"
 done < "$tmp/pages" > "$tmp/fm"
 
@@ -97,7 +98,7 @@ days_since() { # YYYY-MM-DD -> days before today, or empty if unparseable
   echo $(( (today_s - s) / 86400 ))
 }
 
-while IFS="$US" read -r p hasfm title type created updated status nsrc; do
+while IFS="$US" read -r p hasfm title type created updated status nsrc asof; do
   if [ "$hasfm" != 1 ]; then
     echo "- \`$p\`: no YAML frontmatter" >> "$tmp/e_nofm"; continue
   fi
@@ -114,8 +115,8 @@ while IFS="$US" read -r p hasfm title type created updated status nsrc; do
   [ -z "$missing" ] || echo "- \`$p\`: missing${missing}" >> "$tmp/e_fields"
   [ "$nsrc" != 0 ] || echo "- \`$p\`: \`sources:\` is empty; every claim is uncited" >> "$tmp/w_nosrc"
 
-  for d in created updated status_as_of; do
-    case "$d" in created) v=$created ;; updated) v=$updated ;; status_as_of) v=$status ;; esac
+  for d in created updated status_as_of as_of; do
+    case "$d" in created) v=$created ;; updated) v=$updated ;; status_as_of) v=$status ;; as_of) v=$asof ;; esac
     [ -n "$v" ] || continue
     if ! age=$(days_since "$v"); then
       echo "- \`$p\`: \`$d: $v\` is not a YYYY-MM-DD date" >> "$tmp/w_dates"
@@ -127,7 +128,8 @@ while IFS="$US" read -r p hasfm title type created updated status nsrc; do
     echo "- \`$p\`: updated ($updated) is before created ($created)" >> "$tmp/w_dates"
   fi
 
-  if age=$(days_since "$updated") && [ "$age" -gt "$STALE_DAYS" ]; then
+  # A page with as_of: is a dated analysis, historical by design.
+  if [ -z "$asof" ] && age=$(days_since "$updated") && [ "$age" -gt "$STALE_DAYS" ]; then
     hits=$(awk 'BEGIN{n=0} /^---/{n++; next} n>=2' "$wiki/$p" | grep -ioE "$STALE_WORDS" | tr '[:upper:]' '[:lower:]' | sort -u | paste -sd, -)
     [ -z "$hits" ] || echo "- \`$p\`: updated $age days ago and still says: $hits" >> "$tmp/w_stale"
   fi
@@ -152,11 +154,13 @@ if [ -n "$(src_instances "$root")" ]; then
     done; src_manual_keys "$root"; } | LC_ALL=C sort -u)
   while IFS= read -r p; do
     src_list "$wiki/$p" sources | sed -e "s/^[\"']//" -e "s/[\"']\$//" | while IFS= read -r s; do
-      case "$s" in raw/*|raw:*|"User statement"*|http://*|https://*) continue ;; esac
+      case "$s" in raw/*|raw:*|[Ll]ocal\ file:\ raw/*|"User statement"*|http://*|https://*) continue ;; esac
+      ls=$(printf '%s' "$s" | tr '[:upper:]' '[:lower:]')
       ok=0
       while IFS= read -r x; do
         [ -n "$x" ] || continue
-        case "$s" in "$x:"*|"$x "*) ok=1; break ;; esac
+        x=$(printf '%s' "$x" | tr '[:upper:]' '[:lower:]')
+        case "$ls" in "$x:"*|"$x "*) ok=1; break ;; esac
       done <<EOF
 $prefixes
 EOF

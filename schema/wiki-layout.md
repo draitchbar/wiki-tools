@@ -30,10 +30,13 @@ related:
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 status_as_of: YYYY-MM-DD   # decision and approval pages only
+as_of: YYYY-MM-DD          # dated analyses only (see below)
 ---
 ```
 
 Decision and approval pages carry `status_as_of`, so a superseded decision doesn't read as current.
+
+An analysis or research page written at a point in time (e.g. before a contract was signed) can carry `as_of:` instead of being rewritten when events overtake it. It then opens with a banner, `> Written YYYY-MM-DD, before <event>. Since then: <one line, with a [[link]] to the current page>.` Lint treats such pages as historical: no stale or superseded findings.
 
 ## Ingest workflow
 Use `/wiki:ingest <key> [filter]` (`raw` or an instance key). Add sources with `/wiki:add-source <type>`. Ingest:

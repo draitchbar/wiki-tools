@@ -221,6 +221,14 @@ case "$lint2" in *'`cites.md`: source `Proton: x.pdf, p. 1` matches no source of
 check "lint/unknown-source-prefix" found "$r"
 n=$(printf '%s\n' "$lint2" | grep -c 'matches no source')
 check "lint/known-prefixes-pass" 2 "$n"   # cites.md Proton + broken-contractor.md "Proton Drive"
+# Case-insensitive prefixes, "Local file: raw/", and as_of pages.
+printf -- '---\ntitle: Cites2\ntype: note\nsources:\n  - "Web: fdm.dk"\n  - "gmail: B (2026-09-02)"\n  - "Local file: raw/a.pdf"\nrelated: []\ncreated: 2026-10-01\nupdated: 2026-10-01\n---\n[[cites]]\n' > "$tmp/lw2/wiki/cites2.md"
+printf -- '---\ntitle: Old analysis\ntype: research\nsources:\n  - raw/a.pdf\nrelated: []\ncreated: 2026-01-01\nupdated: 2026-01-01\nas_of: 2026-01-01\n---\nThe offer is still pending.\n' > "$tmp/lw2/wiki/old-analysis.md"
+printf -- '---\ntitle: Old note\ntype: research\nsources:\n  - raw/a.pdf\nrelated: []\ncreated: 2026-01-01\nupdated: 2026-01-01\nas_of: soon\n---\nThe offer is still pending.\n' > "$tmp/lw2/wiki/old-note.md"
+lint3=$(cd "$tmp/lw2" && WIKI_LINT_TODAY=2026-10-16 bash "$scripts/lint.sh" 2>&1)
+check "lint/prefix-case-and-local-file" absent "$(printf '%s\n' "$lint3" | grep -q 'cites2.md`: source' && echo present || echo absent)"
+check "lint/as-of-not-stale" absent "$(printf '%s\n' "$lint3" | grep -q 'old-analysis.md`: updated' && echo present || echo absent)"
+check "lint/as-of-bad-date" present "$(printf '%s\n' "$lint3" | grep -q 'old-note.md`: `as_of: soon` is not a YYYY-MM-DD date' && echo present || echo absent)"
 
 nowiki=$(cd "$tmp" && git init -q nowiki && cd nowiki && bash "$scripts/lint.sh" 2>&1)
 case "$nowiki" in *"no wiki/ folder"*) r=ok ;; *) r="$nowiki" ;; esac
