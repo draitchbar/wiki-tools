@@ -197,6 +197,10 @@ printf -- '---\nkey: scans\ntype: local-folder\nroots:\n  - /x\n---\n' > "$tmp/s
 ss_out=$(cd "$tmp/ss" && CLAUDE_PROJECT_DIR= bash "$scripts/sync-status.sh" 2>&1)
 case "$ss_out" in *"- scans: no last_checked_scans line yet"*) r=ok ;; *) r="$ss_out" ;; esac
 check "sync-status/instance-without-line" ok "$r"
+case "$ss_out" in *"- gmail: never checked (manual key: enters via raw/ or user statements)"*) r=ok ;; *) r="$ss_out" ;; esac
+check "sync-status/manual-never" ok "$r"
+case "$ss_out" in *"days ago) (manual key"*) r=ok ;; *) r="$ss_out" ;; esac
+check "sync-status/manual-dated" ok "$r"
 
 # wiki-check.sh: a freshly initialised wiki passes; each planted fault fails.
 mkwiki() { # DIR
