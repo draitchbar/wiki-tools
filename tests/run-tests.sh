@@ -497,6 +497,27 @@ iexpect local-instance  'Installed .claude/sources/instances/books.md' 0 y insta
 iexpect breaks-other    "required parameter 'colour' is empty" 1 y types/bookish/SOURCE.md "$(printf '%s' "$bk" | sed 's/  - shelf (required): shelf name/  - shelf (required): shelf name\\n  - colour (required): x/')"
 [ -z "$(git -C "$tmp/iw" status --porcelain -- .claude/sources | grep -v '^??')" ] && r=untouched || r=staged
 check "install/no-git" untouched "$r"
+# decode-download.sh against the installer's wiki (instance gmail exists).
+dds="$scripts/decode-download.sh"
+dd() { (cd "$tmp/iw" && HOME="$tmp/home" bash "$dds" "$@" 2>&1); printf '@%s' "$?"; }
+mkdir -p "$tmp/dd"
+want=$(printf '<mxfile>\n  <diagram name="Plan"/>\n</mxfile>\n')
+printf '%s' "$want" | base64 > "$tmp/dd/plain.b64"                    # wrapped base64, as written with Write
+printf '{"content":"%s","mimeType":"application/xml"}' "$(printf '%s' "$want" | base64 | tr -d '\n' | sed 's#/#\\/#g')" > "$tmp/dd/saved.json"
+printf '[{"type":"text","text":"{\\"content\\":\\"%s\\"}"}]' "$(printf '%s' "$want" | base64 | tr -d '\n')" > "$tmp/dd/nested.json"
+out="$tmp/home/.cache/wiki-sources/iw/gmail/Tisvilde/plan.drawio"
+for k in plain.b64 saved.json nested.json; do
+  rm -f "$out"
+  o=$(dd gmail "$tmp/dd/$k" Tisvilde/plan.drawio)
+  case "$o" in *"wrote $out"*@0) [ "$(cat "$out")" = "$want" ] && r=ok || r="content differs" ;; *) r="$o" ;; esac
+  check "decode-download/$k" ok "$r"
+done
+check "decode-download/refuse-dotdot"   1 "$(dd gmail "$tmp/dd/plain.b64" ../../x.drawio | tail -n 1 | sed "s/.*@//")"
+check "decode-download/refuse-absolute" 1 "$(dd gmail "$tmp/dd/plain.b64" /tmp/x.drawio | tail -n 1 | sed "s/.*@//")"
+check "decode-download/refuse-no-key"   1 "$(dd nosuch "$tmp/dd/plain.b64" a.drawio | tail -n 1 | sed "s/.*@//")"
+printf 'not base64 at all!\n' > "$tmp/dd/bad.txt"
+check "decode-download/refuse-not-b64"  1 "$(dd gmail "$tmp/dd/bad.txt" a.drawio | tail -n 1 | sed "s/.*@//")"
+check "decode-download/refuse-args"     1 "$(dd gmail "$tmp/dd/plain.b64" | tail -n 1 | sed "s/.*@//")"
 # local-folder/read.sh against a throwaway wiki and folder.
 lfs="$here/../plugins/wiki/sources/local-folder/read.sh"
 git -C "$tmp" init -q lfw

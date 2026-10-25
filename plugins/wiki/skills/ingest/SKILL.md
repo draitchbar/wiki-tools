@@ -6,6 +6,7 @@ disable-model-invocation: true
 allowed-tools:
   - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/sync-status.sh)
   - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh *)
+  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/decode-download.sh *)
   - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/ocr.sh *)
   - Bash(bash ~/src/wiki-tools/plugins/wiki/sources/*/*.sh *)
   - Bash(bash .claude/sources/types/*/*.sh *)

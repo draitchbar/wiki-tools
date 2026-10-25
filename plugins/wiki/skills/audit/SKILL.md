@@ -5,6 +5,7 @@ argument-hint: "<page slug or path>"
 disable-model-invocation: true
 allowed-tools:
   - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh *)
+  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/decode-download.sh *)
   - Bash(bash ~/src/wiki-tools/plugins/wiki/sources/*/*.sh *)
   - Bash(bash .claude/sources/types/*/*.sh *)
   - Bash(pdftotext *)

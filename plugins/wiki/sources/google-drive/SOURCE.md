@@ -44,7 +44,9 @@ For each folder and each of its subfolders (find them with `mimeType = 'applicat
 
 ## Fetch
 - Google Docs, Sheets, Slides, PDF, Word, Excel, PowerPoint, OpenDocument, PNG and JPEG: `read_file_content` with the file's ID (`includeComments: true` for Docs, Sheets and Slides when comments may matter). Very large files can come back incomplete; say so.
-- Anything else (e.g. `.drawio`, `.csv`, `.txt`, `.svg`): `download_file_content` returns base64. Write the base64 text to `~/.cache/wiki-sources/<wiki>/<key>/<path below the folder>.b64`, decode it with `base64 -d "<that file>" > "<same path without .b64>"`, and read the decoded file with the core file-reading rules. Never put downloaded files in the repo.
+- Anything else (e.g. `.drawio`, `.csv`, `.txt`, `.svg`): `download_file_content` returns base64. Decode it into the cache with one call:
+  `bash ~/src/wiki-tools/plugins/wiki/scripts/decode-download.sh <key> "<input file>" "<folder path>/<path below the folder>"`
+  The input file is the one Claude Code saved the tool result to, if it says the result was too large (it names the path). Otherwise, Write the base64 text to a file in the scratchpad and pass that. The script prints where the file landed in `~/.cache/wiki-sources/<wiki>/<key>/`; read it with the core file-reading rules (`.drawio`: see there). Never put downloaded files in the repo.
 - Record each file's modification date from the search result or `get_file_metadata`; the citation needs it.
 
 ## Mark ingested
@@ -61,5 +63,6 @@ Find the instance folder whose path starts the citation, then `search_files` wit
 - `parentId` matches direct children only; subfolders must be walked one level at a time.
 - `read_file_content` returns a text rendering that may change over time; for exact figures in a spreadsheet, check the cell values it shows rather than its layout.
 - `download_file_content` base64 output is large; download only the files you need, one at a time.
+- A new fetch overwrites the cached copy. `download_file_content` accepts a `revisionId`, but the connector has no tool that lists revisions, so an earlier version can't be fetched; compare a changed file against what the wiki pages recorded from it.
 - Shared files the user doesn't own appear under the folder only if they were added to it.
 - Per machine: nothing. The connector is connected once in claude.ai (Settings → Connectors) and works on every platform.

@@ -39,6 +39,7 @@ plugins/wiki/
     guard.sh                      source/guard protection (Bash + Write/Edit), rules from the contracts
     sources.sh                    read-only view of a wiki's sources (list, show, catalog, contract, settings)
     install-source-file.sh        the user (never Claude) checks and installs one file into .claude/sources/
+    decode-download.sh            base64 download (e.g. Google Drive) into the source cache
     sync-status.sh                staleness report from raw/sync-log.md
     pd-read.sh                    transition shim for proton-drive/read.sh (until the wikis are migrated)
     ocr.sh                        ocrmypdf wrapper (Linux)
