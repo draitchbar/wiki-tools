@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"C:\\Users\\u\\t.jsonl","cwd":"C:\\Users\\u\\wikis\\udbygning","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"PowerShell","tool_input":{"command":"Get-Date\nproton-drive ls","description":"x"},"tool_use_id":"x"}

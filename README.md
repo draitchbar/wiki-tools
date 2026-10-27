@@ -35,8 +35,8 @@ plugins/wiki/
   scripts/
     lib-hookjson.sh               jq-free hook-input parsing (fails closed)
     lib-source.sh                 jq-free parsing of source contracts and instances
-    block-push.sh                 blocks git push
-    guard.sh                      source/guard protection (Bash + Write/Edit), rules from the contracts
+    block-push.sh                 blocks git push (Bash, PowerShell)
+    guard.sh                      source/guard protection (Bash, PowerShell, Write/Edit), rules from the contracts
     sources.sh                    read-only view of a wiki's sources (list, show, catalog, contract, settings)
     install-source-file.sh        the user (never Claude) checks and installs one file into .claude/sources/
     decode-download.sh            base64 download (e.g. Google Drive) into the source cache
@@ -253,8 +253,9 @@ Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for the wrapper (
 
 - **Guardrail, not a security boundary.** The guards match command text. They reliably stop accidental or straightforward misuse, but a deliberately obfuscated command could get through. Anything you run by hand is unaffected. If a Proton change slips through, use Proton's Trash and version history.
 - **Rules come from the contracts.** On every call, `guard.sh` reads all standard and local source contracts and the wiki's instances, and collects each type's `guard_words` and `scripts` and every filesystem instance's `roots`.
-- **Blocked in wiki sessions (Bash):** commands containing the plugin's `scripts`/`hooks`/`sources` paths, `.claude/sources`, `.claude/settings`, `.claude/plugins/`, `hooks.json`, `claude plugin`, `disableAllHooks`, any contract's guard word (e.g. `proton-drive`), or a filesystem instance's root (e.g. `~/Documents/Scans`). `proton-roots` stays blocked until the wikis are migrated.
-  - **Exceptions:** a plain `bash <...>/src/wiki-tools/plugins/wiki/scripts/<pd-read|ocr|sync-status|lint|wiki-check|sources>.sh <args>`, or a plain call of a wrapper a contract lists under `scripts` (`<...>/src/wiki-tools/plugins/wiki/sources/<type>/<script>.sh`, or `.claude/sources/types/<type>/<script>.sh` in this wiki), with no `; & | < > $` or backticks and no `..`.
+- **Shells: Bash everywhere, PowerShell allowed on Windows.** The wiki's scripts run only through the Bash tool (Git Bash on Windows). Claude may use the PowerShell tool for anything else; it gets the same command checks as Bash, without the script exceptions, and `git push` is blocked in both.
+- **Blocked in wiki sessions (Bash and PowerShell):** commands containing the plugin's `scripts`/`hooks`/`sources` paths, `.claude/sources`, `.claude/settings`, `.claude/plugins/`, `hooks.json`, `claude plugin`, `disableAllHooks`, any contract's guard word (e.g. `proton-drive`), or a filesystem instance's root (e.g. `~/Documents/Scans`, also matched as `$HOME/…` and `$env:USERPROFILE/…`). `proton-roots` stays blocked until the wikis are migrated.
+  - **Exceptions (Bash only):** a plain `bash <...>/src/wiki-tools/plugins/wiki/scripts/<pd-read|ocr|sync-status|lint|wiki-check|sources>.sh <args>`, or a plain call of a wrapper a contract lists under `scripts` (`<...>/src/wiki-tools/plugins/wiki/sources/<type>/<script>.sh`, or `.claude/sources/types/<type>/<script>.sh` in this wiki), with no `; & | < > $` or backticks and no `..`.
 - **Blocked in wiki sessions (Write/Edit):** the same protected paths, anything inside a filesystem instance's root (also written `C:/…` or `/c/…`), and non-Markdown content containing a guard word.
 - **Fails closed:** unparseable hook input is refused. While an instance or contract can't be used (no frontmatter, unknown type, a local type shadowing a standard one, a filesystem instance without roots), every Bash and Write/Edit call is refused except read-only diagnostics: plain `git status`/`log`/`diff`/`show` (no `--output`) and `sources.sh list`/`show`. Read still works. The message names the file and its first line or the paths searched. Fix the file with `install-source-file.sh` or an editor, outside Claude.
 - **Cost:** reading the contracts adds about 0.1 s per tool call on Linux; Windows (Git Bash) is slower and not yet measured.

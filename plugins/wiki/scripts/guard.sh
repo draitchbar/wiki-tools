@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
-# PreToolUse(Bash) and PreToolUse(Write|Edit|MultiEdit): keep the sources
+# PreToolUse(Bash|PowerShell) and PreToolUse(Write|Edit|MultiEdit): keep the sources
 # read-only and keep Claude away from the guard machinery.
 #
 # What the guard knows about sources comes from the contracts at hook time:
 # every standard type (plugins/wiki/sources/*/SOURCE.md), every local type of
 # this wiki (.claude/sources/types/*/SOURCE.md) and every instance
 # (.claude/sources/instances/*.md). From them it collects:
-#   guard_words  words blocked in Bash and in non-Markdown files;
+#   guard_words  words blocked in shell commands and in non-Markdown files;
 #   scripts      wrapper scripts allowed as a plain `bash <path> <args>` call;
-#   roots        of filesystem instances: blocked in Bash, read-only for
-#                Write/Edit.
+#   roots        of filesystem instances: blocked in shell commands,
+#                read-only for Write/Edit.
 # A source file that can't be used (no frontmatter, unknown type, a
-# filesystem instance without roots) blocks every Bash and Write/Edit call
-# (fail closed), except read-only diagnostics: git status/log/diff/show and
-# sources.sh list/show.
+# filesystem instance without roots) blocks every shell command and
+# Write/Edit call (fail closed), except read-only diagnostics: git
+# status/log/diff/show and sources.sh list/show.
 #
-# Bash: blocks commands that mention a protected path, a core keyword, a
-# guard word or a filesystem root. Exceptions: a plain invocation of one of
-# the plugin's core scripts, or of a script a contract lists, with no
-# chaining, redirection or substitution.
+# Bash and PowerShell: block commands that mention a protected path, a core
+# keyword, a guard word or a filesystem root. Exceptions (Bash only, since the
+# scripts run in Git Bash): a plain invocation of one of the plugin's core
+# scripts, or of a script a contract lists, with no chaining, redirection or
+# substitution.
 #
 # Write/Edit: blocks writes to protected paths and inside filesystem roots,
 # and non-Markdown content that contains a guard word (a helper script
@@ -41,7 +42,7 @@ wiki-tools/plugins/wiki/sources
 .claude/settings
 .claude/plugins/'
 
-# Core Bash-only keywords. proton-drive and proton-roots stay here until the
+# Core keywords, blocked in shell commands only. proton-drive and proton-roots stay here until the
 # wikis have moved to .claude/sources/ (proton-drive is also a guard word of
 # the proton-drive type).
 PROTECTED_WORDS='proton-drive
@@ -73,7 +74,7 @@ fi
 BROKEN=""
 broken() { # FILE REASON
   [ -z "$BROKEN" ] || return 0
-  BROKEN="source file '$1' can't be used: $2. Until it is fixed, Bash and Write/Edit are refused (fail closed), except git status/log/diff/show and sources.sh list/show; Read still works on the file. The user fixes it with install-source-file.sh or an editor, outside Claude."
+  BROKEN="source file '$1' can't be used: $2. Until it is fixed, shell commands and Write/Edit are refused (fail closed), except git status/log/diff/show and sources.sh list/show; Read still works on the file. The user fixes it with install-source-file.sh or an editor, outside Claude."
 }
 first_line() { printf 'its first line is "%s"' "$(head -n 1 "$1" 2>/dev/null | tr -d '\r' | cut -c1-60)"; }
 
@@ -97,10 +98,14 @@ if [ -n "$wiki_root" ]; then
     [ -n "$(src_values "$f" roots)" ] || { broken "$f" "a filesystem instance (type $t) with no roots"; continue; }
     while IFS= read -r r; do
       [ -n "$r" ] || continue
-      # As written, expanded, and with Git Bash's /c/ as c:/ and back.
+      # As written, expanded, and with Git Bash's /c/ as c:/ and back; a ~
+      # also as PowerShell's $home and $env:userprofile.
       x=$(norm "$(src_expand "$r")")
+      w=$(norm "$r" | sed 's#\(.\)/$#\1#')
       ROOTS="$ROOTS
-$(norm "$r" | sed 's#\(.\)/$#\1#')
+$w
+$(printf '%s' "$w" | sed -n 's#^~/#$home/#p')
+$(printf '%s' "$w" | sed -n 's#^~/#$env:userprofile/#p')
 $x
 $(printf '%s' "$x" | sed -n 's#^/\([a-z]\)/#\1:/#p')
 $(printf '%s' "$x" | sed -n 's#^\([a-z]\):/#/\1/#p')"
@@ -151,23 +156,28 @@ under_root() {
 }
 
 case "$HOOK_TOOL" in
-  Bash)
-    [ -n "$HOOK_COMMAND" ] || block "Bash call without a command; refusing (fail closed)."
+  Bash|PowerShell)
+    [ -n "$HOOK_COMMAND" ] || block "$HOOK_TOOL call without a command; refusing (fail closed)."
     cmd=$(norm "$HOOK_COMMAND")
     if [ -n "$BROKEN" ]; then
       diagnostic_ok "$cmd" && exit 0
       block "$BROKEN"
     fi
-    # Allowed: bash [quoted] <path>/src/wiki-tools/plugins/wiki/scripts/<script>.sh [args]
-    # with no ; & | < > ` $ anywhere.
-    if printf '%s' "$cmd" | grep -Eq '^[[:space:]]*bash[[:space:]]+"?[^[:space:]";&|<>`$]*/src/wiki-tools/plugins/wiki/scripts/(pd-read|ocr|sync-status|lint|wiki-check|sources|decode-download)\.sh"?([[:space:]][^;&|<>`$]*)?$'; then
-      exit 0
+    if [ "$HOOK_TOOL" = Bash ]; then
+      # Allowed: bash [quoted] <path>/src/wiki-tools/plugins/wiki/scripts/<script>.sh [args]
+      # with no ; & | < > ` $ anywhere.
+      if printf '%s' "$cmd" | grep -Eq '^[[:space:]]*bash[[:space:]]+"?[^[:space:]";&|<>`$]*/src/wiki-tools/plugins/wiki/scripts/(pd-read|ocr|sync-status|lint|wiki-check|sources|decode-download)\.sh"?([[:space:]][^;&|<>`$]*)?$'; then
+        exit 0
+      fi
+      allowed_source_script "$cmd" && exit 0
+      ps=""
+    else
+      ps=" The wiki's scripts run only through the Bash tool (Git Bash), not PowerShell."
     fi
-    allowed_source_script "$cmd" && exit 0
     hit=$(contains_any "$cmd" "$PROTECTED_PATHS
 $PROTECTED_WORDS
 $GUARD_WORDS")
-    [ -z "$hit" ] || block "command touches protected '$hit'. Sources are read only through their wrapper scripts; guard and source files are edited by the user."
+    [ -z "$hit" ] || block "command touches protected '$hit'. Sources are read only through their wrapper scripts; guard and source files are edited by the user.$ps"
     hit=$(contains_any "$cmd" "$ROOTS")
     [ -z "$hit" ] || block "command mentions the read-only source folder '$hit'. Use the source's wrapper script (see its SOURCE.md)."
     exit 0
