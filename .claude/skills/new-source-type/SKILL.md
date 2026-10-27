@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # New source type: $ARGUMENTS
 
-A source type is a contract, `plugins/wiki/sources/<type>/SOURCE.md`, that tells the source-neutral wiki skills how to reach one kind of source **read-only**. The template is `templates/source-type/SOURCE.md`; the library that parses contracts is `plugins/wiki/scripts/lib-source.sh`; the guard (`plugins/wiki/scripts/guard.sh`) reads every contract at hook time. Read all three before writing anything, and read `plugins/wiki/sources/local-folder/` as the worked example of a script type.
+A source type is a contract, `plugins/wiki/sources/<type>/SOURCE.md`, that tells the source-neutral wiki skills how to reach one kind of source **read-only**. The template is `plugins/wiki/templates/source-type/SOURCE.md`; the library that parses contracts is `plugins/wiki/scripts/lib-source.sh`; the guard (`plugins/wiki/scripts/guard.sh`) reads every contract at hook time. Read all three before writing anything, and read `plugins/wiki/sources/local-folder/` as the worked example of a script type.
 
 Repo rules (CLAUDE.md): POSIX bash for Linux and Git Bash, no jq or Python; LF endings; every script change has fixtures and a green `bash tests/run-tests.sh`; never weaken the guard without saying so in the commit message.
 

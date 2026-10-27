@@ -14,7 +14,7 @@ allowed-tools:
 # Commit by theme
 
 1. Run `git status --porcelain` and `git diff --stat`, and read the diffs of modified files.
-2. Group the **modified tracked files and files you created in this session** into themes: one theme per coherent change, e.g. "Ingest Rikke's 14.10 mail", "Record scope decision", "Fix contractor statuses". Use the user's hint if given ($ARGUMENTS). A file that belongs to two themes goes with the larger one.
+2. Group the **modified tracked files and files you created in this session** into themes: one theme per coherent change, e.g. "Ingest Alice's 14.10 mail", "Record scope decision", "Fix supplier statuses". Use the user's hint if given ($ARGUMENTS). A file that belongs to two themes goes with the larger one.
 3. Show the plan as a short list: theme, commit message, files. Then commit each theme in turn:
    - `git add -- <path> <path> ...` with the paths named explicitly. Never `git add -A`, `git add .` or `git add -u`.
    - `git commit -m "<message>"`: imperative, specific, like the repo's existing history (`git log --oneline -10`).

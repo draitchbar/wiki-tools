@@ -58,26 +58,26 @@ EOF
       case "$*" in
         "filesystem info"*)
           case "$p" in
-            /my-files/Bil|/my-files/Bil/2026|'/my-files/Bil/2026/sub\/slash') node folder "${p##*/}" 2026-01-01T00:00:00.000Z ;;
-            /my-files/Bolig/fugtalarm.pdf) node file fugtalarm.pdf 2026-10-22T08:00:00.000Z ;;
+            /my-files/Archive|/my-files/Archive/2026|'/my-files/Archive/2026/sub\/slash') node folder "${p##*/}" 2026-01-01T00:00:00.000Z ;;
+            /my-files/Projects/manual.pdf) node file manual.pdf 2026-10-22T08:00:00.000Z ;;
             *) node file "${p##*/}" 2026-01-01T00:00:00.000Z ;;
           esac
           echo; exit 0 ;;
       esac
       echo '['
       case "$p" in
-        /my-files/Bil)
+        /my-files/Archive)
           node folder 2026 2026-01-01T00:00:00.000Z; echo ,
           node file old.pdf 2026-09-01T10:00:00.000Z; echo ,
           node file 'a \"quoted\" name.pdf' 2026-10-20T12:00:00.000Z; echo ,
-          node file Kommentarer 2026-10-21T09:30:00.000Z application/vnd.proton.doc; echo
+          node file Notes 2026-10-21T09:30:00.000Z application/vnd.proton.doc; echo
           ;;
-        /my-files/Bil/2026)
-          node file kontrakt.pdf 2026-10-20T15:21:07.000Z; echo ,
+        /my-files/Archive/2026)
+          node file contract.pdf 2026-10-20T15:21:07.000Z; echo ,
           node folder 'sub\/slash' 2026-01-01T00:00:00.000Z; echo ,
           printf '{"uid":"u","name":{"ok":false,"error":"x"},"type":"file"}\n'
           ;;
-        '/my-files/Bil/2026/sub\/slash')
+        '/my-files/Archive/2026/sub\/slash')
           node file deep.pdf 2026-10-25T07:00:00.000Z; echo
           ;;
       esac

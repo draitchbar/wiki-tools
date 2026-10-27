@@ -27,7 +27,7 @@ printf '%s' "$key" | grep -Eq "$SRC_NAME_RE" || die "invalid instance key '$key'
 [ -f "$input" ] || die "no input file '$input'"
 
 rel=$(printf '%s' "$rel" | tr '\\' '/' | sed -e 's#//*#/#g' -e 's#^\./##')
-case "$rel" in /*|[A-Za-z]:*|'') die "the target must be a relative path below the source folder, e.g. 'Tisvilde/plan.drawio'." ;; esac
+case "$rel" in /*|[A-Za-z]:*|'') die "the target must be a relative path below the source folder, e.g. 'Projects/plan.drawio'." ;; esac
 ! src_has_dots "/$rel" || die "'.' and '..' are not allowed in the target path."
 
 # The base64 text: the longest "content" value in a saved tool result, or

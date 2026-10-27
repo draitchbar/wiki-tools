@@ -1,7 +1,7 @@
 ---
 key: books
 type: bookish
-shelf: Byg
+shelf: Fiction
 state:
   - last_checked
 ---

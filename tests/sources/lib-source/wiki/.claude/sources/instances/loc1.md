@@ -1,7 +1,7 @@
 ---
 key: loc1
 type: loc
-labels: Tisvilde
+labels: Receipts
 state:
   - last_checked
 ---

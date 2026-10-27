@@ -29,12 +29,12 @@ related:
   - "[[related-page]]"
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
-status_as_of: YYYY-MM-DD   # decision and approval pages only
+status_as_of: YYYY-MM-DD   # only on types whose template has it
 as_of: YYYY-MM-DD          # dated analyses only (see below)
 ---
 ```
 
-Decision and approval pages carry `status_as_of`, so a superseded decision doesn't read as current.
+Page types that hold decisions or statuses carry `status_as_of`, so a superseded decision doesn't read as current. CLAUDE.md names those types, and their templates (`templates/<type>.md`) include the field; lint reads the templates to know which types need it.
 
 An analysis or research page written at a point in time (e.g. before a contract was signed) can carry `as_of:` instead of being rewritten when events overtake it. It then opens with a banner, `> Written YYYY-MM-DD, before <event>. Since then: <one line, with a [[link]] to the current page>.` Lint treats such pages as historical: no stale or superseded findings.
 
@@ -58,5 +58,5 @@ The folders under `wiki/`, the page types, the templates and which types carry `
 
 ## Lint and audit
 - `/wiki:lint` runs the structural checks and the contradiction checks. Run it about every 5 ingests; the report goes to `outputs/lint-YYYY-MM-DD.md`.
-- `/wiki:audit <page>` re-reads a page's sources and checks every figure and claim against them. Use it on budget, decision and approval pages, and whenever lint reports a contradiction. The report goes to `outputs/audit-<slug>-YYYY-MM-DD.md`.
+- `/wiki:audit <page>` re-reads a page's sources and checks every figure and claim against them. Use it on the key pages CLAUDE.md names (figures, decisions, statuses), and whenever lint reports a contradiction. The report goes to `outputs/audit-<slug>-YYYY-MM-DD.md`.
 - Reports live in `outputs/` and are committed; wiki pages don't link to them.

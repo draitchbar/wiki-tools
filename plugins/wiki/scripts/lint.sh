@@ -13,9 +13,11 @@
 #   ERROR  missing frontmatter, missing required fields, broken [[links]]
 #   WARN   orphan pages, pages missing from index.md, pages without sources,
 #          bad or inconsistent dates, stale pages
-#   INFO   decision/approval pages without status_as_of, `sources:` entries
-#          that match no source of the wiki (only once it has
+#   INFO   pages without status_as_of whose type carries it (its template,
+#          templates/<type>.md, has a status_as_of field), `sources:`
+#          entries that match no source of the wiki (only once it has
 #          .claude/sources/instances/)
+# A status_as_of older than 90 days is a warning on any page.
 #
 # Environment (for tests): WIKI_LINT_TODAY=YYYY-MM-DD overrides today's date.
 
@@ -33,6 +35,15 @@ STALE_DAYS=90
 REQUIRED="title type sources created updated"
 # Words that suggest a claim goes out of date (English and Danish).
 STALE_WORDS='pending|awaiting|not yet|currently|latest|expected|upcoming|afventer|venter på|endnu ikke'
+
+# Page types that carry status_as_of: those whose template's frontmatter
+# has the field (the wiki's CLAUDE.md names them; /wiki:init writes the
+# templates to match).
+status_types=$(for t in "$root"/templates/*.md; do
+  [ -f "$t" ] || continue
+  tr -d '\r' < "$t" | awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} /^status_as_of:/{f=1} END{exit !f}' &&
+    basename "$t" .md
+done)
 
 tmp=$(mktemp -d) || die "cannot create temp dir"
 trap 'rm -rf "$tmp"' EXIT
@@ -133,15 +144,13 @@ while IFS="$US" read -r p hasfm title type created updated status nsrc asof; do
     hits=$(awk 'BEGIN{n=0} /^---/{n++; next} n>=2' "$wiki/$p" | grep -ioE "$STALE_WORDS" | tr '[:upper:]' '[:lower:]' | sort -u | paste -sd, -)
     [ -z "$hits" ] || echo "- \`$p\`: updated $age days ago and still says: $hits" >> "$tmp/w_stale"
   fi
-  case "$type" in
-    decision|approval)
-      if [ -z "$status" ]; then
-        echo "- \`$p\` ($type): no \`status_as_of\`" >> "$tmp/i_status"
-      elif age=$(days_since "$status") && [ "$age" -gt "$STALE_DAYS" ]; then
-        echo "- \`$p\` ($type): status_as_of $status is $age days old" >> "$tmp/w_stale"
-      fi
-      ;;
-  esac
+  if [ -n "$status" ]; then
+    if age=$(days_since "$status") && [ "$age" -gt "$STALE_DAYS" ]; then
+      echo "- \`$p\` ($type): status_as_of $status is $age days old" >> "$tmp/w_stale"
+    fi
+  elif [ -n "$type" ] && printf '%s\n' "$status_types" | grep -qxF -- "$type"; then
+    echo "- \`$p\` ($type): no \`status_as_of\`" >> "$tmp/i_status"
+  fi
 done < "$tmp/fm"
 
 # Citations that match no source: an entry must start with a configured

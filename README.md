@@ -18,7 +18,7 @@ The clone can live anywhere. Skills and hooks name the plugin's files through `$
 
 The plugin is **enabled per wiki** (in each wiki's `.claude/settings.json`), never at user scope. So the guards apply only in wiki sessions.
 
-Design and rationale: `~/wiki-tier1-implementation-plan.md` (revision 2); source redesign: `docs/sources-design.md`.
+Source design and rationale: `docs/sources-design.md`.
 
 ## Layout
 
@@ -63,7 +63,7 @@ Clone wherever you like; nothing depends on the path, and no environment variabl
 | | Linux | Windows |
 |---|---|---|
 | Prerequisites | git, bash | Git for Windows (Git Bash); Claude Code runs hooks in Git Bash |
-| OCR | `sudo apt install ocrmypdf tesseract-ocr-dan` | none; scans are read as page images |
+| OCR | `sudo apt install ocrmypdf` plus the Tesseract language packs your documents need (e.g. `tesseract-ocr-dan`); `/wiki:ingest` passes the languages from the wiki's CLAUDE.md | none; scans are read as page images |
 | Sources | whatever the wikis' source types need, listed in each type's Caveats; e.g. Proton Drive: `~/.local/bin/proton-drive` from [proton.me/download/drive/cli](https://proton.me/download/drive/cli/index.html) and `proton-drive auth login` by hand | the same; Proton's Windows build on PATH, check `proton-drive version` in Git Bash |
 
 ```bash
@@ -89,7 +89,7 @@ Claude Code runs an installed copy of the plugin, pinned to a commit. After pull
 
 `raw/` is the only built-in source. Every other source is chosen during init with the same flow as `/wiki:add-source`.
 
-It ends with a guide for the steps only you can do, because the guard blocks Claude from them: pasting `.claude/settings.json` (from `plugins/wiki/templates/project-settings.json` plus the sources' rules) and the files under `.claude/sources/`, committing them and restarting `claude`. Setting up the NAS remote and pushing is also yours.
+It ends with a guide for the steps only you can do, because the guard blocks Claude from them: pasting `.claude/settings.json` (from `plugins/wiki/templates/project-settings.json` plus the sources' rules) and the files under `.claude/sources/`, committing them and restarting `claude`. Setting up the git remote and pushing is also yours.
 
 Sources start at `last_checked_<key>: never`. The first `/wiki:ingest <key>` of each source checks it, asks for a starting point and reviews the data model (folders, page types, templates) against the wiki's purpose.
 
@@ -232,11 +232,11 @@ Remote paths:
 `read.sh <key> new` also reads the JSON of `list --json` and `info --json` (recorded 25.10.2026, cli-drive@0.9.0; uids, digests and other fields left out). It relies on one node per line and on `name.value`, `type` and `modificationTime`, plus `claimedSize` (or `totalStorageSize`) and `mediaType` when present, and refuses if a node line lacks the first three. The plain (non-JSON) `list` output shows the creation time, not the modification time, so it can't be used. Folder times don't change when a file inside does.
 
 ```
-$ proton-drive filesystem list --json "/my-files/Bolig/sommerhus/tilbygning 2026/tilbud"
+$ proton-drive filesystem list --json "/my-files/Projects/alpha/plan 2026/offers"
 [
-{"uid":"…","parentUid":"…","name":{"ok":true,"value":"tilbud budget.xlsx"},…,"type":"file","mediaType":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",…,"creationTime":"2026-04-20T17:32:02.000Z","modificationTime":"2026-08-13T07:25:37.000Z","totalStorageSize":15202,"activeRevision":{…,"claimedSize":15143,"claimedModificationTime":"2026-08-06T07:19:44.225Z",…},…},
-{"uid":"…","parentUid":"…","name":{"ok":true,"value":"Pierre mail 28062026"},…,"type":"file","mediaType":"application/vnd.proton.doc",…,"modificationTime":"2026-07-02T17:49:32.000Z",…},
-{"uid":"…","parentUid":"…","name":{"ok":true,"value":"tilbud 04-2026"},…,"type":"folder",…,"creationTime":"2026-08-09T06:16:01.000Z","modificationTime":"2026-08-09T06:16:01.000Z","folder":{"isImported":false},…},
+{"uid":"…","parentUid":"…","name":{"ok":true,"value":"offer budget.xlsx"},…,"type":"file","mediaType":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",…,"creationTime":"2026-04-20T17:32:02.000Z","modificationTime":"2026-08-13T07:25:37.000Z","totalStorageSize":15202,"activeRevision":{…,"claimedSize":15143,"claimedModificationTime":"2026-08-06T07:19:44.225Z",…},…},
+{"uid":"…","parentUid":"…","name":{"ok":true,"value":"Alice mail 28062026"},…,"type":"file","mediaType":"application/vnd.proton.doc",…,"modificationTime":"2026-07-02T17:49:32.000Z",…},
+{"uid":"…","parentUid":"…","name":{"ok":true,"value":"offers 04-2026"},…,"type":"folder",…,"creationTime":"2026-08-09T06:16:01.000Z","modificationTime":"2026-08-09T06:16:01.000Z","folder":{"isImported":false},…},
 …
 ]
 ```
@@ -275,12 +275,12 @@ Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for the wrapper (
 
 ## Known issues
 
-- **No OCR on Windows (deliberately out of scope for now).** `ocr.sh` needs `ocrmypdf` and Tesseract's Danish data, which are installed on Linux only.
+- **No OCR on Windows (deliberately out of scope for now).** `ocr.sh` needs `ocrmypdf` and Tesseract's language data, which are installed on Linux only.
   - **Normal case:** OCR scanned PDFs on Linux. The text is committed as `raw/ocr/<file>.txt`, so Windows reads it after `git pull`.
   - **A new scan ingested first on Windows:** `ocr.sh` exits with "ocrmypdf not installed", and `/wiki:ingest` falls back to Claude reading the PDF pages as images. That uses more tokens and leaves no `raw/ocr/` text. Re-run the ingest of that file on Linux to produce it.
   - **If Windows OCR is needed later:**
-    - *Native:* Tesseract (UB Mannheim installer, with Danish language data), Ghostscript and `pip install ocrmypdf`, all on PATH. `ocr.sh` should then work unchanged from Git Bash. Untested.
-    - *WSL:* `apt install ocrmypdf tesseract-ocr-dan` inside WSL, but `ocr.sh` would need to call `wsl ocrmypdf …`.
+    - *Native:* Tesseract (UB Mannheim installer, with the language data your documents need), Ghostscript and `pip install ocrmypdf`, all on PATH. `ocr.sh` should then work unchanged from Git Bash. Untested.
+    - *WSL:* `apt install ocrmypdf` and the language packs inside WSL, but `ocr.sh` would need to call `wsl ocrmypdf …`.
 
 ## Open checks (plan step 9)
 

@@ -56,8 +56,8 @@ Interview the user until the checklist below is settled. Rules:
 2. **Name**: kebab-case, default the folder name.
 3. **Sources**: `raw/` is built in. For every other source, settle it with the **add-source flow** (`${CLAUDE_PLUGIN_ROOT}/skills/add-source/SKILL.md`, steps 1 to 3: type from `sources.sh catalog`, key, the contract's parameters, state fields). A kind of source with no type yet gets a drafted local type (add-source's **New local type**), or enters via `raw/` or as user statements; ask which. Each source ends up with a key (e.g. `gmail`, `scans`).
 4. **Pages**: the folders under `wiki/` and their page types (`type:` = folder name in singular is the default), and which types carry decisions or statuses that need `status_as_of`.
-5. **Templates**: which types get a template and their sections. Start from `${CLAUDE_PLUGIN_ROOT}/templates/pages/entity.md` for people and organisations; design the others from purpose and research. Every template has the standard frontmatter from wiki-layout.md.
-6. **Language and formats**: language of pages and reports; date format in prose (files and frontmatter always ISO); currency; VAT basis rule.
+5. **Templates**: which types get a template and their sections. Start from `${CLAUDE_PLUGIN_ROOT}/templates/pages/entity.md` for people and organisations; design the others from purpose and research. Every template has the standard frontmatter from wiki-layout.md, plus `status_as_of: YYYY-MM-DD` for the types from item 4 (every such type gets a template; lint reads them to know which types need the field).
+6. **Language and formats**: language of pages and reports; date format in prose (files and frontmatter always ISO); and, only if the wiki handles amounts, currency and VAT or tax basis rule.
 7. **Privacy**: what must never be copied into Markdown (e.g. ID numbers, income), and which files must never be committed. Write these as plain rules; don't add enforcement steps (pattern scans, pre-commit checks, hooks) unless the user asks for them.
 8. **Facts**: stable facts and contacts for CLAUDE.md (current status belongs in pages, not CLAUDE.md).
 
@@ -79,7 +79,7 @@ Draft the plan (step 5's content). Then dispatch one reviewer subagent with the 
    - `## Project`: stable facts and contacts; "The current status of anything lives in the wiki pages, not here."
    - `## Sources`: `raw/` plus one bullet per instance, in add-source's CLAUDE.md line format (key, type, what it holds, `/wiki:ingest <key>`, state in `raw/sync-log.md`). Fetched files land in `~/.cache/wiki-sources/<name>/<key>/`.
    - `## Pages`: folders, `type:` rule, which types get `status_as_of`, "New pages start from `templates/<type>.md`".
-   - `## Formats`: language, dates, currency, VAT basis.
+   - `## Formats`: language, dates; currency and VAT or tax basis only if the wiki handles amounts.
    - `## Privacy` (only if item 7 produced rules).
    - `## Session routine`: `/wiki:sync-status` at the start; `/wiki:lint` about every 5 ingests; `/wiki:audit <page>` on key pages (name the types).
 3. **Templates** in full.

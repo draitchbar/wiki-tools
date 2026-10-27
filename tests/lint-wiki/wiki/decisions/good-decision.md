@@ -9,4 +9,4 @@ created: 2026-09-01
 updated: 2026-10-01
 status_as_of: 2026-10-01
 ---
-Links to [[broken-contractor]] and [[no-sources]].
+Links to [[broken-person]] and [[no-sources]].

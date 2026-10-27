@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Fact-check one wiki page against its sources. Each figure, date and claim is verified by re-reading the cited email or document, with one subagent per source in parallel. Use for high-stakes pages (budget, decisions, approvals, quotes) or when lint reports a contradiction.
+description: Fact-check one wiki page against its sources. Each figure, date and claim is verified by re-reading the cited email or document, with one subagent per source in parallel. Use for high-stakes pages (figures, decisions, statuses, offers) or when lint reports a contradiction.
 argument-hint: "<page slug or path>"
 disable-model-invocation: true
 allowed-tools:
@@ -24,7 +24,7 @@ Verify one page against its sources, adapted from kfchou/wiki-skills' wiki-audit
 Find the page from the argument: a slug matching `wiki/**/<slug>.md`, or a path. If it's ambiguous or missing, ask. Audit one page per run. Read it in full: frontmatter `sources:`, the body and any inline citations.
 
 ## 2. Extract the claims to check
-List every **checkable claim**: each amount (with its VAT basis), date, deadline, percentage, quantity, scope statement, status and attribution ("X said/offered Y"). For each, note:
+List every **checkable claim**: each amount (with its VAT or tax basis, where the wiki tracks one), date, deadline, percentage, quantity, scope statement, status and attribution ("X said/offered Y"). For each, note:
 - the exact text on the page and its line number;
 - its **cited source**: an inline citation next to the claim, or else the frontmatter `sources:` entries it most plausibly comes from. Mark the latter as `inferred-source`.
 

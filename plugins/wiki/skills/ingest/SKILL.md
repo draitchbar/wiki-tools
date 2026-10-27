@@ -34,7 +34,7 @@ Sources of this wiki:
 5. From here on, the contract's sections (**Check**, **List new**, **Fetch**, **Mark ingested**, **Cite**, **Resolve citation**, **Caveats**) say exactly how to reach this source. Use only the tools and commands they name, in the forms they give (wrapper scripts: one command per call, no `;`, `&&`, pipes or redirection).
 6. Ingest **one source at a time**. If the user named several, do them in turn, each with its own commit.
 7. If the instance's `last_checked_<key>` is `never`, or the source has no line yet, follow **First ingest of a source** below before anything else. If `sources.sh show` prints **Check needed** (the instance file changed since the last ingest, e.g. after a migration), run step 1 of that section (**Check the source**) before listing, but keep the existing `last_checked` as the starting point.
-8. When something in the material is unclear (who someone is, which offer is meant, an unstated VAT basis), ask the user rather than guess, and cite the answer as `"User statement (YYYY-MM-DD)"`.
+8. When something in the material is unclear (who someone is, which offer or version is meant, an unstated VAT or tax basis where amounts matter), ask the user rather than guess, and cite the answer as `"User statement (YYYY-MM-DD)"`.
 
 ## First ingest of a source
 A source at `never` has not been checked against reality yet. Before ingesting it:
@@ -62,7 +62,7 @@ Never edit the shared files in `${CLAUDE_PLUGIN_ROOT}/schema/`; suggest changes 
 ## Writing pages
 - Follow the page templates and folder structure in CLAUDE.md, and the frontmatter in the shared wiki layout.
 - **Verbatim figures:** copy every amount, date, percentage and contract term exactly, with its source in the contract's **Cite** format (for `raw`: `raw/<path>, p. N`). If a new figure contradicts an existing one, keep both with sources and flag the conflict to the user.
-- Update `updated:` on every page you touch and `status_as_of:` on decision and approval pages.
+- Update `updated:` on every page you touch and `status_as_of:` on pages whose type carries it (its template has the field).
 - Add or update rows in `wiki/index.md`.
 - Prepend an entry to `wiki/log.md`: `## YYYY-MM-DD | ingest | <short title>`, listing the sources read and the pages created or updated.
 - After the pages are written, do the contract's **Mark ingested** step, if it has one.
@@ -76,7 +76,7 @@ Add a history row (date, key, what was ingested, the starting point chosen at a 
 ## Commit
 Make **one commit per ingested source** (e.g. one per Gmail thread batch, one per drive batch):
 - `git add` only the paths you created or changed, named explicitly. Never `git add -A`, `.` or `-u`.
-- Message: `Ingest <key>: <what>`, e.g. `Ingest gmail: Rikke's 2026-10-14 phase-2 proposal`.
+- Message: `Ingest <key>: <what>`, e.g. `Ingest gmail: Alice's 2026-10-14 proposal`.
 - Never push. Afterwards, run `git status` and list any untracked files you didn't create, so the user can decide about them.
 
 ## Report back

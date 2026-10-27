@@ -10,16 +10,16 @@ These rules apply to every LLM wiki. The wiki's own CLAUDE.md adds project facts
 Verify sub-agent claims against the source before putting them in a page or report.
 
 ## Ask for context, don't guess
-- When the meaning of something is unclear, ask the user instead of guessing. Typical cases: who a person is, which of two offers or versions is meant, an unstated VAT basis, whether a decision still stands, how a new kind of material fits the wiki.
+- When the meaning of something is unclear, ask the user instead of guessing. Typical cases: who a person is, which of two offers or versions is meant, an unstated VAT or tax basis where amounts matter, whether a decision still stands, how a new kind of material fits the wiki.
 - Record the answer as a source: `"User statement (YYYY-MM-DD)"`, in `sources:` and inline next to the claim.
 - A pointer from the user ("the new contract is on Proton") is a pointer, not a fact about the document. Record facts about a file (signed or not, which version, its date) only after reading it; until then write "the user says X is in Y".
 - In a non-interactive (headless) run nobody can answer: list the open questions in the final report instead of guessing.
 
 ## Verbatim figures (anti-drift)
 - Every amount, date, percentage, deadline or contract term is quoted **exactly as in the source**, with its source, in the source type's **Cite** format (its `SOURCE.md`), e.g.:
-  - a file: path and page, `(Proton: tilbud/tilbud 2026-08.pdf, p. 2)`, or `(raw/tilbud.pdf, p. 2)` for `raw/` (older pages write `raw: tilbud.pdf`; both mean the same, new citations use `raw/<path>`)
+  - a file: path and page, `(Proton: offers/offer-2026-08.pdf, p. 2)`, or `(raw/offer.pdf, p. 2)` for `raw/` (older pages write `raw: offer.pdf`; both mean the same, new citations use `raw/<path>`)
   - a manual key (no source file, e.g. `web`): `(web: example.com, buyer's guide)`, or the URL
-  - an email: thread subject and message date, `(Gmail: "Vedr. tilbud", 10.08.2026)`
+  - an email: thread subject and message date, `(Gmail: "Re: offer", 10.08.2026)`
 - Don't round, convert or paraphrase a figure. If you compute something (a sum, a difference), label it as computed and show the inputs.
 - Questions about exact figures are answered by re-reading the source, not from the wiki page.
 - When two sources disagree, record both with their sources and flag the conflict for the user; don't pick one silently.
@@ -42,5 +42,5 @@ Verify sub-agent claims against the source before putting them in a page or repo
 - **Commit:** at the end, give one line naming each installed file, e.g. `git add -- .claude/sources/instances/gmail.md .claude/settings.json && git commit -m "Add source files"`, with `git rm -q <file>` first for a file to delete. The user runs it: their commands may name protected paths, yours may not.
 
 ## Naming
-- Filenames: kebab-case (`pierre-devriel.md`).
+- Filenames: kebab-case (`jane-doe.md`).
 - Cross-references: `[[wikilink]]`.

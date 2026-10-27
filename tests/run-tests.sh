@@ -75,7 +75,7 @@ gbroken filesystem-no-roots     'printf -- "---\nkey: x\ntype: local-folder\n---
 rm -rf "$tmp/gb"; cp -r "$here/guard-wiki" "$tmp/gb"
 printf 'key: x\n' > "$tmp/gb/.claude/sources/instances/x.md"
 gdiag() { # NAME EXPECTED-EXIT TOOL-INPUT-JSON (Bash command or Write)
-  printf '{"session_id":"t","cwd":"/home/u/wikis/udbygning","hook_event_name":"PreToolUse","tool_name":"%s","tool_input":%s,"tool_use_id":"x"}' "$3" "$4" |
+  printf '{"session_id":"t","cwd":"/home/u/wikis/mywiki","hook_event_name":"PreToolUse","tool_name":"%s","tool_input":%s,"tool_use_id":"x"}' "$3" "$4" |
     CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u bash "$scripts/guard.sh" >/dev/null 2>&1
   check "guard/broken-$1" "$2" "$?"
 }
@@ -92,12 +92,12 @@ gdiag git-diff-output   2 Bash '{"command":"git diff --output=/tmp/x"}'
 gdiag git-status-chain  2 Bash '{"command":"git status && rm -rf wiki"}'
 gdiag git-status-redir  2 Bash '{"command":"git status > wiki/x.md"}'
 gdiag git-commit        2 Bash '{"command":"git commit -m x"}'
-gdiag write-md          2 Write '{"file_path":"/home/u/wikis/udbygning/wiki/a.md","content":"x"}'
+gdiag write-md          2 Write '{"file_path":"/home/u/wikis/mywiki/wiki/a.md","content":"x"}'
 msg=$(printf '{"session_id":"t","cwd":"/x","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"tool_use_id":"x"}' |
   CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u bash "$scripts/guard.sh" 2>&1)
 case "$msg" in *'its first line is "key: x"'*'Read still works'*) r=ok ;; *) r="$msg" ;; esac
 check "guard/broken-message" ok "$r"
-win='{"session_id":"t","cwd":"C:\\Users\\u\\wikis\\udbygning","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"C:\\Users\\u\\Pictures\\Receipts\\a.txt","content":"x"},"tool_use_id":"x"}'
+win='{"session_id":"t","cwd":"C:\\Users\\u\\wikis\\mywiki","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"C:\\Users\\u\\Pictures\\Receipts\\a.txt","content":"x"},"tool_use_id":"x"}'
 printf '%s' "$win" | CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/c/Users/u bash "$scripts/guard.sh" >/dev/null 2>&1
 check "guard/windows-drive-root" 2 "$?"
 
@@ -115,36 +115,36 @@ fi
 # pd-read.sh refusals, run inside a throwaway git repo with a roots file.
 git -C "$tmp" init -q wiki
 mkdir -p "$tmp/wiki/.claude"
-printf '/my-files/Bolig/sommerhus/tilbygning 2026\r\n' > "$tmp/wiki/.claude/proton-roots"
+printf '/my-files/Projects/alpha/plan 2026\r\n' > "$tmp/wiki/.claude/proton-roots"
 pd() { (cd "$tmp/wiki" && PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" "$@" >/dev/null 2>&1); echo $?; }
 pdout() { (cd "$tmp/wiki" && PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" "$@" 2>&1); }
 
-check "pd-read/refuse-trash"            1 "$(pd trash '/my-files/Bolig/sommerhus/tilbygning 2026/a.pdf')"
-check "pd-read/refuse-upload"           1 "$(pd upload '/my-files/Bolig/sommerhus/tilbygning 2026')"
-check "pd-read/refuse-delete"           1 "$(pd delete '/my-files/Bolig/sommerhus/tilbygning 2026/a.pdf')"
+check "pd-read/refuse-trash"            1 "$(pd trash '/my-files/Projects/alpha/plan 2026/a.pdf')"
+check "pd-read/refuse-upload"           1 "$(pd upload '/my-files/Projects/alpha/plan 2026')"
+check "pd-read/refuse-delete"           1 "$(pd delete '/my-files/Projects/alpha/plan 2026/a.pdf')"
 check "pd-read/refuse-outside-roots"    1 "$(pd list /my-files)"
-check "pd-read/refuse-sibling-prefix"   1 "$(pd list '/my-files/Bolig/sommerhus/tilbygning 2026-old')"
-check "pd-read/refuse-dotdot"           1 "$(pd list '/my-files/Bolig/sommerhus/tilbygning 2026/../..')"
-check "pd-read/refuse-relative"         1 "$(pd list 'my-files/Bolig')"
-check "pd-read/refuse-extra-args"       1 "$(pd list '/my-files/Bolig/sommerhus/tilbygning 2026' --force)"
-check "pd-read/refuse-outside-git"      1 "$(cd "$tmp" && PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" list '/my-files/Bolig/sommerhus/tilbygning 2026' >/dev/null 2>&1; echo $?)"
+check "pd-read/refuse-sibling-prefix"   1 "$(pd list '/my-files/Projects/alpha/plan 2026-old')"
+check "pd-read/refuse-dotdot"           1 "$(pd list '/my-files/Projects/alpha/plan 2026/../..')"
+check "pd-read/refuse-relative"         1 "$(pd list 'my-files/Projects')"
+check "pd-read/refuse-extra-args"       1 "$(pd list '/my-files/Projects/alpha/plan 2026' --force)"
+check "pd-read/refuse-outside-git"      1 "$(cd "$tmp" && PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" list '/my-files/Projects/alpha/plan 2026' >/dev/null 2>&1; echo $?)"
 # Behaviour against the fake CLI. pd-read.sh is the transition shim for key
 # "proton" with .claude/proton-roots; proton-drive/read.sh checks follow.
 fake() { (cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" "$@" 2>&1); }
-root='/my-files/Bolig/sommerhus/tilbygning 2026'
+root='/my-files/Projects/alpha/plan 2026'
 
-out=$(fake list "$root/tilbud")
-check "pd-read/list-calls-cli"          "FAKE filesystem list --json $root/tilbud" "$out"
+out=$(fake list "$root/offers")
+check "pd-read/list-calls-cli"          "FAKE filesystem list --json $root/offers" "$out"
 out=$(fake size "$root")
 check "pd-read/size-calls-cli"          "FAKE filesystem size --json $root" "$out"
-out=$(fake download "$root/tilbud/a.pdf" | head -n 1)
-check "pd-read/download-args"           "FAKE filesystem download --json -f remove -d merge $root/tilbud/a.pdf $tmp/home/.cache/wiki-sources/wiki/proton/tilbud" "$out"
-printf '/my-files/Bolig/fugtalarm.pdf\n' >> "$tmp/wiki/.claude/proton-roots"
-out=$(fake download "/my-files/Bolig/fugtalarm.pdf" | head -n 1)
-check "pd-read/download-file-root"      "FAKE filesystem download --json -f remove -d merge /my-files/Bolig/fugtalarm.pdf $tmp/home/.cache/wiki-sources/wiki/proton" "$out"
+out=$(fake download "$root/offers/a.pdf" | head -n 1)
+check "pd-read/download-args"           "FAKE filesystem download --json -f remove -d merge $root/offers/a.pdf $tmp/home/.cache/wiki-sources/wiki/proton/offers" "$out"
+printf '/my-files/Projects/manual.pdf\n' >> "$tmp/wiki/.claude/proton-roots"
+out=$(fake download "/my-files/Projects/manual.pdf" | head -n 1)
+check "pd-read/download-file-root"      "FAKE filesystem download --json -f remove -d merge /my-files/Projects/manual.pdf $tmp/home/.cache/wiki-sources/wiki/proton" "$out"
 out=$(fake download "$root/a.pdf" | head -n 1)
 check "pd-read/download-top-level"      "FAKE filesystem download --json -f remove -d merge $root/a.pdf $tmp/home/.cache/wiki-sources/wiki/proton" "$out"
-check "pd-read/refuse-download-folder"  1 "$(cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root/tilbud" >/dev/null 2>&1; echo $?)"
+check "pd-read/refuse-download-folder"  1 "$(cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root/offers" >/dev/null 2>&1; echo $?)"
 check "pd-read/refuse-download-root"    1 "$(cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root" >/dev/null 2>&1; echo $?)"
 out=$(cd "$tmp/wiki" && FAKE_PD_SYNTAX=changed HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root/a.pdf" 2>&1; echo "exit=$?")
 case "$out" in *"syntax changed"*exit=1) r=refused ;; *) r="not refused: $out" ;; esac
@@ -154,33 +154,33 @@ check "pd-read/refuse-changed-syntax"   refused "$r"
 pdr="$here/../plugins/wiki/sources/proton-drive/read.sh"
 git -C "$tmp" init -q pdw
 mkdir -p "$tmp/pdw/.claude/sources/instances"
-printf -- '---\nkey: drive\ntype: proton-drive\nroots:\n  - /my-files/Bil\n  - /my-files/Bolig/fugtalarm.pdf\n---\n' > "$tmp/pdw/.claude/sources/instances/drive.md"
+printf -- '---\nkey: drive\ntype: proton-drive\nroots:\n  - /my-files/Archive\n  - /my-files/Projects/manual.pdf\n---\n' > "$tmp/pdw/.claude/sources/instances/drive.md"
 printf -- '---\nkey: mail\ntype: gmail\nlabels: X\n---\n' > "$tmp/pdw/.claude/sources/instances/mail.md"
 printf '/my-files\n' > "$tmp/pdw/.claude/proton-roots"
 pdn() { (cd "$tmp/pdw" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" 2>&1); }
 pdnx() { (cd "$tmp/pdw" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" >/dev/null 2>&1); echo $?; }
-check "proton-drive/list"                 "FAKE filesystem list --json /my-files/Bil/2026" "$(pdn drive list /my-files/Bil/2026)"
-out=$(pdn drive download "/my-files/Bil/2026/kontrakt.pdf" | head -n 1)
-check "proton-drive/download-to-key"      "FAKE filesystem download --json -f remove -d merge /my-files/Bil/2026/kontrakt.pdf $tmp/home/.cache/wiki-sources/pdw/drive/2026" "$out"
-out=$(pdn drive download "/my-files/Bolig/fugtalarm.pdf" | tail -n 1)
-check "proton-drive/download-file-root"   "pd-read: downloaded to $tmp/home/.cache/wiki-sources/pdw/drive/fugtalarm.pdf" "$out"
-check "proton-drive/refuse-outside"       1 "$(pdnx drive list /my-files/Bolig)"
-check "proton-drive/refuse-sibling"       1 "$(pdnx drive list /my-files/Bil-old)"
-check "proton-drive/refuse-dotdot"        1 "$(pdnx drive list /my-files/Bil/../Bolig)"
-check "proton-drive/refuse-write-op"      1 "$(pdnx drive upload /my-files/Bil)"
-check "proton-drive/refuse-two-args"      1 "$(pdnx list /my-files/Bil)"
-check "proton-drive/refuse-wrong-type"    1 "$(pdnx mail list /my-files/Bil)"
-check "proton-drive/refuse-no-instance"   1 "$(pdnx nosuch list /my-files/Bil)"
-check "proton-drive/legacy-only-proton"   1 "$(pdnx other list /my-files/Bil)"
+check "proton-drive/list"                 "FAKE filesystem list --json /my-files/Archive/2026" "$(pdn drive list /my-files/Archive/2026)"
+out=$(pdn drive download "/my-files/Archive/2026/contract.pdf" | head -n 1)
+check "proton-drive/download-to-key"      "FAKE filesystem download --json -f remove -d merge /my-files/Archive/2026/contract.pdf $tmp/home/.cache/wiki-sources/pdw/drive/2026" "$out"
+out=$(pdn drive download "/my-files/Projects/manual.pdf" | tail -n 1)
+check "proton-drive/download-file-root"   "pd-read: downloaded to $tmp/home/.cache/wiki-sources/pdw/drive/manual.pdf" "$out"
+check "proton-drive/refuse-outside"       1 "$(pdnx drive list /my-files/Projects)"
+check "proton-drive/refuse-sibling"       1 "$(pdnx drive list /my-files/Archive-old)"
+check "proton-drive/refuse-dotdot"        1 "$(pdnx drive list /my-files/Archive/../Projects)"
+check "proton-drive/refuse-write-op"      1 "$(pdnx drive upload /my-files/Archive)"
+check "proton-drive/refuse-two-args"      1 "$(pdnx list /my-files/Archive)"
+check "proton-drive/refuse-wrong-type"    1 "$(pdnx mail list /my-files/Archive)"
+check "proton-drive/refuse-no-instance"   1 "$(pdnx nosuch list /my-files/Archive)"
+check "proton-drive/legacy-only-proton"   1 "$(pdnx other list /my-files/Archive)"
 check "proton-drive/legacy-proton-roots"  "FAKE filesystem list --json /my-files/X" "$(pdn proton list /my-files/X)"
 # new: walk the roots against the fake's canned tree (FAKE_PD_TREE=1).
 pdtree() { (cd "$tmp/pdw" && FAKE_PD_TREE=1 HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" 2>&1); }
 out=$(pdtree drive new 2026-10-20)
-check "proton-drive/new-same-day"       yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-20 15:21 12 /my-files/Bil/2026/kontrakt.pdf' && echo yes)"
-check "proton-drive/new-quoted-name"    yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-20 12:00 21 /my-files/Bil/a "quoted" name.pdf' && echo yes)"
-check "proton-drive/new-deep-escaped"   yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-25 07:00 8 /my-files/Bil/2026/sub\/slash/deep.pdf' && echo yes)"
-check "proton-drive/new-proton-doc"     yes "$(printf '%s\n' "$out" | grep -qxF 'p 2026-10-21 09:30 11 /my-files/Bil/Kommentarer' && echo yes)"
-check "proton-drive/new-file-root"      yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-22 08:00 13 /my-files/Bolig/fugtalarm.pdf' && echo yes)"
+check "proton-drive/new-same-day"       yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-20 15:21 12 /my-files/Archive/2026/contract.pdf' && echo yes)"
+check "proton-drive/new-quoted-name"    yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-20 12:00 21 /my-files/Archive/a "quoted" name.pdf' && echo yes)"
+check "proton-drive/new-deep-escaped"   yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-25 07:00 8 /my-files/Archive/2026/sub\/slash/deep.pdf' && echo yes)"
+check "proton-drive/new-proton-doc"     yes "$(printf '%s\n' "$out" | grep -qxF 'p 2026-10-21 09:30 5 /my-files/Archive/Notes' && echo yes)"
+check "proton-drive/new-file-root"      yes "$(printf '%s\n' "$out" | grep -qxF 'f 2026-10-22 08:00 10 /my-files/Projects/manual.pdf' && echo yes)"
 check "proton-drive/new-older-dropped"  no  "$(printf '%s\n' "$out" | grep -q 'old.pdf' && echo yes || echo no)"
 check "proton-drive/new-no-folders"     no  "$(printf '%s\n' "$out" | grep -q '^d ' && echo yes || echo no)"
 check "proton-drive/new-undecryptable"  yes "$(printf '%s\n' "$out" | grep -q 'cannot be decrypted' && echo yes)"
@@ -188,11 +188,11 @@ check "proton-drive/new-walk-count"     yes "$(printf '%s\n' "$out" | grep -qxF 
 check "proton-drive/new-sorted"         "2026-10-20 2026-10-20 2026-10-21 2026-10-22 2026-10-25" "$(printf '%s\n' "$out" | grep '^[fp] ' | cut -d' ' -f2 | paste -sd' ' -)"
 check "proton-drive/new-never"          yes "$(pdtree drive new never | grep -q 'old.pdf' && echo yes)"
 check "proton-drive/new-bad-date"       1 "$(cd "$tmp/pdw" && FAKE_PD_TREE=1 PATH="$fakebin:$PATH" bash "$pdr" drive new yesterday >/dev/null 2>&1; echo $?)"
-check "proton-drive/new-path-not-date"  1 "$(cd "$tmp/pdw" && FAKE_PD_TREE=1 PATH="$fakebin:$PATH" bash "$pdr" drive new /my-files/Bil >/dev/null 2>&1; echo $?)"
+check "proton-drive/new-path-not-date"  1 "$(cd "$tmp/pdw" && FAKE_PD_TREE=1 PATH="$fakebin:$PATH" bash "$pdr" drive new /my-files/Archive >/dev/null 2>&1; echo $?)"
 out=$(cd "$tmp/pdw" && FAKE_PD_FORMAT=changed FAKE_PD_TREE=1 PATH="$fakebin:$PATH" bash "$pdr" drive new never 2>&1; echo "exit=$?")
 case "$out" in *"no longer has the shape"*exit=1) r=refused ;; *) r="$out" ;; esac
 check "proton-drive/new-format-changed" refused "$r"
-printf -- '---\nkey: proton\ntype: proton-drive\nroots:\n  - /my-files/Bil\n---\n' > "$tmp/pdw/.claude/sources/instances/proton.md"
+printf -- '---\nkey: proton\ntype: proton-drive\nroots:\n  - /my-files/Archive\n---\n' > "$tmp/pdw/.claude/sources/instances/proton.md"
 check "proton-drive/instance-beats-legacy" 1 "$(pdnx proton list /my-files/X)"
 
 # lint.sh against the fixture wiki in tests/lint-wiki (one planted problem per check).
@@ -204,14 +204,14 @@ expect() { # NAME TEXT
   check "lint/$1" found "$r"
 }
 expect summary            'Pages: 6. Errors: 5. Warnings: 10. Info: 1.'
-expect no-frontmatter     '`rooms/no-frontmatter.md`: no YAML frontmatter'
-expect missing-fields     '`approvals/missing-fields.md`: missing title sources'
-expect broken-alias       '`[[missing-page]]` (no such page) linked from `contractors/broken-contractor.md`'
+expect no-frontmatter     '`topics/no-frontmatter.md`: no YAML frontmatter'
+expect missing-fields     '`tasks/missing-fields.md`: missing title sources'
+expect broken-alias       '`[[missing-page]]` (no such page) linked from `people/broken-person.md`'
 expect broken-path-anchor '`[[also-missing]]` (no such page)'
 expect broken-in-log      '`[[ghost-from-log]]` (no such page) linked from `log.md`'
-expect orphan             '`rooms/no-frontmatter.md`: no inbound links from other pages'
-expect not-in-index       '`approvals/missing-fields.md`: not listed in index.md'
-expect no-sources         '`budget/no-sources.md`: `sources:` is empty'
+expect orphan             '`topics/no-frontmatter.md`: no inbound links from other pages'
+expect not-in-index       '`tasks/missing-fields.md`: not listed in index.md'
+expect no-sources         '`notes/no-sources.md`: `sources:` is empty'
 expect future-date        '`updated: 2027-01-01` is in the future'
 expect invalid-date       '`updated: 2026-31-12` is not a YYYY-MM-DD date'
 expect updated-before     'updated (2026-08-01) is before created (2026-09-01)'
@@ -222,24 +222,31 @@ expect clusters           '- **decisions**: `decisions/good-decision.md`, `decis
 findings=$(printf '%s\n' "$lint_out" | sed '/^## Clusters/,$d')
 case "$findings" in *good-decision.md*) r=flagged ;; *) r=clean ;; esac
 check "lint/clean-page-not-flagged" clean "$r"
-case "$findings" in *broken-contractor\]\]*) r=flagged ;; *) r=clean ;; esac
+case "$findings" in *broken-person]]*) r=flagged ;; *) r=clean ;; esac
 check "lint/case-insensitive-links" clean "$r"
 case "$lint_out" in *"matches no source"*) r=flagged ;; *) r=clean ;; esac
 check "lint/no-prefix-check-without-instances" clean "$r"
+# status_as_of: required only for types whose template has it.
+case "$lint_out" in *'broken-person.md` (person): no `status_as_of`'*) r=flagged ;; *) r=clean ;; esac
+check "lint/status-not-required-by-template" clean "$r"
+rm "$tmp/lw/templates/decision.md"
+lint_nt=$(cd "$tmp/lw" && WIKI_LINT_TODAY=2026-10-16 bash "$scripts/lint.sh" 2>&1)
+case "$lint_nt" in *'no `status_as_of`'*) r=flagged ;; *) r=clean ;; esac
+check "lint/status-type-from-template" clean "$r"
 # The same wiki with a gmail instance: citations must match a source.
 cp -r "$here/lint-wiki" "$tmp/lw2"
 git -C "$tmp/lw2" init -q
 mkdir -p "$tmp/lw2/.claude/sources/instances"
 printf -- '---\nkey: gmail\ntype: gmail\nlabels: X\n---\n' > "$tmp/lw2/.claude/sources/instances/gmail.md"
 mkdir -p "$tmp/lw2/raw"; printf 'last_checked_raw: never\nlast_checked_web: never\n' > "$tmp/lw2/raw/sync-log.md"
-printf -- '---\ntitle: Cites\ntype: note\nsources:\n  - "Gmail: A (2026-09-01)"\n  - "Proton: x.pdf, p. 1"\n  - raw/a.pdf\n  - "raw: b.pdf, p. 2"\n  - "web: fdm.dk, leasing guide"\n  - "User statement (2026-10-01)"\n  - https://example.com\nrelated: []\ncreated: 2026-10-01\nupdated: 2026-10-01\n---\n' > "$tmp/lw2/wiki/cites.md"
+printf -- '---\ntitle: Cites\ntype: note\nsources:\n  - "Gmail: A (2026-09-01)"\n  - "Proton: x.pdf, p. 1"\n  - raw/a.pdf\n  - "raw: b.pdf, p. 2"\n  - "web: example.com, buyer guide"\n  - "User statement (2026-10-01)"\n  - https://example.com\nrelated: []\ncreated: 2026-10-01\nupdated: 2026-10-01\n---\n' > "$tmp/lw2/wiki/cites.md"
 lint2=$(cd "$tmp/lw2" && WIKI_LINT_TODAY=2026-10-16 bash "$scripts/lint.sh" 2>&1)
 case "$lint2" in *'`cites.md`: source `Proton: x.pdf, p. 1` matches no source of this wiki'*) r=found ;; *) r=missing ;; esac
 check "lint/unknown-source-prefix" found "$r"
 n=$(printf '%s\n' "$lint2" | grep -c 'matches no source')
-check "lint/known-prefixes-pass" 2 "$n"   # cites.md Proton + broken-contractor.md "Proton Drive"
+check "lint/known-prefixes-pass" 2 "$n"   # cites.md Proton + broken-person.md "Proton Drive"
 # Case-insensitive prefixes, "Local file: raw/", and as_of pages.
-printf -- '---\ntitle: Cites2\ntype: note\nsources:\n  - "Web: fdm.dk"\n  - "gmail: B (2026-09-02)"\n  - "Local file: raw/a.pdf"\nrelated: []\ncreated: 2026-10-01\nupdated: 2026-10-01\n---\n[[cites]]\n' > "$tmp/lw2/wiki/cites2.md"
+printf -- '---\ntitle: Cites2\ntype: note\nsources:\n  - "Web: example.com"\n  - "gmail: B (2026-09-02)"\n  - "Local file: raw/a.pdf"\nrelated: []\ncreated: 2026-10-01\nupdated: 2026-10-01\n---\n[[cites]]\n' > "$tmp/lw2/wiki/cites2.md"
 printf -- '---\ntitle: Old analysis\ntype: research\nsources:\n  - raw/a.pdf\nrelated: []\ncreated: 2026-01-01\nupdated: 2026-01-01\nas_of: 2026-01-01\n---\nThe offer is still pending.\n' > "$tmp/lw2/wiki/old-analysis.md"
 printf -- '---\ntitle: Old note\ntype: research\nsources:\n  - raw/a.pdf\nrelated: []\ncreated: 2026-01-01\nupdated: 2026-01-01\nas_of: soon\n---\nThe offer is still pending.\n' > "$tmp/lw2/wiki/old-note.md"
 lint3=$(cd "$tmp/lw2" && WIKI_LINT_TODAY=2026-10-16 bash "$scripts/lint.sh" 2>&1)
@@ -370,7 +377,7 @@ lsw="$tmp/ls/wiki"
 check "lib-source/field"            "Standard test type" "$(lsrun 'src_field "$SRC_PLUGIN/sources/std/SOURCE.md" title')"
 check "lib-source/list"             "linux windows" "$(lsrun 'src_list "$SRC_PLUGIN/sources/std/SOURCE.md" platforms | paste -sd" " -')"
 check "lib-source/list-stops"       "read.sh" "$(lsrun 'src_list "$SRC_PLUGIN/sources/std/SOURCE.md" scripts')"
-check "lib-source/values-scalar"    "Tisvilde" "$(lsrun 'src_values .claude/sources/instances/loc1.md labels')"
+check "lib-source/values-scalar"    "Receipts" "$(lsrun 'src_values .claude/sources/instances/loc1.md labels')"
 check "lib-source/values-list"      "/data/one ~/two" "$(lsrun 'src_values .claude/sources/instances/good.md roots | paste -sd" " -')"
 check "lib-source/names"            "roots note" "$(lsrun 'src_list "$SRC_PLUGIN/sources/std/SOURCE.md" parameters | src_names | paste -sd" " -')"
 check "lib-source/instances"        "bad-root good loc1 missing-param unknown-type uses-broken wrong-key" "$(lsrun 'src_instances "$PWD" | paste -sd" " -')"
@@ -501,7 +508,7 @@ iexpect() { # NAME TEXT EXIT ANSWER TARGET CONTENT
   case "$o" in *"$t"*"@$x") r=ok ;; *) r="$o" ;; esac
   check "install/$n" ok "$r"
 }
-gm='---\nkey: gmail\ntype: gmail\nlabels: Tisvilde\n---\n\nNotes.\n'
+gm='---\nkey: gmail\ntype: gmail\nlabels: Projects\n---\n\nNotes.\n'
 iexpect no-frontmatter  'first line pasted: "key: gmail"' 1 y instances/gmail.md 'key: gmail\ntype: gmail\n'
 [ -f "$tmp/iw/.claude/sources/instances/gmail.md" ] && r=written || r=absent
 check "install/no-frontmatter-not-written" absent "$r"
@@ -543,10 +550,10 @@ want=$(printf '<mxfile>\n  <diagram name="Plan"/>\n</mxfile>\n')
 printf '%s' "$want" | base64 > "$tmp/dd/plain.b64"                    # wrapped base64, as written with Write
 printf '{"content":"%s","mimeType":"application/xml"}' "$(printf '%s' "$want" | base64 | tr -d '\n' | sed 's#/#\\/#g')" > "$tmp/dd/saved.json"
 printf '[{"type":"text","text":"{\\"content\\":\\"%s\\"}"}]' "$(printf '%s' "$want" | base64 | tr -d '\n')" > "$tmp/dd/nested.json"
-out="$tmp/home/.cache/wiki-sources/iw/gmail/Tisvilde/plan.drawio"
+out="$tmp/home/.cache/wiki-sources/iw/gmail/Projects/plan.drawio"
 for k in plain.b64 saved.json nested.json; do
   rm -f "$out"
-  o=$(dd gmail "$tmp/dd/$k" Tisvilde/plan.drawio)
+  o=$(dd gmail "$tmp/dd/$k" Projects/plan.drawio)
   case "$o" in *"wrote $out"*@0) [ "$(cat "$out")" = "$want" ] && r=ok || r="content differs" ;; *) r="$o" ;; esac
   check "decode-download/$k" ok "$r"
 done
@@ -592,6 +599,31 @@ check "local-folder/copy-content"        new "$(cat "$tmp/home/.cache/wiki-sourc
 out=$(lf scans copy "$tmp/other/one.pdf")
 check "local-folder/copy-file-root"      "local-folder: copied to $tmp/home/.cache/wiki-sources/lfw/scans/one.pdf" "$out"
 check "local-folder/source-untouched"    "old" "$(cat "$tmp/scans/2026/old.pdf")"
+
+# ocr.sh with a fake ocrmypdf that writes its arguments into the sidecar.
+ocrbin="$tmp/ocrbin"
+mkdir -p "$ocrbin"
+cat > "$ocrbin/ocrmypdf" <<'EOF'
+#!/usr/bin/env bash
+while [ $# -gt 0 ]; do
+  case "$1" in -l) langs=$2 ;; --sidecar) side=$2 ;; esac
+  shift
+done
+printf 'langs=%s\n' "$langs" > "$side"
+EOF
+chmod u+x "$ocrbin/ocrmypdf"
+git -C "$tmp" init -q ocrw
+printf 'pdf' > "$tmp/ocrw/scan.pdf"
+ocr() { (cd "$tmp/ocrw" && PATH="$ocrbin:$PATH" bash "$scripts/ocr.sh" "$@" >/dev/null 2>&1); echo $?; }
+check "ocr/default-eng"          "0 langs=eng"     "$(ocr scan.pdf) $(cat "$tmp/ocrw/raw/ocr/scan.txt")"
+check "ocr/languages"            "0 langs=dan+eng" "$(ocr scan.pdf dan+eng) $(cat "$tmp/ocrw/raw/ocr/scan.txt")"
+check "ocr/refuse-bad-languages" 1 "$(ocr scan.pdf 'dan;rm')"
+check "ocr/refuse-extra-args"    1 "$(ocr scan.pdf eng x)"
+
+# No merge-conflict markers anywhere in the plugin (the schema and skills
+# reach every wiki session as they are).
+r=$(grep -rlE '^(<<<<<<< |=======$|>>>>>>> )' "$scripts/.." 2>/dev/null | head -n 3)
+check "plugin/no-conflict-markers" "" "$r"
 
 # schema.sh: one file per call, the plugin root filled in, and each under
 # the 10,000-character cap on hook context with room to spare, even with a

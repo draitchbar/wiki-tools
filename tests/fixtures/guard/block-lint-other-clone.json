@@ -1,1 +1,1 @@
-{"session_id":"t","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/lint.sh","description":"Lint"},"cwd":"/home/u/wikis/udbygning"}
+{"session_id":"t","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/lint.sh","description":"Lint"},"cwd":"/home/u/wikis/mywiki"}

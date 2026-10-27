@@ -1,8 +1,8 @@
 ---
-title: Broken contractor
-type: contractor
+title: Broken person
+type: person
 sources:
-  - "Proton Drive: tilbud/a.pdf"
+  - "Proton Drive: files/a.pdf"
 created: 2026-09-01
 updated: 2026-08-01
 ---

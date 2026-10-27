@@ -1,7 +1,7 @@
 ---
 key: gmail
 type: gmail
-labels: Tisvilde
+labels: Receipts
 state:
   - last_checked
 ---
