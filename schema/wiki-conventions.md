@@ -17,9 +17,9 @@ Verify sub-agent claims against the source before putting them in a page or repo
 
 ## Verbatim figures (anti-drift)
 - Every amount, date, percentage, deadline or contract term is quoted **exactly as in the source**, with its source, in the source type's **Cite** format (its `SOURCE.md`), e.g.:
-  - a file: path and page, `(Proton: tilbud/tilbud kløvervej 8.pdf, p. 2)`, or `(raw/tilbud.pdf, p. 2)` for `raw/` (older pages write `raw: tilbud.pdf`; both mean the same, new citations use `raw/<path>`)
-  - a manual key (no source file, e.g. `web`): `(web: fdm.dk, leasing guide)`, or the URL
-  - an email: thread subject and message date, `(Gmail: "Vedr. Kløvervej, Tisvildeleje", 10.08.2026)`
+  - a file: path and page, `(Proton: tilbud/tilbud 2026-08.pdf, p. 2)`, or `(raw/tilbud.pdf, p. 2)` for `raw/` (older pages write `raw: tilbud.pdf`; both mean the same, new citations use `raw/<path>`)
+  - a manual key (no source file, e.g. `web`): `(web: example.com, buyer's guide)`, or the URL
+  - an email: thread subject and message date, `(Gmail: "Vedr. tilbud", 10.08.2026)`
 - Don't round, convert or paraphrase a figure. If you compute something (a sum, a difference), label it as computed and show the inputs.
 - Questions about exact figures are answered by re-reading the source, not from the wiki page.
 - When two sources disagree, record both with their sources and flag the conflict for the user; don't pick one silently.

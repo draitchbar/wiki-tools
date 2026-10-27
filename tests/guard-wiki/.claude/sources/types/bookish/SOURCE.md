@@ -4,6 +4,8 @@ title: Bookish (local test type)
 access: script
 platforms:
   - linux
+  - macos
+  - windows
 parameters:
   - shelf (required): shelf name
 state:

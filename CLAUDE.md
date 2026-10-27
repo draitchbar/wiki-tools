@@ -1,6 +1,6 @@
 # wiki-tools
 
-Shared tooling for the LLM wikis (udbygning, carleasing): a local-directory plugin marketplace with one plugin, `wiki`, plus the shared schema that each wiki's CLAUDE.md imports.
+Shared tooling for the LLM wikis: a local-directory plugin marketplace with one plugin, `wiki`, plus the shared schema that each wiki's CLAUDE.md imports.
 
 This repo is maintained in a Claude session opened here, where the `wiki` plugin is **not** enabled. The guard hooks are active only inside the wikis. See README.md for the full design.
 
