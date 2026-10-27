@@ -14,6 +14,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 scripts="$here/../plugins/wiki/scripts"
 fail=0
 total=0
+# The test repos have no .gitattributes; keep a user's core.autocrlf (Windows)
+# from converting their files or warning on every git add.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.autocrlf GIT_CONFIG_VALUE_0=false
 
 check() { # NAME EXPECTED ACTUAL
   total=$((total + 1))
@@ -368,7 +371,9 @@ for c in "$here"/../plugins/wiki/sources/*/SOURCE.md; do
   r=$(bash -c '. "$1"; src_validate_contract "$2" 2>&1 && echo valid' _ "$scripts/lib-source.sh" "$c")
   check "contract/$t-valid" valid "$r"
 done
-sed -i 's/^platforms:/platforms:\n  - macos/; /^  - linux$/d' "$tmp/sw/.claude/sources/types/bookish/SOURCE.md"
+# Leave bookish only a platform that isn't this host's.
+other=$(bash -c '. "$1"; [ "$(src_platform)" = linux ] && echo macos || echo linux' _ "$scripts/lib-source.sh")
+sed -i "/^  - \(linux\|macos\|windows\)$/d; s/^platforms:/platforms:\n  - $other/" "$tmp/sw/.claude/sources/types/bookish/SOURCE.md"
 sexpect show-platform   "isn't available on" show books
 printf -- '---\nkey: bad\ntype: gmail\n---\n' > "$tmp/sw/.claude/sources/instances/bad.md"
 sed -i 's/^key: bad/key: worse/' "$tmp/sw/.claude/sources/instances/bad.md"

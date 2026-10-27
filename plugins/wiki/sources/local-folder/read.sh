@@ -36,7 +36,7 @@ src_validate_instance "$root" "$key" 2>/dev/null || die "instance file $inst doe
 roots=$(src_values "$inst" roots)
 
 listing() { # FIND-ARGS...: "<type> <YYYY-MM-DD HH:MM> <bytes> <path>" per entry
-  find "$@" -printf '%y %TY-%Tm-%Td %TH:%TM %s %p\n' 2>/dev/null | LC_ALL=C sort -k4
+  find "$@" -printf '%y %TY-%Tm-%Td %TH:%TM %s %p\n' 2>/dev/null | LC_ALL=C sort -k5
 }
 
 if [ "$op" = new ]; then
