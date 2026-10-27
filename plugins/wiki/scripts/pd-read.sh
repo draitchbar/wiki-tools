@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # pd-read.sh: transition shim for wikis set up before source types.
 #
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/pd-read.sh <list|info|size|download> "<remote path>"
+#   bash <plugin>/scripts/pd-read.sh <list|info|size|download> "<remote path>"
 #
 # Runs the proton-drive type's wrapper for instance key "proton":
 #   sources/proton-drive/read.sh proton <op> <path>

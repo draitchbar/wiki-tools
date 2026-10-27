@@ -2,8 +2,8 @@
 # install-source-file.sh: the user installs one file into a wiki's
 # protected .claude/sources/ tree, after checking it.
 #
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/install-source-file.sh instances/<key>.md
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/install-source-file.sh types/<type>/<file>
+#   bash <plugin>/scripts/install-source-file.sh instances/<key>.md
+#   bash <plugin>/scripts/install-source-file.sh types/<type>/<file>
 #
 # Run it in a terminal outside Claude, from inside the wiki. Paste the file's
 # content, end with Ctrl-D. The script then:
@@ -16,9 +16,9 @@
 #      need that are still missing.
 # It never touches git: commit the installed files yourself.
 #
-# Claude can't run it: the guard blocks every command that names
-# plugins/wiki/scripts except its fixed list of core scripts, and the
-# script refuses to run inside a Claude Code session.
+# Claude can't run it: the guard blocks every command that names the
+# plugin folder except its listed scripts, and the script refuses to run
+# inside a Claude Code session.
 #
 # Environment (for tests only): WIKI_INSTALL_ANSWER=y|n answers the prompt.
 

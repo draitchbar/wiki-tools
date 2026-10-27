@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # read.sh: read-only access to Proton Drive for the wiki skills.
 #
-#   bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh <key> list     "<remote path>"
-#   bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh <key> info     "<remote path>"
-#   bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh <key> size     "<remote path>"
-#   bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh <key> download "<remote file>"
-#   bash ~/src/wiki-tools/plugins/wiki/sources/proton-drive/read.sh <key> new      "<YYYY-MM-DD|never>"
+#   bash <plugin>/sources/proton-drive/read.sh <key> list     "<remote path>"
+#   bash <plugin>/sources/proton-drive/read.sh <key> info     "<remote path>"
+#   bash <plugin>/sources/proton-drive/read.sh <key> size     "<remote path>"
+#   bash <plugin>/sources/proton-drive/read.sh <key> download "<remote file>"
+#   bash <plugin>/sources/proton-drive/read.sh <key> new      "<YYYY-MM-DD|never>"
 #
 # new walks every root (one list call per folder, about 3 s each) and prints
 # one line per file modified on or after the date (UTC), oldest first:

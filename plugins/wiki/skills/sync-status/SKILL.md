@@ -2,15 +2,15 @@
 name: sync-status
 description: Show how long ago each source of the current wiki was last ingested, and suggest what to ingest next. Use when the user asks what's new, what's stale, or where to start a wiki session.
 allowed-tools:
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/sync-status.sh)
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh *)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/sync-status.sh)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh *)
 ---
 
 # Sync status
 
-!`bash ~/src/wiki-tools/plugins/wiki/scripts/sync-status.sh`
+!`bash ${CLAUDE_PLUGIN_ROOT}/scripts/sync-status.sh`
 
-!`bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list`
+!`bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh list`
 
 If the sync-status block above is empty, this wiki has no `raw/sync-log.md`; say so and stop.
 

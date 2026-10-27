@@ -12,7 +12,7 @@ state:
   - last_checked: date of the newest ingest (YYYY-MM-DD, or never); required
 cite_prefix: <Prefix>
 read_tools:
-  - <permission rule, e.g. mcp__server__get_item or Bash(bash ~/src/wiki-tools/plugins/wiki/sources/<type>/read.sh *)>
+  - <permission rule, e.g. mcp__server__get_item or Bash(bash */sources/<type>/read.sh *)>
 bookkeeping_tools:
 forbidden_tools:
   - <permission rule for every write the connector or CLI offers>

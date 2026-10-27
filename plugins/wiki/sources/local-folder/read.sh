@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # read.sh: read-only access to a local folder outside the wiki.
 #
-#   bash ~/src/wiki-tools/plugins/wiki/sources/local-folder/read.sh <key> list "<folder>"
-#   bash ~/src/wiki-tools/plugins/wiki/sources/local-folder/read.sh <key> info "<path>"
-#   bash ~/src/wiki-tools/plugins/wiki/sources/local-folder/read.sh <key> new  "<YYYY-MM-DD|never>"
-#   bash ~/src/wiki-tools/plugins/wiki/sources/local-folder/read.sh <key> copy "<file>"
+#   bash <plugin>/sources/local-folder/read.sh <key> list "<folder>"
+#   bash <plugin>/sources/local-folder/read.sh <key> info "<path>"
+#   bash <plugin>/sources/local-folder/read.sh <key> new  "<YYYY-MM-DD|never>"
+#   bash <plugin>/sources/local-folder/read.sh <key> copy "<file>"
 #
 # Rules:
 # - <key> is a local-folder instance in <wiki>/.claude/sources/instances/.

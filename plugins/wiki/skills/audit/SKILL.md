@@ -4,9 +4,9 @@ description: Fact-check one wiki page against its sources. Each figure, date and
 argument-hint: "<page slug or path>"
 disable-model-invocation: true
 allowed-tools:
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh *)
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/decode-download.sh *)
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/sources/*/*.sh *)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh *)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/decode-download.sh *)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/sources/*/*.sh *)
   - Bash(bash .claude/sources/types/*/*.sh *)
   - Bash(pdftotext *)
   - Bash(libreoffice --headless --convert-to *)
@@ -38,7 +38,7 @@ By default, group the claims by source and dispatch one `Agent` per source in a 
 - **Check inline:** with only a handful of claims (about five or fewer) against short sources, read the sources and check them yourself.
 Either way, use the rubric below. Each subagent gets:
 - the source reference and how to read it:
-  - **A source of this wiki**: a citation starts with a type's `cite_prefix` (e.g. `Gmail:`, `Proton:`, `Folder scans:`). Map it to the instance: run `bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list`, then `sources.sh show <key>` for the instance whose type has that prefix (if several instances share a type, the citation or the page's context names which; else try each). Give the subagent the contract's **Resolve citation**, **Fetch** and **Caveats** sections verbatim, the instance's parameters, and the file-reading rules in `~/src/wiki-tools/plugins/wiki/skills/ingest/reading-files.md`. If no instance matches, mark the claims `source-missing` and say which prefix had no source.
+  - **A source of this wiki**: a citation starts with a type's `cite_prefix` (e.g. `Gmail:`, `Proton:`, `Folder scans:`). Map it to the instance: run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh list`, then `sources.sh show <key>` for the instance whose type has that prefix (if several instances share a type, the citation or the page's context names which; else try each). Give the subagent the contract's **Resolve citation**, **Fetch** and **Caveats** sections verbatim, the instance's parameters, and the file-reading rules in `${CLAUDE_PLUGIN_ROOT}/skills/ingest/reading-files.md`. If no instance matches, mark the claims `source-missing` and say which prefix had no source.
   - **Local file** (`raw/...`, `raw: <file>` or another repo path): check that the file exists (`raw/` files are often untracked and may exist on one machine only). If it does, read it directly. If it doesn't, look for a recorded duplicate in another source: the `raw/sync-log.md` history or the page may say the same document is also in a source of this wiki (e.g. "identical to Proton: …"). Use that copy and say so in the report; without one, the claims are `source-missing` ("not on this machine").
   - **URL**: fetch it with WebFetch and note the access date.
 - the list of claims against that source (exact text and line);

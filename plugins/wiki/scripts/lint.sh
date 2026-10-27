@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lint.sh: deterministic health checks for a raw/wiki-layout wiki.
 #
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/lint.sh
+#   bash <plugin>/scripts/lint.sh
 #
 # Run from inside a wiki (any directory of its git repo). Read-only: prints a
 # Markdown findings report to stdout and writes nothing. No LLM involved; the

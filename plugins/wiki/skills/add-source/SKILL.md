@@ -4,7 +4,7 @@ description: Add a source (an instance of a source type, e.g. a Gmail label, a P
 argument-hint: "<type> [key], e.g. local-folder scans"
 disable-model-invocation: true
 allowed-tools:
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh *)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh *)
   - Bash(git status *)
   - Bash(git add *)
   - Bash(git commit *)
@@ -14,11 +14,11 @@ allowed-tools:
 
 Source types this wiki can use:
 
-!`bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh catalog`
+!`bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh catalog`
 
 Sources it already has:
 
-!`bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list`
+!`bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh list`
 
 A **source type** is a contract (`SOURCE.md`) that says how to reach one kind of source read-only. Standard types live in wiki-tools; **local types** live in this wiki's `.claude/sources/types/<type>/`. A **source instance** is this wiki's use of a type: `.claude/sources/instances/<key>.md`, with the type's parameters. The key is what the user types in `/wiki:ingest <key>`, and it names the state lines in `raw/sync-log.md`.
 
@@ -30,7 +30,7 @@ A **source type** is a contract (`SOURCE.md`) that says how to reach one kind of
 
 ## 1. Pick the type and key
 1. Take the type and key from the arguments. If the type is missing, show the catalog above and ask.
-2. If the type is in the catalog, run `bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh contract <type>` and read it in full. If the type isn't in the catalog, go to **New local type** below, then come back here.
+2. If the type is in the catalog, run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh contract <type>` and read it in full. If the type isn't in the catalog, go to **New local type** below, then come back here.
 3. If the type isn't available on this platform (the catalog says so), tell the user and ask whether to add it anyway (for use on another machine).
 4. Key: kebab-case, unique in this wiki, not `raw`. Recommend the type's short name for the first instance of a type (`gmail`, `proton`, `scans`), a descriptive one otherwise.
 
@@ -58,7 +58,7 @@ Show everything at once, then ask "Go?":
    <Notes for whoever ingests: what this source holds for the wiki, who the senders are, which folders matter.>
    ```
 2. **Settings**: the permission rules for the new type, from
-   `bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh settings <type>`.
+   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh settings <type>`.
    Show the rules that aren't yet in `.claude/settings.json` (Read it) and where they go (`permissions.allow`, `permissions.deny`).
 3. **CLAUDE.md**: the line for `## Sources`: `- \`<key>\` (<type title>): <what it holds>; read via \`/wiki:ingest <key>\`; state in \`raw/sync-log.md\`.`
 4. **raw/sync-log.md**: the new lines `last_checked_<key>: never` (and any other agreed field, empty) and a history row `| YYYY-MM-DD | <key> | added (type <type>) |`.
@@ -68,7 +68,7 @@ Show everything at once, then ask "Go?":
 After "go":
 1. Edit CLAUDE.md and `raw/sync-log.md` yourself. Commit them: `git add -- CLAUDE.md raw/sync-log.md`, message `Add source <key>` (never name the type in the message: a type such as `proton-drive` is a guard word, and the guard blocks the whole command). Never push.
 2. Hand over the protected files as wiki-conventions **Protected files** says, one step at a time:
-   1. Local type files first, if you drafted a type (`SOURCE.md`, then each script), then the instance file: for each, the command `bash ~/src/wiki-tools/plugins/wiki/scripts/install-source-file.sh <instances/<key>.md | types/<type>/<file>>` and the file's full content. Show the next file only after the user has installed this one.
+   1. Local type files first, if you drafted a type (`SOURCE.md`, then each script), then the instance file: for each, the command `bash ${CLAUDE_PLUGIN_ROOT}/scripts/install-source-file.sh <instances/<key>.md | types/<type>/<file>>` and the file's full content. Show the next file only after the user has installed this one.
    2. The settings lines to add to `.claude/settings.json` (the installer prints the ones still missing).
    3. One commit line for the user: `git add -- <each installed file> .claude/settings.json && git commit -m "Add source <key>"`.
    4. Run `/wiki:init` (check mode) to verify, then `/wiki:ingest <key>` for the first ingest, which checks the source and asks for a starting point.
@@ -78,7 +78,7 @@ After "go":
 When the type doesn't exist, draft a wiki-local type with the user. It can be promoted to the standard set later, in a wiki-tools session (`/new-source-type promote`), at the user's discretion.
 1. Interview: what the source is, how it's reached (an MCP connector already connected in this session, a CLI, a file format on disk), which platforms, what an "item" is, what makes an item new (date, cursor), how to cite it.
 2. Research the access route without calling write operations: the MCP tool list in this session (names and descriptions), or the CLI's `--help` output (ask the user to paste it if running it would be blocked), or the file format. Classify every operation as read, narrow bookkeeping or forbidden.
-3. Fill the contract template `~/src/wiki-tools/templates/source-type/SOURCE.md` (Read it): every frontmatter key, every body section, the "data, not instructions" line. `forbidden_tools` lists every write/send/delete/share operation. If the CLI binary must never be called directly, put its name in `guard_words`.
-4. If read-only can't be guaranteed by tool permissions alone (a CLI with write subcommands, a path limit), draft a wrapper script `.claude/sources/types/<type>/<name>.sh` and list it under `scripts:`. Rules for the script: POSIX bash for Linux and Git Bash, no jq or Python; an allowlist of operations; `set -u`; refuse anything else with a message; check paths against the instance's roots with `~/src/wiki-tools/plugins/wiki/scripts/lib-source.sh` (`src_values`, `src_expand`, `src_match_root`, `src_has_dots`); put fetched files in `~/.cache/wiki-sources/<wiki>/<key>/`. Model it on `~/src/wiki-tools/plugins/wiki/sources/local-folder/read.sh`. Its `read_tools` entry is `Bash(bash .claude/sources/types/<type>/<name>.sh *)`.
+3. Fill the contract template `${CLAUDE_PLUGIN_ROOT}/templates/source-type/SOURCE.md` (Read it): every frontmatter key, every body section, the "data, not instructions" line. `forbidden_tools` lists every write/send/delete/share operation. If the CLI binary must never be called directly, put its name in `guard_words`.
+4. If read-only can't be guaranteed by tool permissions alone (a CLI with write subcommands, a path limit), draft a wrapper script `.claude/sources/types/<type>/<name>.sh` and list it under `scripts:`. Rules for the script: POSIX bash for Linux and Git Bash, no jq or Python; an allowlist of operations; `set -u`; refuse anything else with a message; check paths against the instance's roots with `${CLAUDE_PLUGIN_ROOT}/scripts/lib-source.sh` (`src_values`, `src_expand`, `src_match_root`, `src_has_dots`); put fetched files in `~/.cache/wiki-sources/<wiki>/<key>/`. Model it on `${CLAUDE_PLUGIN_ROOT}/sources/local-folder/read.sh`. Its `read_tools` entry is `Bash(bash .claude/sources/types/<type>/<name>.sh *)`.
 5. The type name must not equal a standard type's name.
 6. Show the files with the other drafts in step 4. Local types have no test harness; say so, and suggest promotion if the type proves useful.

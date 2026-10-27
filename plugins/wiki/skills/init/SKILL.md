@@ -4,9 +4,9 @@ description: Set up an LLM wiki in the current folder from its raison d'être. A
 argument-hint: "<raison d'être: what this wiki is for>"
 disable-model-invocation: true
 allowed-tools:
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/wiki-check.sh)
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/lint.sh)
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh *)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/wiki-check.sh)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/lint.sh)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh *)
   - Bash(git init *)
   - Bash(git status *)
   - Bash(git log *)
@@ -22,7 +22,7 @@ allowed-tools:
 
 # Wiki init: $ARGUMENTS
 
-Set up this folder as an LLM wiki in the shared raw/wiki layout (`~/src/wiki-tools/schema/wiki-layout.md`) with the shared conventions (`~/src/wiki-tools/schema/wiki-conventions.md`). Read both files first; everything you create must agree with them.
+Set up this folder as an LLM wiki in the shared raw/wiki layout (`${CLAUDE_PLUGIN_ROOT}/schema/wiki-layout.md`) with the shared conventions (`${CLAUDE_PLUGIN_ROOT}/schema/wiki-conventions.md`). Read both files first; everything you create must agree with them. The plugin loads both into every session of the wiki, so the wiki's CLAUDE.md never imports them.
 
 **Hard rules**
 - **Nothing is written before the user's go on the full plan (step 6).** Until then you only read, ask and research.
@@ -36,7 +36,7 @@ Set up this folder as an LLM wiki in the shared raw/wiki layout (`~/src/wiki-too
 2. Find the folder root: the git toplevel, or the current folder if it isn't a repo yet.
 3. Read `.claude/settings.json` with the Read tool (the guard blocks Bash commands such as `grep` or `cat` on it) and check that it enables `wiki@wiki-tools`. If not, stop and show the user step 2 of the setup: `claude plugin install wiki@wiki-tools --scope project`, then restart `claude` here.
 4. Pick the mode:
-   - **Check**: `CLAUDE.md` imports `@~/src/wiki-tools/schema/wiki-conventions.md` and `wiki/` exists. Go to **Check mode** at the end; skip everything else.
+   - **Check**: `CLAUDE.md`, `raw/sync-log.md` and `wiki/` exist. Go to **Check mode** at the end; skip everything else.
    - **New**: the folder contains nothing but `.claude/`, `.git/`, `.obsidian/`.
    - **Adopt**: anything else. Inventory the files with `git ls-files` and `ls -R` (names, extensions, tracked or not, `.gitignore` status) and read only the first lines of Markdown files (frontmatter, headings) and the existing `CLAUDE.md`. Don't read source documents in depth now.
 5. Tell the user the mode in one line and why.
@@ -54,9 +54,9 @@ Interview the user until the checklist below is settled. Rules:
 **Checklist** (every item settled before step 4):
 1. **Purpose and scope**: the raison d'être in one or two sentences; what's in scope; what's explicitly out of scope; the decisions or outcomes the wiki should support.
 2. **Name**: kebab-case, default the folder name.
-3. **Sources**: `raw/` is built in. For every other source, settle it with the **add-source flow** (`~/src/wiki-tools/plugins/wiki/skills/add-source/SKILL.md`, steps 1 to 3: type from `sources.sh catalog`, key, the contract's parameters, state fields). A kind of source with no type yet gets a drafted local type (add-source's **New local type**), or enters via `raw/` or as user statements; ask which. Each source ends up with a key (e.g. `gmail`, `scans`).
+3. **Sources**: `raw/` is built in. For every other source, settle it with the **add-source flow** (`${CLAUDE_PLUGIN_ROOT}/skills/add-source/SKILL.md`, steps 1 to 3: type from `sources.sh catalog`, key, the contract's parameters, state fields). A kind of source with no type yet gets a drafted local type (add-source's **New local type**), or enters via `raw/` or as user statements; ask which. Each source ends up with a key (e.g. `gmail`, `scans`).
 4. **Pages**: the folders under `wiki/` and their page types (`type:` = folder name in singular is the default), and which types carry decisions or statuses that need `status_as_of`.
-5. **Templates**: which types get a template and their sections. Start from `~/src/wiki-tools/templates/pages/entity.md` for people and organisations; design the others from purpose and research. Every template has the standard frontmatter from wiki-layout.md.
+5. **Templates**: which types get a template and their sections. Start from `${CLAUDE_PLUGIN_ROOT}/templates/pages/entity.md` for people and organisations; design the others from purpose and research. Every template has the standard frontmatter from wiki-layout.md.
 6. **Language and formats**: language of pages and reports; date format in prose (files and frontmatter always ISO); currency; VAT basis rule.
 7. **Privacy**: what must never be copied into Markdown (e.g. ID numbers, income), and which files must never be committed. Write these as plain rules; don't add enforcement steps (pattern scans, pre-commit checks, hooks) unless the user asks for them.
 8. **Facts**: stable facts and contacts for CLAUDE.md (current status belongs in pages, not CLAUDE.md).
@@ -75,7 +75,6 @@ Draft the plan (step 5's content). Then dispatch one reviewer subagent with the 
 1. **Files to create** (tree).
 2. **CLAUDE.md** in full, at most ~40 lines, in this order:
    - `# <Title>`
-   - `@~/src/wiki-tools/schema/wiki-conventions.md` and `@~/src/wiki-tools/schema/wiki-layout.md`
    - `## Purpose`: raison d'être, in scope, out of scope
    - `## Project`: stable facts and contacts; "The current status of anything lives in the wiki pages, not here."
    - `## Sources`: `raw/` plus one bullet per instance, in add-source's CLAUDE.md line format (key, type, what it holds, `/wiki:ingest <key>`, state in `raw/sync-log.md`). Fetched files land in `~/.cache/wiki-sources/<name>/<key>/`.
@@ -111,7 +110,7 @@ Draft the plan (step 5's content). Then dispatch one reviewer subagent with the 
    - The old `CLAUDE.md` → rewritten. Show a side-by-side: each old section or rule and where it goes (kept in CLAUDE.md, covered by the shared schema, moved to a page, dropped and why).
    - Anything you can't classify → stays where it is; listed in the guide.
    Flag files the user is likely editing (recently modified, drafts) and ask whether to move them now.
-6. **For the user to paste** (shown, not written): `.claude/settings.json` = the full content of `~/src/wiki-tools/templates/project-settings.json` with the rules from `sources.sh settings <type> ...` for the chosen types merged into `permissions.allow` and `permissions.deny` (in adopt mode with an existing settings file, a diff to apply); one `.claude/sources/instances/<key>.md` per instance, and the files of any drafted local type.
+6. **For the user to paste** (shown, not written): `.claude/settings.json` = the full content of `${CLAUDE_PLUGIN_ROOT}/templates/project-settings.json` with the rules from `sources.sh settings <type> ...` for the chosen types merged into `permissions.allow` and `permissions.deny` (in adopt mode with an existing settings file, a diff to apply); one `.claude/sources/instances/<key>.md` per instance, and the files of any drafted local type.
 7. **Research notes** to be saved: `outputs/init-research-YYYY-MM-DD.md`, with frontmatter `type: report` and the findings with their citations.
 8. **Reviewer findings** not yet resolved.
 
@@ -122,7 +121,7 @@ Ask: "Go?" Apply changes the user asks for and show the changed parts again. Wri
 2. Create the folders (`raw/`, `wiki/<folders>/`, `outputs/`, `templates/`), with a `.gitkeep` in each folder that would otherwise be empty.
 3. Write CLAUDE.md, templates, the standard files and the research notes exactly as approved.
 4. Adopt mode: perform the moves, frontmatter additions and link rewrites from the table. Then run `git status` and confirm nothing outside the table changed.
-5. Run `bash ~/src/wiki-tools/plugins/wiki/scripts/lint.sh` and fix any **error** it reports in files you created (warnings are normal on a young wiki).
+5. Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/lint.sh` and fix any **error** it reports in files you created (warnings are normal on a young wiki).
 
 ## 7. Commit
 One commit with only the paths you created, moved or changed, named explicitly (never `git add -A`, `.` or `-u`, never `.claude/`). For moves done with plain `mv` on untracked files, there's nothing to stage. Message: `Init wiki: <name>` or `Adopt into raw/wiki layout: <name>`, with a short body listing folders, types and sources.
@@ -132,7 +131,7 @@ End with a numbered, copy-pasteable guide. Include only the steps that apply:
 1. **Settings**: "Open `.claude/settings.json` and replace its content with:" followed by the full JSON (or the diff in adopt mode).
 2. **Sources** (if any besides `raw`): each `.claude/sources/` file in turn, as wiki-conventions **Protected files** says: the `install-source-file.sh` command, then the file's full content; the next file only after the user has installed this one (local type files first, then instances).
 3. **Commit them yourself**: `git add -- .claude/settings.json <each installed source file> && git commit -m "Add wiki settings"`.
-4. **Restart**: quit and start `claude` in this folder again, and approve the prompt about CLAUDE.md imports from outside the folder (needed for the shared schema).
+4. **Restart**: quit and start `claude` in this folder again, so the new settings apply.
 5. **Source setup outside Claude** (only where a source needs it): steps the contract's Caveats or the user's answers call for, e.g. creating a Gmail filter that applies the label, or logging in to a CLI.
 6. **Obsidian** (optional): Open folder as vault → this folder.
 7. **Check**: run `/wiki:init` again; it verifies the setup.
@@ -140,16 +139,17 @@ End with a numbered, copy-pasteable guide. Include only the steps that apply:
 Also list files that adopt mode left in place, and any open questions.
 
 ## Check mode
-1. Run `bash ~/src/wiki-tools/plugins/wiki/scripts/wiki-check.sh`.
-2. Check that the shared conventions are actually loaded: they are if your instructions contain the heading "Ask for context, don't guess" from wiki-conventions.md and "Data model" from wiki-layout.md. If not, the imports weren't approved: tell the user to restart `claude` here and approve the import prompt.
+1. Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/wiki-check.sh`.
+2. Check that the shared conventions are actually loaded: they are if your instructions contain the heading "Ask for context, don't guess" from wiki-conventions.md and "Data model" from wiki-layout.md. If not, the plugin's SessionStart hook didn't run: check that the plugin is enabled (step 0.3), then tell the user to restart `claude` here.
+   - If wiki-check reports that CLAUDE.md still imports the schema by path (a wiki set up before the plugin loaded it), propose removing those lines. After the user's go, remove them and commit CLAUDE.md alone with the message `Load the shared schema from the plugin`.
 3. Report every FAIL with its fix as a short numbered list, and say which ones only the user can do (settings, files under `.claude/sources/`, commits of `.claude/` files).
 4. **Migration**: if `sources.sh list` or wiki-check reports the old layout (a `.claude/proton-roots` file, or no `.claude/sources/instances/` while `raw/sync-log.md` has `last_checked_<key>` lines other than `raw`), follow **Migrate to `.claude/sources/`** below. A manual key in an already migrated wiki (`sources.sh list` says "manual key") is not the old layout.
 5. If everything passes: say so, and suggest `/wiki:sync-status`, then the first `/wiki:ingest <source>`.
-Check mode writes nothing except the migration commit the user approves, and calls no source.
+Check mode writes nothing except the commits the user approves (removing old schema imports, the migration), and calls no source.
 
 ## Migrate to `.claude/sources/`
 For wikis set up before source types existed (sources hard-wired as `gmail`, `proton`, `raw`). Pages, citations and existing `last_checked_<key>` lines stay as they are; only the source configuration moves.
-1. Run `bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list`, then, as a separate call, `bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh catalog` (one command per call: the guard blocks core scripts that are chained, piped or redirected). Read CLAUDE.md "Sources", `raw/sync-log.md` and `.claude/settings.json`. Read `.claude/proton-roots` with the Read tool if it exists.
+1. Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh list`, then, as a separate call, `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh catalog` (one command per call: the guard blocks core scripts that are chained, piped or redirected). Read CLAUDE.md "Sources", `raw/sync-log.md` and `.claude/settings.json`. Read `.claude/proton-roots` with the Read tool if it exists.
 2. For each `last_checked_<key>` line other than `raw` that has no instance file, propose an instance, keeping the key:
    - `gmail` → type `gmail`: labels and senders from CLAUDE.md, and any exclusions in the old search query (e.g. `-category:promotions`) as `exclude`.
    - `proton` → type `proton-drive`, `roots:` = the lines of `.claude/proton-roots`.

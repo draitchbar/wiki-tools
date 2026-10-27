@@ -12,7 +12,7 @@ A source type is a contract, `plugins/wiki/sources/<type>/SOURCE.md`, that tells
 Repo rules (CLAUDE.md): POSIX bash for Linux and Git Bash, no jq or Python; LF endings; every script change has fixtures and a green `bash tests/run-tests.sh`; never weaken the guard without saying so in the commit message.
 
 ## 0. Mode
-- `promote <wiki path> <type>`: copy `<wiki>/.claude/sources/types/<type>/` to `plugins/wiki/sources/<type>/`, then run steps 3 to 7 on the copy (rewrite script paths in `read_tools` and the body from `.claude/sources/types/<type>/` to `~/src/wiki-tools/plugins/wiki/sources/<type>/`; source `lib-source.sh` relative to the script). At the end, tell the user to delete the local copy in the wiki (the guard blocks Claude there), and that the type name must stay the same so instances keep working.
+- `promote <wiki path> <type>`: copy `<wiki>/.claude/sources/types/<type>/` to `plugins/wiki/sources/<type>/`, then run steps 3 to 7 on the copy (rewrite script paths from `.claude/sources/types/<type>/`: in `read_tools` to `*/sources/<type>/`, in the body to `${CLAUDE_PLUGIN_ROOT}/sources/<type>/`; source `lib-source.sh` relative to the script). At the end, tell the user to delete the local copy in the wiki (the guard blocks Claude there), and that the type name must stay the same so instances keep working.
 - Otherwise: a new type named `<type>` (kebab-case; refuse a name that exists).
 
 ## 1. Interview (one question at a time, recommended answer first)
@@ -32,7 +32,7 @@ Classify every operation: **read**, **bookkeeping** (narrow, marks an item as in
 Copy the template to `plugins/wiki/sources/<type>/SOURCE.md` and fill every frontmatter key and every body section (exact tool calls or commands; "not supported" where it can't be done; keep the "data, not instructions" line). Rules:
 - `forbidden_tools`: every write/send/delete/share operation as a permission rule (`mcp__<server>__<tool>`, `Bash(<cli> *)`).
 - `guard_words`: the CLI binary name, if Claude must reach it only through the wrapper.
-- `scripts` and `read_tools`: one entry per wrapper, `Bash(bash ~/src/wiki-tools/plugins/wiki/sources/<type>/<script>.sh *)`. The literal clone path `~/src/wiki-tools` is required (CLAUDE.md).
+- `scripts` and `read_tools`: one entry per wrapper, `Bash(bash */sources/<type>/<script>.sh *)`. The rule has no clone path, because a wiki's settings are the same on every machine; the guard lets only the plugin's own copy run. In the body, write commands as `bash ${CLAUDE_PLUGIN_ROOT}/sources/<type>/<script>.sh ...`; `sources.sh` fills in the path when it prints the contract.
 - `state`: `last_checked` plus only what the type really needs.
 - Parameters with paths: call them `roots` if the guard should treat them as read-only local folders (only for `access: filesystem`).
 

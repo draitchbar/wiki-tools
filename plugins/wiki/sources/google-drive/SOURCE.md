@@ -45,7 +45,7 @@ For each folder and each of its subfolders (find them with `mimeType = 'applicat
 ## Fetch
 - Google Docs, Sheets, Slides, PDF, Word, Excel, PowerPoint, OpenDocument, PNG and JPEG: `read_file_content` with the file's ID (`includeComments: true` for Docs, Sheets and Slides when comments may matter). Very large files can come back incomplete; say so.
 - Anything else (e.g. `.drawio`, `.csv`, `.txt`, `.svg`): `download_file_content` returns base64. Decode it into the cache with one call:
-  `bash ~/src/wiki-tools/plugins/wiki/scripts/decode-download.sh <key> "<input file>" "<folder path>/<path below the folder>"`
+  `bash ${CLAUDE_PLUGIN_ROOT}/scripts/decode-download.sh <key> "<input file>" "<folder path>/<path below the folder>"`
   The input file is the one Claude Code saved the tool result to, if it says the result was too large (it names the path). Otherwise, Write the base64 text to a file in the scratchpad and pass that. The script prints where the file landed in `~/.cache/wiki-sources/<wiki>/<key>/`; read it with the core file-reading rules (`.drawio`: see there). Never put downloaded files in the repo.
 - Record each file's modification date from the search result or `get_file_metadata`; the citation needs it.
 

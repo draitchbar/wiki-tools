@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # sources.sh: read-only view of a wiki's sources for the wiki skills.
 #
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh show <key>
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh catalog
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh contract <type>
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh settings [<type>...]
+#   bash <plugin>/scripts/sources.sh list
+#   bash <plugin>/scripts/sources.sh show <key>
+#   bash <plugin>/scripts/sources.sh catalog
+#   bash <plugin>/scripts/sources.sh contract <type>
+#   bash <plugin>/scripts/sources.sh settings [<type>...]
 #
 # list      the wiki's instances: key, type, standard/local, platform, state
 # show      one instance: checks, its instance file and its type's contract
@@ -34,6 +34,10 @@ state_of() { # KEY: the last_checked value in raw/sync-log.md
 }
 
 platform_ok() { src_list "$1" platforms | grep -qx "$plat"; }
+
+# print_contract FILE: the contract with ${CLAUDE_PLUGIN_ROOT} filled in, as
+# Claude Code does for the skills.
+print_contract() { tr -d '\r' < "$1" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$SRC_PLUGIN#g"; }
 
 case "$op" in
   list)
@@ -104,7 +108,7 @@ $errs"
     printf '===== Instance file %s =====\n' "${f#"$root"/}"
     tr -d '\r' < "$f"
     printf '\n===== Contract %s =====\n' "$c"
-    tr -d '\r' < "$c"
+    print_contract "$c"
     ;;
   catalog)
     [ $# -eq 1 ] || die "usage: sources.sh catalog"
@@ -120,7 +124,7 @@ $errs"
     c=$(src_contract "$root" "$2") || exit 1
     errs=$(src_validate_contract "$c" 2>&1) || printf 'WARNING: contract does not validate:\n%s\n\n' "$errs"
     printf '===== Contract %s =====\n' "$c"
-    tr -d '\r' < "$c"
+    print_contract "$c"
     ;;
   settings)
     shift

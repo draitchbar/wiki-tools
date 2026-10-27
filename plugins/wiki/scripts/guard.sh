@@ -33,18 +33,39 @@
 
 [ "$HOOK_PARSE_OK" = 1 ] || block "could not parse hook input; refusing (fail closed)."
 
-# Substrings (lowercase, forward slashes) of protected paths.
-PROTECTED_PATHS='wiki-tools/plugins/wiki/scripts
-wiki-tools/plugins/wiki/hooks
-wiki-tools/plugins/wiki/sources
+# The plugin folder this guard runs from, in every spelling a command may use:
+# as Git Bash writes it (/c/...), as Claude Code substitutes it on Windows
+# (c:/...), and with ~ for $HOME. Lowercase, forward slashes.
+p=$(norm "$SRC_PLUGIN")
+h=$(norm "${HOME:-}")
+PLUGIN_FORMS="$p
+$(printf '%s' "$p" | sed -n 's#^/\([a-z]\)/#\1:/#p')
+$(printf '%s' "$p" | sed -n 's#^\([a-z]\):/#/\1/#p')"
+if [ -n "$h" ]; then
+  PLUGIN_FORMS="$PLUGIN_FORMS
+$(printf '%s\n' "$PLUGIN_FORMS" | while IFS= read -r f; do
+    for hf in "$h" "$(printf '%s' "$h" | sed -n 's#^/\([a-z]\)/#\1:/#p')" "$(printf '%s' "$h" | sed -n 's#^\([a-z]\):/#/\1/#p')"; do
+      [ -n "$f" ] && [ -n "$hf" ] && case "$f" in "$hf"/*) echo "~/${f#"$hf"/}" ;; esac
+    done
+  done)"
+fi
+
+# Substrings (lowercase, forward slashes) of protected paths: the plugin's
+# scripts, hooks and sources wherever it is installed, and any clone of it.
+PROTECTED_PATHS="$(printf '%s\n' "$PLUGIN_FORMS" | while IFS= read -r f; do
+  [ -n "$f" ] && printf '%s/scripts\n%s/hooks\n%s/sources\n' "$f" "$f" "$f"
+done)
+plugins/wiki/scripts
+plugins/wiki/hooks
+plugins/wiki/sources"'
 .claude/sources
 .claude/proton-roots
 .claude/settings
 .claude/plugins/'
 
-# Core keywords, blocked in shell commands only. proton-drive and proton-roots stay here until the
-# wikis have moved to .claude/sources/ (proton-drive is also a guard word of
-# the proton-drive type).
+# Core keywords, blocked in shell commands only. proton-drive and
+# proton-roots stay here until the wikis have moved to .claude/sources/
+# (proton-drive is also a guard word of the proton-drive type).
 PROTECTED_WORDS='proton-drive
 hooks.json
 proton-roots
@@ -115,28 +136,52 @@ EOF
   done
 fi
 
-# allowed_source_script CMD: true if CMD is a plain call of a script that its
-# contract lists. CMD is normalised (lowercase, forward slashes).
-allowed_source_script() {
-  re='^[[:space:]]*bash[[:space:]]+"?([^[:space:]";&|<>`$]*)(/src/wiki-tools/plugins/wiki/sources|\.claude/sources/types)/([a-z0-9-]+)/([a-z0-9_-]+\.sh)"?([[:space:]]'"$NOCHAIN"'*)?$'
-  printf '%s' "$1" | grep -Eq "$re" || return 1
-  parts=$(printf '%s' "$1" | sed -E "s#$re#\\1|\\2|\\3|\\4#")
-  prefix=${parts%%|*}; rest=${parts#*|}
-  kind=${rest%%|*}; rest=${rest#*|}
-  t=${rest%%|*}; s=${rest#*|}
-  case "$kind" in
-    /src/*)
-      src_has_dots "$prefix" && return 1
-      c="$SRC_PLUGIN/sources/$t/SOURCE.md"
-      ;;
-    *)
-      [ -n "$wiki_root" ] || return 1
-      case "$prefix" in ''|.|./|"$(norm "$wiki_root")"/|"$(norm "$wiki_root")") ;; *) return 1 ;; esac
-      c="$wiki_root/.claude/sources/types/$t/SOURCE.md"
-      ;;
-  esac
+# script_path CMD: the script of a plain `bash <script> [args]` call (the path
+# may be in double quotes), with no ; & | < > ` $ anywhere and no "..".
+# CMD is normalised (lowercase, forward slashes).
+script_path() {
+  printf '%s' "$1" | grep -q "^$NOCHAIN*\$" || return 1
+  s=$(printf '%s' "$1" | sed -En 's#^[[:space:]]*bash[[:space:]]+"([^"]+)"([[:space:]].*)?$#\1#p; t; s#^[[:space:]]*bash[[:space:]]+([^[:space:]"]+)([[:space:]].*)?$#\1#p')
+  [ -n "$s" ] || return 1
+  s=${s#./}
+  src_has_dots "$s" && return 1
+  printf '%s' "$s"
+}
+
+# allowed_script CMD: true if CMD is a plain call of one of the plugin's core
+# scripts, of a standard type's listed script, or of a listed script of one
+# of this wiki's local types.
+allowed_script() {
+  s=$(script_path "$1") || return 1
+  rel=""
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    case "$s" in "$f"/*) rel=${s#"$f"/}; break ;; esac
+  done <<EOF
+$PLUGIN_FORMS
+EOF
+  if [ -n "$rel" ]; then
+    case "$rel" in
+      scripts/pd-read.sh|scripts/ocr.sh|scripts/sync-status.sh|scripts/lint.sh|scripts/wiki-check.sh|scripts/sources.sh|scripts/decode-download.sh) return 0 ;;
+      sources/*/*.sh) c="$SRC_PLUGIN/sources/$(printf '%s' "$rel" | cut -d/ -f2)/SOURCE.md" ;;
+      *) return 1 ;;
+    esac
+  else
+    [ -n "$wiki_root" ] || return 1
+    w=$(norm "$wiki_root")
+    rel=$s
+    for pre in "$w/" "$(printf '%s' "$w" | sed -n 's#^/\([a-z]\)/#\1:/#p')/" "$(printf '%s' "$w" | sed -n 's#^\([a-z]\):/#/\1/#p')/" ./; do
+      [ "$pre" != / ] || continue
+      case "$s" in "$pre"*) rel=${s#"$pre"}; break ;; esac
+    done
+    case "$rel" in .claude/sources/types/*/*.sh) ;; *) return 1 ;; esac
+    c="$wiki_root/.claude/sources/types/$(printf '%s' "$rel" | cut -d/ -f4)/SOURCE.md"
+  fi
+  name=${rel##*/}
+  [ "$(printf '%s' "$rel" | tr -cd / | wc -c)" -eq "$(case "$rel" in sources/*) echo 2 ;; *) echo 4 ;; esac)" ] || return 1
+  printf '%s' "$name" | grep -Eq '^[a-z0-9_-]+\.sh$' || return 1
   [ -f "$c" ] || return 1
-  src_list "$c" scripts | tr '[:upper:]' '[:lower:]' | grep -qxF -- "$s"
+  src_list "$c" scripts | tr '[:upper:]' '[:lower:]' | grep -qxF -- "$name"
 }
 
 # diagnostic_ok CMD: read-only calls allowed while a source file is broken:
@@ -144,7 +189,9 @@ allowed_source_script() {
 diagnostic_ok() {
   case "$1" in *--output*) return 1 ;; esac
   printf '%s' "$1" | grep -Eq '^[[:space:]]*git[[:space:]]+(status|log|diff|show)([[:space:]]'"$NOCHAIN"'*)?$' && return 0
-  printf '%s' "$1" | grep -Eq '^[[:space:]]*bash[[:space:]]+"?[^[:space:]";&|<>`$]*/src/wiki-tools/plugins/wiki/scripts/sources\.sh"?[[:space:]]+(list|show)([[:space:]]'"$NOCHAIN"'*)?$'
+  allowed_script "$1" || return 1
+  case "$(script_path "$1")" in */scripts/sources.sh) ;; *) return 1 ;; esac
+  printf '%s' "$1" | grep -Eq 'sources\.sh"?[[:space:]]+(list|show)([[:space:]]'"$NOCHAIN"'*)?$'
 }
 
 # under_root PATH: the root PATH is in, if any. PATH is normalised.
@@ -164,17 +211,21 @@ case "$HOOK_TOOL" in
       block "$BROKEN"
     fi
     if [ "$HOOK_TOOL" = Bash ]; then
-      # Allowed: bash [quoted] <path>/src/wiki-tools/plugins/wiki/scripts/<script>.sh [args]
-      # with no ; & | < > ` $ anywhere.
-      if printf '%s' "$cmd" | grep -Eq '^[[:space:]]*bash[[:space:]]+"?[^[:space:]";&|<>`$]*/src/wiki-tools/plugins/wiki/scripts/(pd-read|ocr|sync-status|lint|wiki-check|sources|decode-download)\.sh"?([[:space:]][^;&|<>`$]*)?$'; then
-        exit 0
-      fi
-      allowed_source_script "$cmd" && exit 0
+      allowed_script "$cmd" && exit 0
+      # The wikis' settings allow wrappers by wildcard (bash */sources/<type>/
+      # <script>.sh *), so a lookalike outside the plugin must not run.
+      s=$(script_path "$cmd") && case "$s" in
+        */sources/*/*.sh|*/scripts/pd-read.sh|*/scripts/ocr.sh|*/scripts/sync-status.sh|*/scripts/lint.sh|*/scripts/wiki-check.sh|*/scripts/sources.sh|*/scripts/decode-download.sh)
+          block "'$s' is not this plugin's copy or not a script its contract lists. Run the wiki's scripts from the plugin folder the skills name." ;;
+      esac
       ps=""
     else
       ps=" The wiki's scripts run only through the Bash tool (Git Bash), not PowerShell."
     fi
+    # The plugin folder itself is off limits in commands (also as x/../),
+    # apart from the plain script calls above.
     hit=$(contains_any "$cmd" "$PROTECTED_PATHS
+$PLUGIN_FORMS
 $PROTECTED_WORDS
 $GUARD_WORDS")
     [ -z "$hit" ] || block "command touches protected '$hit'. Sources are read only through their wrapper scripts; guard and source files are edited by the user.$ps"

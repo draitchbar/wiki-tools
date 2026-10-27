@@ -8,10 +8,13 @@ It is two things in one repo:
    - source-neutral skills `/wiki:init`, `/wiki:add-source`, `/wiki:ingest`, `/wiki:sync-status`, `/wiki:commit-themes`, `/wiki:lint` and `/wiki:audit`;
    - a standard set of **source types** (`gmail`, `proton-drive`, `local-folder`), each a `SOURCE.md` contract plus an optional read-only wrapper; see [Sources](#sources);
    - guard hooks that block `git push`, keep every source read-only as its contract says, and protect the guard machinery itself;
-   - a SessionStart hook that reports how stale each source in `raw/sync-log.md` is.
-2. **The shared wiki schema**, imported by each wiki's CLAUDE.md:
-   - `schema/wiki-conventions.md`: universal rules (every wiki);
-   - `schema/wiki-layout.md`: raw/wiki layout, frontmatter, ingest workflow (wikis that use this layout).
+   - a SessionStart hook that reports how stale each source in `raw/sync-log.md` is;
+   - **the shared wiki schema**, which SessionStart hooks (`schema.sh`, one per file, each under the 10,000-character cap on hook context) load into every session of a wiki, so a wiki's CLAUDE.md doesn't import it:
+     - `schema/wiki-conventions.md`: universal rules;
+     - `schema/wiki-layout.md`: raw/wiki layout, frontmatter, ingest workflow.
+2. **Templates** for new wikis, page types and source types, in `plugins/wiki/templates/`.
+
+The clone can live anywhere. Skills and hooks name the plugin's files through `${CLAUDE_PLUGIN_ROOT}`, which Claude Code fills in for an installed plugin; scripts find their own folder; the wikis' settings use path-free wildcard rules.
 
 The plugin is **enabled per wiki** (in each wiki's `.claude/settings.json`), never at user scope. So the guards apply only in wiki sessions.
 
@@ -22,11 +25,14 @@ Design and rationale: `~/wiki-tier1-implementation-plan.md` (revision 2); source
 ```
 .claude-plugin/marketplace.json   marketplace "wiki-tools"
 .claude/skills/new-source-type/   repo-local skill: add or promote a standard source type
-schema/                           shared CLAUDE.md content (@-imported)
 plugins/wiki/
+  schema/                         shared wiki schema, loaded at session start by schema.sh
+  templates/project-settings.json core of a wiki's .claude/settings.json (source rules come from the types)
+  templates/source-type/SOURCE.md the source contract template
+  templates/pages/entity.md       shared page template for people and organisations
   skills/{init,add-source,ingest,sync-status,commit-themes,lint,audit}/SKILL.md
   skills/ingest/reading-files.md  core rules for reading fetched files (pdftotext, LibreOffice, OCR)
-  hooks/hooks.json                PreToolUse guards + SessionStart status
+  hooks/hooks.json                PreToolUse guards + SessionStart schema and status
   sources/                        standard source types
     gmail/SOURCE.md               Gmail via the claude.ai connector (MCP)
     google-drive/SOURCE.md        Google Drive folders via the claude.ai connector (MCP)
@@ -40,21 +46,19 @@ plugins/wiki/
     sources.sh                    read-only view of a wiki's sources (list, show, catalog, contract, settings)
     install-source-file.sh        the user (never Claude) checks and installs one file into .claude/sources/
     decode-download.sh            base64 download (e.g. Google Drive) into the source cache
+    schema.sh                     prints one schema file (SessionStart, every start, resume, /clear, compaction)
     sync-status.sh                staleness report from raw/sync-log.md
     pd-read.sh                    transition shim for proton-drive/read.sh (until the wikis are migrated)
     ocr.sh                        ocrmypdf wrapper (Linux)
     lint.sh                       deterministic wiki checks for /wiki:lint (read-only)
     wiki-check.sh                 setup check for /wiki:init check mode (read-only)
-templates/project-settings.json   core of a wiki's .claude/settings.json (source rules come from the types)
-templates/source-type/SOURCE.md   the source contract template
-templates/pages/entity.md         shared page template for people and organisations
 tests/                            guard fixtures and fixture wikis, per-source tests, run-tests.sh
 docs/                             design notes and reviews
 ```
 
 ## Setup per machine
 
-The clone path **must be `~/src/wiki-tools`** on every machine. The skills, the guard's exception, the source contracts and the wikis' `allowed-tools` use that literal path.
+Clone wherever you like; nothing depends on the path, and no environment variable is needed. The examples use `~/src/wiki-tools`.
 
 | | Linux | Windows |
 |---|---|---|
@@ -68,7 +72,9 @@ bash ~/src/wiki-tools/tests/run-tests.sh          # must end "0 failed"
 claude plugin marketplace add ~/src/wiki-tools     # registers the marketplace only
 ```
 
-Don't install or enable the plugin at user scope. Each wiki enables it in its own committed `.claude/settings.json` (see `templates/project-settings.json`).
+Don't install or enable the plugin at user scope. Each wiki enables it in its own committed `.claude/settings.json` (see `plugins/wiki/templates/project-settings.json`).
+
+Claude Code runs an installed copy of the plugin, pinned to a commit. After pulling changes here, run `claude plugin marketplace update wiki-tools`, then `claude plugin update wiki@wiki-tools --scope project` in each wiki, and restart `claude` there.
 
 ## Setting up a wiki
 
@@ -83,17 +89,17 @@ Don't install or enable the plugin at user scope. Each wiki enables it in its ow
 
 `raw/` is the only built-in source. Every other source is chosen during init with the same flow as `/wiki:add-source`.
 
-It ends with a guide for the steps only you can do, because the guard blocks Claude from them: pasting `.claude/settings.json` (from `templates/project-settings.json` plus the sources' rules) and the files under `.claude/sources/`, committing them, restarting `claude` and approving the shared-schema imports. Setting up the NAS remote and pushing is also yours.
+It ends with a guide for the steps only you can do, because the guard blocks Claude from them: pasting `.claude/settings.json` (from `plugins/wiki/templates/project-settings.json` plus the sources' rules) and the files under `.claude/sources/`, committing them and restarting `claude`. Setting up the NAS remote and pushing is also yours.
 
 Sources start at `last_checked_<key>: never`. The first `/wiki:ingest <key>` of each source checks it, asks for a starting point and reviews the data model (folders, page types, templates) against the wiki's purpose.
 
-The shared starting template for people and organisations is `templates/pages/entity.md`; every other page type is designed per wiki by `/wiki:init`.
+The shared starting template for people and organisations is `plugins/wiki/templates/pages/entity.md`; every other page type is designed per wiki by `/wiki:init`.
 
 ## Sources
 
 The wiki skills know no particular source. They talk to every source through its **contract**.
 
-- **Source type**: a `SOURCE.md` contract (template: `templates/source-type/SOURCE.md`). Frontmatter (flat, bash-parseable): access kind, platforms, the parameters an instance must supply, the state it needs, `cite_prefix`, allowed read and bookkeeping tools, forbidden tools, guard words and wrapper scripts. Body: one section per operation, **Check**, **List new**, **Fetch**, **Mark ingested**, **Cite**, **Resolve citation**, plus **Caveats**.
+- **Source type**: a `SOURCE.md` contract (template: `plugins/wiki/templates/source-type/SOURCE.md`). Frontmatter (flat, bash-parseable): access kind, platforms, the parameters an instance must supply, the state it needs, `cite_prefix`, allowed read and bookkeeping tools, forbidden tools, guard words and wrapper scripts. Body: one section per operation, **Check**, **List new**, **Fetch**, **Mark ingested**, **Cite**, **Resolve citation**, plus **Caveats**.
   - **Standard types** live in `plugins/wiki/sources/<type>/`: `gmail`, `google-drive`, `proton-drive`, `local-folder`. `gmail` and `google-drive` need their claude.ai connector connected once (Settings → Connectors); it then works on every platform.
   - **Local types** live in a wiki's `.claude/sources/types/<type>/`. They may ship wrapper scripts and have no test harness. A local type can't reuse a standard type's name.
 - **Source instance**: a wiki's use of a type, `.claude/sources/instances/<key>.md` (type, parameters, agreed state fields). The key is the `/wiki:ingest <key>` argument and names the state lines (`last_checked_<key>`, ...) in `raw/sync-log.md`. One wiki may have several instances of one type.
@@ -104,11 +110,11 @@ The wiki skills know no particular source. They talk to every source through its
 
 **Add or promote a standard type**: in a session here, `/new-source-type <type>` or `/new-source-type promote <wiki path> <type>`. It researches the connector or CLI read-only, fills the contract, writes the wrapper, tests and guard fixtures, and ends with a green `run-tests.sh`. Promotion is your call, when a local type has proved useful.
 
-`bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list|show <key>|catalog|contract <type>|settings [<type>...]`, run in a wiki, shows what the skills see.
+`bash <plugin>/scripts/sources.sh list|show <key>|catalog|contract <type>|settings [<type>...]`, run in a wiki, shows what the skills see.
 
 ## Maintenance
 
-Edit this repo in a Claude session opened in `~/src/wiki-tools`. The `wiki` plugin isn't enabled here, so the guards don't get in the way.
+Edit this repo in a Claude session opened in the clone. The `wiki` plugin isn't enabled here, so the guards don't get in the way.
 
 1. Change scripts or hooks, adding or adjusting fixtures in `tests/fixtures/<script>/<pass|block>-<case>.json`.
 2. `bash tests/run-tests.sh` must pass.
@@ -254,8 +260,9 @@ Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for the wrapper (
 - **Guardrail, not a security boundary.** The guards match command text. They reliably stop accidental or straightforward misuse, but a deliberately obfuscated command could get through. Anything you run by hand is unaffected. If a Proton change slips through, use Proton's Trash and version history.
 - **Rules come from the contracts.** On every call, `guard.sh` reads all standard and local source contracts and the wiki's instances, and collects each type's `guard_words` and `scripts` and every filesystem instance's `roots`.
 - **Shells: Bash everywhere, PowerShell allowed on Windows.** The wiki's scripts run only through the Bash tool (Git Bash on Windows). Claude may use the PowerShell tool for anything else; it gets the same command checks as Bash, without the script exceptions, and `git push` is blocked in both.
-- **Blocked in wiki sessions (Bash and PowerShell):** commands containing the plugin's `scripts`/`hooks`/`sources` paths, `.claude/sources`, `.claude/settings`, `.claude/plugins/`, `hooks.json`, `claude plugin`, `disableAllHooks`, any contract's guard word (e.g. `proton-drive`), or a filesystem instance's root (e.g. `~/Documents/Scans`, also matched as `$HOME/…` and `$env:USERPROFILE/…`). `proton-roots` stays blocked until the wikis are migrated.
-  - **Exceptions (Bash only):** a plain `bash <...>/src/wiki-tools/plugins/wiki/scripts/<pd-read|ocr|sync-status|lint|wiki-check|sources>.sh <args>`, or a plain call of a wrapper a contract lists under `scripts` (`<...>/src/wiki-tools/plugins/wiki/sources/<type>/<script>.sh`, or `.claude/sources/types/<type>/<script>.sh` in this wiki), with no `; & | < > $` or backticks and no `..`.
+- **Blocked in wiki sessions (Bash and PowerShell):** commands containing the plugin's folder (wherever it is installed, written as `/c/…`, `C:/…`, `C:\…` or `~/…`) or any `plugins/wiki/scripts|hooks|sources` path, `.claude/sources`, `.claude/settings`, `.claude/plugins/`, `hooks.json`, `claude plugin`, `disableAllHooks`, any contract's guard word (e.g. `proton-drive`), or a filesystem instance's root (e.g. `~/Documents/Scans`, also matched as `$HOME/…` and `$env:USERPROFILE/…`). `proton-roots` stays blocked until the wikis are migrated.
+  - **Exceptions (Bash only):** a plain `bash <plugin>/scripts/<pd-read|ocr|sync-status|lint|wiki-check|sources>.sh <args>`, or a plain call of a wrapper a contract lists under `scripts` (`<plugin>/sources/<type>/<script>.sh`, or `.claude/sources/types/<type>/<script>.sh` in this wiki), with no `; & | < > $` or backticks and no `..`. `<plugin>` is the folder the guard itself runs from; the path may be in double quotes.
+  - **Lookalikes:** the wikis' settings allow wrappers by wildcard (`Bash(bash */sources/<type>/read.sh *)`, since a committed rule can't name a per-machine path), so any other `*/sources/<type>/*.sh` or core-script name outside the plugin is blocked.
 - **Blocked in wiki sessions (Write/Edit):** the same protected paths, anything inside a filesystem instance's root (also written `C:/…` or `/c/…`), and non-Markdown content containing a guard word.
 - **Fails closed:** unparseable hook input is refused. While an instance or contract can't be used (no frontmatter, unknown type, a local type shadowing a standard one, a filesystem instance without roots), every Bash and Write/Edit call is refused except read-only diagnostics: plain `git status`/`log`/`diff`/`show` (no `--output`) and `sources.sh list`/`show`. Read still works. The message names the file and its first line or the paths searched. Fix the file with `install-source-file.sh` or an editor, outside Claude.
 - **Cost:** reading the contracts adds about 0.1 s per tool call on Linux; Windows (Git Bash) is slower and not yet measured.
@@ -278,7 +285,7 @@ Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for the wrapper (
 ## Open checks (plan step 9)
 
 - **Plugin loading:** does `enabledPlugins` in a wiki's project settings load the plugin, with the marketplace registered only at user scope? If Claude Code asks for an install, run `claude plugin install wiki@wiki-tools --scope project` once per machine and note it here.
-- **Imports on Windows:** do `@~/src/wiki-tools/...` imports resolve on Windows?
-- **Skill injections:** do `` !`…` `` injections in skills pass the guard? They run `sync-status.sh` through an absolute path, which the exception allows.
-- **Bash rule wildcards (checked 24.10.2026 in the permissions docs):** a `*` may stand anywhere in a Bash rule and matches any text, slashes and spaces included, so `Bash(bash ~/src/wiki-tools/plugins/wiki/sources/*/*.sh *)` in the skills' `allowed-tools` works; the guard rejects `..` in those paths.
+- **Skill injections:** is `${CLAUDE_PLUGIN_ROOT}` filled in inside `` !`…` `` injections, and do they pass the guard? The docs (checked 27.10.2026) say plugin variables are substituted in a skill's body and `allowed-tools`, but don't name injections. Check with `/wiki:sync-status` in a wiki.
+- **Plugin variables (checked 27.10.2026 in the skills, hooks and plugins-reference docs):** `${CLAUDE_PLUGIN_ROOT}` is substituted in a plugin skill's body and in Bash rules in its `allowed-tools`, and set for hooks. It is not available to commands Claude runs through the Bash tool, so scripts find their own folder. Project settings and CLAUDE.md imports expand no variables.
+- **Bash rule wildcards (checked 24.10.2026 in the permissions docs):** a `*` may stand anywhere in a Bash rule and matches any text, slashes and spaces included, so `Bash(bash ${CLAUDE_PLUGIN_ROOT}/sources/*/*.sh *)` in the skills' `allowed-tools` and `Bash(bash */sources/<type>/read.sh *)` in a wiki's settings work; the guard rejects `..` and lookalikes.
 - **Hook environment (checked 24.10.2026 in the hooks docs):** hooks get `CLAUDE_PROJECT_DIR` (where the session started) and the input JSON has `cwd`; the guard uses the former and falls back to the git root of the latter.

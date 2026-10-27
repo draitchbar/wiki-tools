@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ocr.sh: give a scanned (image-only) PDF a Danish text layer.
 #
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/ocr.sh "<local pdf>"
+#   bash <plugin>/scripts/ocr.sh "<local pdf>"
 #
 # Writes only <wiki>/raw/ocr/<name>.txt (the OCR sidecar text). The source PDF
 # is never modified. Linux only: needs `ocrmypdf` and `tesseract-ocr-dan`.

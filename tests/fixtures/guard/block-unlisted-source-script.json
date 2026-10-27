@@ -1,1 +1,1 @@
-{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/udbygning","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"bash ~/src/wiki-tools/plugins/wiki/sources/local-folder/evil.sh scans","description":"x"},"tool_use_id":"x"}
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/udbygning","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"bash @PLUGIN@/sources/local-folder/evil.sh scans","description":"x"},"tool_use_id":"x"}

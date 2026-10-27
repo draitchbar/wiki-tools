@@ -13,7 +13,7 @@ state:
   - cursor: opaque token
 cite_prefix: Std
 read_tools:
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/sources/std/read.sh *)
+  - Bash(bash */sources/std/read.sh *)
 bookkeeping_tools:
 forbidden_tools:
   - Bash(std-cli *)

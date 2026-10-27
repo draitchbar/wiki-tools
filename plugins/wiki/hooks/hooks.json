@@ -32,6 +32,20 @@
     ],
     "SessionStart": [
       {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/schema.sh\" wiki-conventions"
+          },
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/schema.sh\" wiki-layout"
+          }
+        ]
+      },
+      {
         "matcher": "startup",
         "hooks": [
           {

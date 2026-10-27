@@ -3,7 +3,7 @@ name: lint
 description: Health-check the current wiki. Covers broken links, orphans, frontmatter, stale pages, contradictions between pages and missing cross-references. Writes a report to outputs/. Run about every 5 ingests or when asked to lint the wiki.
 disable-model-invocation: true
 allowed-tools:
-  - Bash(bash ~/src/wiki-tools/plugins/wiki/scripts/lint.sh)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/lint.sh)
   - Bash(git add *)
   - Bash(git commit *)
   - Bash(git status *)
@@ -15,7 +15,7 @@ Two phases, adapted from kfchou/wiki-skills: a deterministic script does the exh
 
 ## Phase 1: mechanical checks (script)
 
-!`bash ~/src/wiki-tools/plugins/wiki/scripts/lint.sh`
+!`bash ${CLAUDE_PLUGIN_ROOT}/scripts/lint.sh`
 
 If the output above says the wiki has no `wiki/` folder, tell the user this wiki doesn't use the raw/wiki layout and stop.
 

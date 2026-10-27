@@ -2,7 +2,7 @@
 # decode-download.sh: turn a base64 download (e.g. Google Drive's
 # download_file_content) into a file in the wiki's source cache.
 #
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/decode-download.sh <key> "<input file>" "<path below the folder>"
+#   bash <plugin>/scripts/decode-download.sh <key> "<input file>" "<path below the folder>"
 #
 # <input file> is either a file of plain base64 (written with Write), or a
 # tool result Claude Code saved to disk because it was too large (JSON with

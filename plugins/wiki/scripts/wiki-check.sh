@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # wiki-check.sh: read-only setup check for a raw/wiki-layout wiki.
 #
-#   bash ~/src/wiki-tools/plugins/wiki/scripts/wiki-check.sh
+#   bash <plugin>/scripts/wiki-check.sh
 #
 # Run from inside a wiki (any directory of its git repo). Used by /wiki:init
 # in check mode. Prints a Markdown pass/fail list with a fix for each failure
@@ -16,7 +16,7 @@
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
-template=${WIKI_CHECK_TEMPLATE:-$here/../../../templates/project-settings.json}
+template=${WIKI_CHECK_TEMPLATE:-$here/../templates/project-settings.json}
 
 root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || {
   printf 'wiki-check: not inside a git repo; run from a wiki.\n' >&2
@@ -46,21 +46,21 @@ for d in raw wiki outputs templates; do
 done
 for f in raw/sync-log.md wiki/index.md wiki/log.md CLAUDE.md .gitignore; do
   if [ -f "$root/$f" ]; then pass "\`$f\` exists"
-  else fail "\`$f\` is missing" "re-run /wiki:init, or create it as described in schema/wiki-layout.md"; fi
+  else fail "\`$f\` is missing" "re-run /wiki:init, or create it as described in the wiki plugin's schema/wiki-layout.md"; fi
 done
 n=$(find "$root/templates" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)
 if [ "$n" -gt 0 ]; then pass "$n page template(s) in \`templates/\`"
 else fail "no page templates in \`templates/\`" "add templates/<type>.md for each page type named in CLAUDE.md"; fi
 
-# 2. CLAUDE.md imports the shared schema.
+# 2. The plugin loads the shared schema at session start; CLAUDE.md must not
+# import it by path any more.
 if [ -f "$root/CLAUDE.md" ]; then
-  for s in wiki-conventions wiki-layout; do
-    if grep -q "^@~/src/wiki-tools/schema/$s\.md" "$root/CLAUDE.md"; then
-      pass "CLAUDE.md imports \`$s.md\`"
-    else
-      fail "CLAUDE.md doesn't import \`$s.md\`" "add the line \`@~/src/wiki-tools/schema/$s.md\` below the title"
-    fi
-  done
+  old=$(grep -E '^@.*/schema/wiki-(conventions|layout)\.md' "$root/CLAUDE.md" | tr -d '\r')
+  if [ -z "$old" ]; then
+    pass "CLAUDE.md has no schema imports (the plugin loads the schema)"
+  else
+    fail "CLAUDE.md still imports the schema by path: $(printf '%s' "$old" | paste -sd' ' -)" "remove these lines; the wiki plugin loads the schema at session start"
+  fi
 fi
 
 # 3. Sync log: every last_checked line is a date or "never".
@@ -174,7 +174,7 @@ if [ -d "$root/wiki" ]; then
   errs=$(cd "$root" && bash "$here/lint.sh" 2>/dev/null | sed -n 's/^Pages: [0-9]*\. Errors: \([0-9]*\)\..*/\1/p')
   case "$errs" in
     0) pass "lint finds no structural errors" ;;
-    '') fail "lint.sh didn't run" "run \`bash ~/src/wiki-tools/plugins/wiki/scripts/lint.sh\` and read its error" ;;
+    '') fail "lint.sh didn't run" "run \`bash $here/lint.sh\` and read its error" ;;
     *) fail "lint finds $errs structural error(s)" "run /wiki:lint" ;;
   esac
 fi

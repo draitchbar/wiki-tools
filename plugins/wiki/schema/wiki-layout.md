@@ -11,9 +11,9 @@ For wikis that follow the raw/wiki pattern. Each wiki's CLAUDE.md names its fold
   - `wiki/log.md`: append-only operations log, newest entry first, headed `## YYYY-MM-DD | <op> | <title>`, where `<op>` is `init`, `ingest`, `research`, `schema`, `lint`, `lint-fix`, `audit` or `audit-fix`. Entries are never edited; a later change gets its own entry.
 - `outputs/`: reports: `lint-YYYY-MM-DD.md`, `audit-<slug>-YYYY-MM-DD.md`, `init-research-YYYY-MM-DD.md`.
 - `templates/`: one `<type>.md` per page type that has a template; new pages start from it.
-- `.claude/sources/`: the wiki's sources (guard-protected; the user installs each file with `~/src/wiki-tools/plugins/wiki/scripts/install-source-file.sh` and commits them):
+- `.claude/sources/`: the wiki's sources (guard-protected; the user installs each file with `${CLAUDE_PLUGIN_ROOT}/scripts/install-source-file.sh` and commits them):
   - `instances/<key>.md`: one per source instance: its type, parameters and agreed state fields. The key is the `/wiki:ingest <key>` argument and names its state lines in `raw/sync-log.md`.
-  - `types/<type>/SOURCE.md`: wiki-local source types (contract plus optional wrapper scripts). Standard types live in `~/src/wiki-tools/plugins/wiki/sources/`.
+  - `types/<type>/SOURCE.md`: wiki-local source types (contract plus optional wrapper scripts). Standard types live in `${CLAUDE_PLUGIN_ROOT}/sources/`.
 - Fetched source files are cached outside the repo in `~/.cache/wiki-sources/<wiki>/<key>/`. Don't copy them into the repo.
 
 ## Page frontmatter

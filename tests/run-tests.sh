@@ -33,6 +33,11 @@ trap 'rm -rf "$tmp"' EXIT
 cp -r "$here/guard-wiki" "$tmp/gw"
 hook() { CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u bash "$scripts/$1.sh"; }
 
+# Fixtures name the plugin folder @PLUGIN@ (as pwd prints it) or
+# @PLUGIN_DRIVE@ (as Claude Code substitutes it on Windows: C:/...; on Linux
+# the same as @PLUGIN@).
+plugin=$(cd "$scripts/.." && pwd)
+plugin_drive=$(printf '%s' "$plugin" | sed 's#^/\([a-z]\)/#\U\1:/#')
 for f in "$here"/fixtures/*/*.json; do
   script=$(basename "$(dirname "$f")")
   case=$(basename "$f" .json)
@@ -41,9 +46,17 @@ for f in "$here"/fixtures/*/*.json; do
     block-*) want=2 ;;
     *) printf 'skip  %s (name must start with pass- or block-)\n' "$case"; continue ;;
   esac
-  hook "$script" < "$f" >/dev/null 2>&1
+  sed -e "s#@PLUGIN_DRIVE@#$plugin_drive#g" -e "s#@PLUGIN@#$plugin#g" "$f" | hook "$script" >/dev/null 2>&1
   check "$script/$case" "$want" "$?"
 done
+# The plugin folder written with ~, when it is under HOME.
+tilde_cmd="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"bash ~/$(basename "$plugin")/scripts/lint.sh\"}}"
+printf '%s' "$tilde_cmd" | CLAUDE_PROJECT_DIR="$tmp/gw" HOME=$(dirname "$plugin") bash "$scripts/guard.sh" >/dev/null 2>&1
+check "guard/pass-lint-tilde-form" 0 "$?"
+# The plugin folder with Windows backslashes (JSON-escaped).
+bs_cmd="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"bash $(printf '%s' "$plugin_drive" | sed 's#/#\\\\#g')\\\\scripts\\\\lint.sh\"}}"
+printf '%s' "$bs_cmd" | hook guard >/dev/null 2>&1
+check "guard/pass-lint-backslash-form" 0 "$?"
 
 # guard.sh fails closed on source files it can't read, and knows Windows paths.
 fx="$here/fixtures/guard"
@@ -70,10 +83,11 @@ gdiag git-status        0 Bash '{"command":"git status"}'
 gdiag git-diff-sources  0 Bash '{"command":"git diff .claude/sources/instances/x.md"}'
 gdiag git-log           0 Bash '{"command":"git log --oneline -5 -- .claude/sources"}'
 gdiag git-show          0 Bash '{"command":"git show HEAD:.claude/sources/instances/x.md"}'
-gdiag sources-show      0 Bash '{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh show x"}'
-gdiag sources-list      0 Bash '{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list"}'
-gdiag sources-settings  2 Bash '{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh settings"}'
-gdiag lint              2 Bash '{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/lint.sh"}'
+gdiag sources-show      0 Bash "{\"command\":\"bash $plugin/scripts/sources.sh show x\"}"
+gdiag sources-list      0 Bash "{\"command\":\"bash $plugin/scripts/sources.sh list\"}"
+gdiag sources-list-other-clone 2 Bash '{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list"}'
+gdiag sources-settings  2 Bash "{\"command\":\"bash $plugin/scripts/sources.sh settings\"}"
+gdiag lint              2 Bash "{\"command\":\"bash $plugin/scripts/lint.sh\"}"
 gdiag git-diff-output   2 Bash '{"command":"git diff --output=/tmp/x"}'
 gdiag git-status-chain  2 Bash '{"command":"git status && rm -rf wiki"}'
 gdiag git-status-redir  2 Bash '{"command":"git status > wiki/x.md"}'
@@ -263,7 +277,7 @@ mkwiki() { # DIR
   git -C "$tmp" init -q "$1"
   w="$tmp/$1"
   mkdir -p "$w/raw" "$w/wiki/notes" "$w/outputs" "$w/templates" "$w/.claude"
-  printf '# Test wiki\n\n@~/src/wiki-tools/schema/wiki-conventions.md\n@~/src/wiki-tools/schema/wiki-layout.md\n' > "$w/CLAUDE.md"
+  printf '# Test wiki\n\n## Purpose\n\nTesting.\n' > "$w/CLAUDE.md"
   printf '.obsidian/\n.claude/*\n!.claude/settings.json\n!.claude/sources/\n' > "$w/.gitignore"
   printf '# Sync Log\n\nlast_checked_raw: never\nlast_checked_gmail: never\nlast_checked_scans: never\n' > "$w/raw/sync-log.md"
   mkdir -p "$w/.claude/sources/instances"
@@ -275,7 +289,7 @@ mkwiki() { # DIR
   touch "$w/outputs/.gitkeep" "$w/wiki/notes/.gitkeep"
   # Template plus the rules of the two source types (wiki-check only looks for them).
   rules=$(cd "$w" && bash "$scripts/sources.sh" settings | grep -oE '"[^"]+"' | grep -vxE '"(permissions|allow|deny)"' | paste -sd, -)
-  sed "s|  \"enabledPlugins\"|  \"x-source-rules\": [$rules],\n  \"enabledPlugins\"|" "$here/../templates/project-settings.json" > "$w/.claude/settings.json"
+  sed "s|  \"enabledPlugins\"|  \"x-source-rules\": [$rules],\n  \"enabledPlugins\"|" "$here/../plugins/wiki/templates/project-settings.json" > "$w/.claude/settings.json"
   git -C "$w" add -A && git -C "$w" -c user.name=t -c user.email=t@t commit -qm init
 }
 wc_run() { (cd "$tmp/$1" && bash "$scripts/wiki-check.sh" 2>&1); }
@@ -289,8 +303,9 @@ mkwiki good
 check "wiki-check/good-wiki-passes" 0 "$(wc_exit good)"
 wc_expect good-summary good 'Failures: 0.'
 
-mkwiki f1; sed -i '/wiki-layout/d' "$tmp/f1/CLAUDE.md"
-wc_expect missing-import f1 "FAIL CLAUDE.md doesn't import \`wiki-layout.md\`"
+mkwiki f1; printf '@~/src/wiki-tools/schema/wiki-layout.md\n' >> "$tmp/f1/CLAUDE.md"
+wc_expect old-import f1 "FAIL CLAUDE.md still imports the schema by path: @~/src/wiki-tools/schema/wiki-layout.md"
+wc_expect no-import good "PASS CLAUDE.md has no schema imports"
 check "wiki-check/fault-exits-1" 1 "$(wc_exit f1)"
 
 mkwiki f2; printf 'last_checked_web: soon\n' >> "$tmp/f2/raw/sync-log.md"
@@ -425,7 +440,11 @@ sexpect catalog         '- bookish (local, script): Bookish (local test type)' c
 sexpect contract        'type: gmail' contract gmail
 sexpect settings-allow  '"Bash(bash .claude/sources/types/bookish/fetch.sh *)",' settings
 sexpect settings-deny   '"mcp__claude_ai_Gmail__send_message",' settings
-sexpect settings-type   '"Bash(bash ~/src/wiki-tools/plugins/wiki/sources/local-folder/read.sh *)"' settings local-folder
+sexpect settings-type   '"Bash(bash */sources/local-folder/read.sh *)"' settings local-folder
+sexpect contract-root   "bash $plugin/sources/local-folder/read.sh <key> list" contract local-folder
+out=$(srun contract local-folder)
+case "$out" in *'${CLAUDE_PLUGIN_ROOT}'*) r=left ;; *) r=filled ;; esac
+check "sources/contract-root-filled" filled "$r"
 sexpect settings-gdrive '"mcp__claude_ai_Google_Drive__trash_file"' settings google-drive
 sexpect catalog-gdrive  '- google-drive (standard, mcp): Google Drive' catalog
 # Every standard contract validates.
@@ -573,6 +592,31 @@ check "local-folder/copy-content"        new "$(cat "$tmp/home/.cache/wiki-sourc
 out=$(lf scans copy "$tmp/other/one.pdf")
 check "local-folder/copy-file-root"      "local-folder: copied to $tmp/home/.cache/wiki-sources/lfw/scans/one.pdf" "$out"
 check "local-folder/source-untouched"    "old" "$(cat "$tmp/scans/2026/old.pdf")"
+
+# schema.sh: one file per call, the plugin root filled in, and each under
+# the 10,000-character cap on hook context with room to spare, even with a
+# long install path (a Windows plugin cache).
+out=$(bash "$scripts/schema.sh" wiki-conventions)
+case "$out" in *"Ask for context, don't guess"*) r=ok ;; *) r=missing ;; esac
+check "schema/conventions" ok "$r"
+out=$(bash "$scripts/schema.sh" wiki-layout)
+case "$out" in *"Data model"*) r=ok ;; *) r=missing ;; esac
+check "schema/layout" ok "$r"
+case "$out" in *'${CLAUDE_PLUGIN_ROOT}'*) r=left ;; *) r=filled ;; esac
+check "schema/root-filled" filled "$r"
+check "schema/refuse-other-name" 1 "$(bash "$scripts/schema.sh" ../README >/dev/null 2>&1; echo $?)"
+long=C:/Users/firstname.lastname/.claude/plugins/cache/wiki-tools/wiki/1.0.0
+for s in wiki-conventions wiki-layout; do
+  n=$(WIKI_SCHEMA_ROOT=$long bash "$scripts/schema.sh" "$s" | wc -c)
+  [ "$n" -le 9000 ] && r=ok || r="$n bytes"
+  check "schema/$s-under-9000-bytes" ok "$r"
+done
+# hooks.json loads every schema file.
+for s in "$scripts"/../schema/*.md; do
+  s=$(basename "$s" .md)
+  grep -qF "schema.sh\\\" $s\"" "$scripts/../hooks/hooks.json" && r=ok || r=missing
+  check "schema/hook-$s" ok "$r"
+done
 
 printf '\n%d checks, %d failed\n' "$total" "$fail"
 [ "$fail" -eq 0 ]
