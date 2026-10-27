@@ -14,5 +14,5 @@ This repo is maintained in a Claude session opened here, where the `wiki` plugin
 - Remote is the private GitHub repo `draitchbar/wiki-tools`.
 
 ## Open plans
-- `docs/sources-design.md`: source redesign, on main. Both wikis migrated 2026-10-25; remaining: the bookmarks local type in udbygning, then removing the transition code.
+- `docs/sources-design.md`: source redesign, on main. Both wikis migrated 2026-10-25; remaining: a bookmarks local type in one wiki, then removing the transition code.
 - `docs/tier2-plan.md`: Tier 2 (pruned, Tier 3 folded in). Not started.
