@@ -32,7 +32,7 @@ Set up this folder as an LLM wiki in the shared raw/wiki layout (`~/src/wiki-too
 - **Ask for context, don't guess.** If the user's arguments say the run is non-interactive, accept every recommended answer and list all open questions in the final message instead.
 
 ## 0. Prerequisites and mode
-1. `uname -s`. If it isn't `Linux`, stop: "/wiki:init supports Linux only for now (Windows is deferred)."
+1. `uname -s` (with the Bash tool). `Linux` and Git Bash on Windows (`MINGW*` or `MSYS*`) are supported; on anything else, stop: "/wiki:init supports Linux and Windows (Git Bash) only." On Windows, run every shell command in this skill with the Bash tool (Git Bash), never PowerShell: the wiki's scripts run only there.
 2. Find the folder root: the git toplevel, or the current folder if it isn't a repo yet.
 3. Read `.claude/settings.json` with the Read tool (the guard blocks Bash commands such as `grep` or `cat` on it) and check that it enables `wiki@wiki-tools`. If not, stop and show the user step 2 of the setup: `claude plugin install wiki@wiki-tools --scope project`, then restart `claude` here.
 4. Pick the mode:
