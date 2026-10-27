@@ -1,6 +1,6 @@
 # wiki-tools
 
-Shared tooling for my Karpathy-style LLM wikis (udbygning, carleasing), used from Claude Code on both Linux and Windows.
+Shared tooling for my Karpathy-style LLM wikis, used from Claude Code on both Linux and Windows.
 
 It is two things in one repo:
 
@@ -10,8 +10,8 @@ It is two things in one repo:
    - guard hooks that block `git push`, keep every source read-only as its contract says, and protect the guard machinery itself;
    - a SessionStart hook that reports how stale each source in `raw/sync-log.md` is.
 2. **The shared wiki schema**, imported by each wiki's CLAUDE.md:
-   - `schema/wiki-conventions.md`: universal rules (both wikis);
-   - `schema/wiki-layout.md`: raw/wiki layout, frontmatter, ingest workflow (udbygning).
+   - `schema/wiki-conventions.md`: universal rules (every wiki);
+   - `schema/wiki-layout.md`: raw/wiki layout, frontmatter, ingest workflow (wikis that use this layout).
 
 The plugin is **enabled per wiki** (in each wiki's `.claude/settings.json`), never at user scope. So the guards apply only in wiki sessions.
 
@@ -95,7 +95,7 @@ The wiki skills know no particular source. They talk to every source through its
   - **Standard types** live in `plugins/wiki/sources/<type>/`: `gmail`, `google-drive`, `proton-drive`, `local-folder`. `gmail` and `google-drive` need their claude.ai connector connected once (Settings → Connectors); it then works on every platform.
   - **Local types** live in a wiki's `.claude/sources/types/<type>/`. They may ship wrapper scripts and have no test harness. A local type can't reuse a standard type's name.
 - **Source instance**: a wiki's use of a type, `.claude/sources/instances/<key>.md` (type, parameters, agreed state fields). The key is the `/wiki:ingest <key>` argument and names the state lines (`last_checked_<key>`, ...) in `raw/sync-log.md`. One wiki may have several instances of one type.
-- **Manual key**: a `last_checked_<key>` line with no instance file (carleasing's `web`). Its material enters via `raw/` or as user statements; sync-status and `sources.sh list` show it, `/wiki:ingest` can't read it, and lint accepts citations starting `<key>:`.
+- **Manual key**: a `last_checked_<key>` line with no instance file (e.g. `web`). Its material enters via `raw/` or as user statements; sync-status and `sources.sh list` show it, `/wiki:ingest` can't read it, and lint accepts citations starting `<key>:`.
 - **Read-only by contract.** The only writes a type may declare are narrow bookkeeping (Gmail's `wiki-ingested/<wiki>` label). The guard reads every contract and instance at hook time; `.claude/sources/` and `plugins/wiki/sources/` are protected, so Claude drafts these files and you save and commit them.
 
 **Add a source to a wiki**: `/wiki:add-source <type> [key]` in the wiki. It reads the contract, asks for the parameters, agrees the state, and drafts the instance file, the CLAUDE.md line, the sync-log line and the settings rules (`sources.sh settings <type>`). For a type that doesn't exist, it drafts a local type with you.

@@ -6,7 +6,7 @@ platforms:
   - linux
   - windows
 parameters:
-  - folders (required): Google Drive folders whose files belong to this wiki, one per item as `<folder path> (<folder id>)`, e.g. `Tisvilde (1AbCdEf)`; subfolders are included
+  - folders (required): Google Drive folders whose files belong to this wiki, one per item as `<folder path> (<folder id>)`, e.g. `Receipts (1AbCdEf)`; subfolders are included
 state:
   - last_checked: date of the newest ingest (YYYY-MM-DD, or never); files modified on or after it are candidates
 cite_prefix: Google Drive
