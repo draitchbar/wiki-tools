@@ -107,8 +107,11 @@ export PROTON_DRIVE_LOG_LEVEL=WARNING
 # Names are JSON-unescaped, and / in a name is escaped as \/ (CLI path rule).
 # An unreadable name is reported on stderr and skipped. Exit 3 if a node line
 # lacks the fields this parser relies on (the CLI's JSON changed).
+# PARENT goes in through the environment: awk -v would process its escapes,
+# and gawk 5.3 turns \/ into /.
 nodes() {
-  awk -v parent="$1" '
+  PD_PARENT="$1" awk '
+    BEGIN { parent = ENVIRON["PD_PARENT"] }
     function str(key,   s) {   # the JSON string after "key":
       if (!match(line, "\"" key "\":\"([^\"\\\\]|\\\\.)*\"")) return ""
       s = substr(line, RSTART + length(key) + 4, RLENGTH - length(key) - 5)
