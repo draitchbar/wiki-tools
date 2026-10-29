@@ -23,3 +23,11 @@ scripts:
 ---
 
 # Source type: Bookish
+
+## Check
+## List new
+## Fetch
+## Mark ingested
+## Cite
+## Resolve citation
+## Caveats

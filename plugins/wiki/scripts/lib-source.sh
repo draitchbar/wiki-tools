@@ -181,6 +181,10 @@ src_validate_contract() {
     printf '%s' "$s" | grep -Eq '^[A-Za-z0-9_-]+\.sh$' || { _src_ce "script name '$s' must be a plain <name>.sh"; continue; }
     [ -f "$dir/$s" ] || _src_ce "script '$s' is listed but missing"
   done
+  # A body cut off while pasting loses its later sections.
+  for s in 'Check' 'List new' 'Fetch' 'Mark ingested' 'Cite' 'Resolve citation' 'Caveats'; do
+    grep -Eq "^## $s[[:space:]]*\$" "$f" || _src_ce "missing section '## $s' (write \"not supported\" under it if it doesn't apply)"
+  done
   return $bad
 }
 

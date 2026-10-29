@@ -5,8 +5,14 @@
 #   bash <plugin>/scripts/install-source-file.sh instances/<key>.md
 #   bash <plugin>/scripts/install-source-file.sh types/<type>/<file>
 #
-# Run it in a terminal outside Claude, from inside the wiki. Paste the file's
-# content, end with Ctrl-D. The script then:
+# Run it in a terminal outside Claude, from inside the wiki. On Windows, use
+# Git Bash: plain `bash` from PowerShell starts WSL instead. Give it the file
+# on stdin, which is safest (a terminal paste can break long lines or cut the
+# file off):
+#
+#   bash <plugin>/scripts/install-source-file.sh instances/<key>.md < <file>
+#
+# or paste the content and end with Ctrl-D. The script then:
 #   1. checks the file in a scratch copy of .claude/sources/ (frontmatter,
 #      key matches the file name, the type exists, required parameters,
 #      roots of filesystem instances, the contract of a local type) and
@@ -29,7 +35,7 @@ set -u
 die() { printf 'install-source-file: %s\n' "$1" >&2; exit 1; }
 
 [ -z "${CLAUDECODE:-}" ] || die "run this in a terminal outside Claude; it writes protected files."
-[ $# -eq 1 ] || die "usage: install-source-file.sh <instances/<key>.md | types/<type>/<file>>"
+[ $# -eq 1 ] || die "usage: install-source-file.sh <instances/<key>.md | types/<type>/<file>> [< file] (on Windows, in Git Bash)"
 
 target=${1#./}
 target=${target#.claude/sources/}
@@ -62,7 +68,7 @@ mkdir -p "$scratch/wiki/.claude/sources"
 [ -d "$root/.claude/sources" ] && cp -R "$root/.claude/sources/." "$scratch/wiki/.claude/sources/"
 
 if [ -t 0 ]; then
-  printf 'Paste the content of .claude/sources/%s, then press Ctrl-D on an empty line:\n' "$target" >&2
+  printf 'Paste the content of .claude/sources/%s, then press Ctrl-D on an empty line\n(safer for a long file: save it and run this again with < <file>):\n' "$target" >&2
 fi
 new="$scratch/wiki/.claude/sources/$target"
 mkdir -p "$(dirname "$new")"

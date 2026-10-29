@@ -24,3 +24,11 @@ scripts:
 ---
 
 # Source type: Standard test type
+
+## Check
+## List new
+## Fetch
+## Mark ingested
+## Cite
+## Resolve citation
+## Caveats

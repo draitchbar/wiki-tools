@@ -16,3 +16,11 @@ forbidden_tools:
 guard_words:
 scripts:
 ---
+
+## Check
+## List new
+## Fetch
+## Mark ingested
+## Cite
+## Resolve citation
+## Caveats

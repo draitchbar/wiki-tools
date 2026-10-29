@@ -403,6 +403,10 @@ check "lib-source/contract-unknown" 1 "$(lsrun 'src_contract "$PWD" nosuch >/dev
 check "lib-source/contract-badname" 1 "$(lsrun 'src_contract "$PWD" ../std >/dev/null 2>&1; echo $?')"
 check "lib-source/catalog"          "loc:local std:standard" "$(lsrun 'src_catalog "$PWD" | cut -f1,2 | tr "\t" : | grep -v broken | sort | paste -sd" " -')"
 check "lib-source/valid-std"        0 "$(lsrun 'src_validate_contract "$SRC_PLUGIN/sources/std/SOURCE.md"; echo $?')"
+mkdir -p "$tmp/cut/std" && sed '/^## Fetch$/,$d' "$tmp/ls/plugin/sources/std/SOURCE.md" > "$tmp/cut/std/SOURCE.md" && touch "$tmp/cut/std/read.sh"
+out=$(lsrun "src_validate_contract '$tmp/cut/std/SOURCE.md'; echo \$?")
+case "$out" in *"missing section '## Fetch'"*"missing section '## Caveats'"*1) r=refused ;; *) r="$out" ;; esac
+check "lib-source/cut-body"         refused "$r"
 check "lib-source/valid-good"       0 "$(lsrun 'src_validate_instance "$PWD" good; echo $?')"
 check "lib-source/valid-loc1"       0 "$(lsrun 'src_validate_instance "$PWD" loc1; echo $?')"
 lsbad() { # NAME KEY EXPECTED-TEXT
@@ -554,6 +558,9 @@ grep -q $'\r' "$tmp/iw/.claude/sources/instances/gmail.md" && r=crlf || r=lf
 check "install/crlf-stripped" lf "$r"
 iexpect fs-no-roots     "required parameter 'roots' is empty" 1 y instances/scans.md '---\nkey: scans\ntype: local-folder\n---\n'
 bk=$(sed 's/$/\\n/' "$here/guard-wiki/.claude/sources/types/bookish/SOURCE.md" | tr -d '\n')
+iexpect cut-contract    "missing section '## Resolve citation'" 1 y types/bookish/SOURCE.md "$(printf '%s' "$bk" | sed 's/## Resolve citation.*//')"
+[ -f "$tmp/iw/.claude/sources/types/bookish/SOURCE.md" ] && r=written || r=absent
+check "install/cut-contract-not-written" absent "$r"
 iexpect script-first    "SOURCE.md doesn't exist yet" 1 y types/bookish/fetch.sh '#!/bin/bash\n'
 iexpect contract-note   "script 'fetch.sh' is listed but missing (install it next)" 0 y types/bookish/SOURCE.md "$bk"
 iexpect script-unlisted "other.sh isn't listed under scripts" 1 y types/bookish/other.sh '#!/bin/bash\n'
