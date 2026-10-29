@@ -203,12 +203,11 @@ expect() { # NAME TEXT
   case "$lint_out" in *"$2"*) r=found ;; *) r=missing ;; esac
   check "lint/$1" found "$r"
 }
-expect summary            'Pages: 6. Errors: 5. Warnings: 10. Info: 1.'
+expect summary            'Pages: 6. Errors: 4. Warnings: 10. Info: 1.'
 expect no-frontmatter     '`topics/no-frontmatter.md`: no YAML frontmatter'
 expect missing-fields     '`tasks/missing-fields.md`: missing title sources'
 expect broken-alias       '`[[missing-page]]` (no such page) linked from `people/broken-person.md`'
 expect broken-path-anchor '`[[also-missing]]` (no such page)'
-expect broken-in-log      '`[[ghost-from-log]]` (no such page) linked from `log.md`'
 expect orphan             '`topics/no-frontmatter.md`: no inbound links from other pages'
 expect not-in-index       '`tasks/missing-fields.md`: not listed in index.md'
 expect no-sources         '`notes/no-sources.md`: `sources:` is empty'
@@ -253,6 +252,23 @@ lint3=$(cd "$tmp/lw2" && WIKI_LINT_TODAY=2026-10-16 bash "$scripts/lint.sh" 2>&1
 check "lint/prefix-case-and-local-file" absent "$(printf '%s\n' "$lint3" | grep -q 'cites2.md`: source' && echo present || echo absent)"
 check "lint/as-of-not-stale" absent "$(printf '%s\n' "$lint3" | grep -q 'old-analysis.md`: updated' && echo present || echo absent)"
 check "lint/as-of-bad-date" present "$(printf '%s\n' "$lint3" | grep -q 'old-note.md`: `as_of: soon` is not a YYYY-MM-DD date' && echo present || echo absent)"
+
+# log.md: its links aren't checked (old entries keep renamed pages' names);
+# removed or changed lines are errors, appended entries are not.
+check "lint/log-links-not-checked" absent "$(printf '%s\n' "$lint_out" | grep -q 'ghost-from-log' && echo present || echo absent)"
+git -C "$tmp/lw" add -A
+git -C "$tmp/lw" -c user.name=t -c user.email=t@t commit -qm init
+lintlog() { (cd "$tmp/lw" && WIKI_LINT_TODAY=2026-10-16 bash "$scripts/lint.sh" 2>&1) | sed -n '/^### ERROR: wiki\/log.md/,/^###/p'; }
+printf '# Log\n## 2026-10-16 | ingest | new\n## 2026-01-01 | init | [[ghost-from-log]]\n' > "$tmp/lw/wiki/log.md"
+check "lint/log-append-ok" "" "$(lintlog)"
+git -C "$tmp/lw" -c user.name=t -c user.email=t@t commit -qam append
+sed -i 's/| init |/| init (edited) |/' "$tmp/lw/wiki/log.md"
+case "$(lintlog)" in *'uncommitted changes remove or rewrite 1 line(s)'*) r=found ;; *) r=missing ;; esac
+check "lint/log-uncommitted-edit" found "$r"
+git -C "$tmp/lw" -c user.name=t -c user.email=t@t commit -qam "Rewrite log"
+case "$(lintlog)" in *'commit '*'Rewrite log) removes or rewrites 1 line(s)'*) r=found ;; *) r=missing ;; esac
+check "lint/log-committed-edit" found "$r"
+check "lint/log-append-commit-ok" 1 "$(lintlog | grep -c '^- commit')"
 
 nowiki=$(cd "$tmp" && git init -q nowiki && cd nowiki && bash "$scripts/lint.sh" 2>&1)
 case "$nowiki" in *"no wiki/ folder"*) r=ok ;; *) r="$nowiki" ;; esac

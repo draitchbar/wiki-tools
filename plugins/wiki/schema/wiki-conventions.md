@@ -22,7 +22,7 @@ Verify sub-agent claims against the source before putting them in a page or repo
   - an email: thread subject and message date, `(Gmail: "Re: offer", 10.08.2026)`
 - Don't round, convert or paraphrase a figure. If you compute something (a sum, a difference), label it as computed and show the inputs.
 - Questions about exact figures are answered by re-reading the source, not from the wiki page.
-- When two sources disagree, record both with their sources and flag the conflict for the user; don't pick one silently.
+- When two sources disagree, record both with their sources and flag the conflict for the user; don't pick one silently. If the user directs a resolution, write the value they chose, cite it as `"User statement (YYYY-MM-DD)"` and drop the superseded value; the log entry records the decision.
 
 ## Git
 - Commit locally with clear messages. **Never push**; the user pushes.
@@ -44,3 +44,4 @@ Verify sub-agent claims against the source before putting them in a page or repo
 ## Naming
 - Filenames: kebab-case (`jane-doe.md`).
 - Cross-references: `[[wikilink]]`.
+- Renaming a page: `git mv`, then update its links in every page and in `index.md`, and log the rename (`renamed [[old]] -> [[new]]`). Older log entries keep the old name; lint ignores links in the log.

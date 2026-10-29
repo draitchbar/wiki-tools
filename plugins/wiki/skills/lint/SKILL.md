@@ -77,7 +77,8 @@ Don't link the report from wiki pages; it lives in `outputs/`.
 ## Phase 5: offer fixes (never apply without confirmation)
 
 Offer concrete fixes grouped by kind, and show the exact change before writing each one:
-- **Broken links:** remove the link, or point it at the right page.
+- **Broken links:** remove the link, or point it at the right page. After a rename, follow the rename rule in wiki-conventions. Links in `wiki/log.md` are not checked: old entries keep old names.
+- **Log changed:** `wiki/log.md` is append-only. Show the removed or changed lines (`git diff` or `git show <commit> -- wiki/log.md`) and offer to restore them; never rewrite the log to match.
 - **Missing cross-references:** add `[[links]]` in `related:` or in the body.
 - **Missing `status_as_of`:** add it with the date the status was last confirmed. Ask the user if that date isn't clear from the page.
 - **Stale pages:** list them with the sources to re-check. Don't change status text without a source.

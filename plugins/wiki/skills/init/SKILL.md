@@ -108,6 +108,7 @@ Draft the plan (step 5's content). Then dispatch one reviewer subagent with the 
    - Source documents (PDF, Office, images) → `raw/<subfolder>/`, keeping the name. Untracked or ignored files stay untracked (plain `mv`; `.gitignore` covers them).
    - Path-style links that point at moved files (`[text](old/path.md)`, `![](old.pdf)`) → rewritten to the new relative path. `[[wikilinks]]` stay.
    - The old `CLAUDE.md` → rewritten. Show a side-by-side: each old section or rule and where it goes (kept in CLAUDE.md, covered by the shared schema, moved to a page, dropped and why).
+   - Work in progress that is neither a source nor a page (decks being edited, diagram generators, handoff notes) → `work/`, as wiki-layout describes; propose which parts to gitignore and a CLAUDE.md line saying what goes there.
    - Anything you can't classify → stays where it is; listed in the guide.
    Flag files the user is likely editing (recently modified, drafts) and ask whether to move them now.
 6. **For the user to paste** (shown, not written): `.claude/settings.json` = the full content of `${CLAUDE_PLUGIN_ROOT}/templates/project-settings.json` with the rules from `sources.sh settings <type> ...` for the chosen types merged into `permissions.allow` and `permissions.deny` (in adopt mode with an existing settings file, a diff to apply); one `.claude/sources/instances/<key>.md` per instance, and the files of any drafted local type.

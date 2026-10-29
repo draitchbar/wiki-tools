@@ -11,6 +11,8 @@
 # Checks (inspired by kfchou/wiki-skills' lint-mechanical.py, adapted to the
 # schema in schema/wiki-layout.md):
 #   ERROR  missing frontmatter, missing required fields, broken [[links]]
+#          (not in log.md), removed or changed lines in log.md (uncommitted
+#          or in the last 30 days of commits)
 #   WARN   orphan pages, pages missing from index.md, pages without sources,
 #          bad or inconsistent dates, stale pages
 #   INFO   pages without status_as_of whose type carries it (its template,
@@ -178,8 +180,11 @@ EOF
   done < "$tmp/pages" > "$tmp/i_srcprefix"
 fi
 
-# Broken links (grouped by target, with how many pages reference it).
+# Broken links (grouped by target, with how many pages reference it). Links
+# in log.md are skipped: entries are never edited, so after a rename old
+# entries keep the old name.
 LC_ALL=C sort -u "$tmp/links" | while IFS="$(printf '\t')" read -r src t; do
+  [ "$src" != log.md ] || continue
   grep -qx -F "$t" "$tmp/known" || printf '%s\t%s\n' "$t" "$src"
 done | LC_ALL=C sort > "$tmp/broken_pairs"
 cut -f1 "$tmp/broken_pairs" | LC_ALL=C sort -u | while IFS= read -r t; do
@@ -197,9 +202,24 @@ while IFS="$(printf '\t')" read -r s p; do
     echo "- \`$p\`: not listed in index.md" >> "$tmp/w_noindex"
 done < "$tmp/slugs"
 
+# log.md is append-only: no removed or changed lines, neither uncommitted
+# nor in the commits of the last LOG_DAYS days.
+LOG_DAYS=30
+: > "$tmp/e_log"
+log_removed() { # git diff/show output on stdin -> number of removed lines
+  grep -E '^-' | grep -cvE '^--- (a/|/dev/null)' || true
+}
+n=$(git -C "$root" diff --no-color -U0 HEAD -- wiki/log.md 2>/dev/null | log_removed)
+[ "${n:-0}" -eq 0 ] || echo "- uncommitted changes remove or rewrite $n line(s) of existing entries" >> "$tmp/e_log"
+git -C "$root" log --no-merges --since="$LOG_DAYS days ago" --format=%h -- wiki/log.md 2>/dev/null |
+  while IFS= read -r c; do
+    n=$(git -C "$root" show --no-color -U0 --format= "$c" -- wiki/log.md | log_removed)
+    [ "${n:-0}" -eq 0 ] || echo "- commit $c ($(git -C "$root" log -1 --format='%ad, %s' --date=short "$c")) removes or rewrites $n line(s)"
+  done >> "$tmp/e_log"
+
 # ---- report -----------------------------------------------------------------
 count() { wc -l < "$1" | tr -d ' '; }
-n_err=$(( $(count "$tmp/e_nofm") + $(count "$tmp/e_fields") + $(count "$tmp/e_broken") ))
+n_err=$(( $(count "$tmp/e_nofm") + $(count "$tmp/e_fields") + $(count "$tmp/e_broken") + $(count "$tmp/e_log") ))
 n_warn=$(( $(count "$tmp/w_orphan") + $(count "$tmp/w_noindex") + $(count "$tmp/w_nosrc") + $(count "$tmp/w_dates") + $(count "$tmp/w_stale") ))
 n_info=$(( $(count "$tmp/i_status") + $(count "$tmp/i_srcprefix") ))
 
@@ -214,6 +234,7 @@ printf 'Pages: %s. Errors: %s. Warnings: %s. Info: %s.\n' "$(count "$tmp/pages")
 section "$tmp/e_nofm"     "ERROR: missing frontmatter"
 section "$tmp/e_fields"   "ERROR: missing required fields"
 section "$tmp/e_broken"   "ERROR: broken links"
+section "$tmp/e_log"      "ERROR: wiki/log.md changed (append-only)"
 section "$tmp/w_orphan"   "WARN: orphan pages"
 section "$tmp/w_noindex"  "WARN: not in index.md"
 section "$tmp/w_nosrc"    "WARN: no sources"
