@@ -6,7 +6,7 @@
 # Fixtures live in tests/fixtures/<script>/<pass|block>-<case>.json, where
 # <script> is block-push or guard. "pass" expects exit 0, "block" expects 2.
 # They run with CLAUDE_PROJECT_DIR on a copy of tests/guard-wiki (its
-# .claude/sources/ has a gmail, a local-folder and a local-type instance)
+# .claude/sources/ has gmail, local-folder, ms-teams and local-type instances)
 # and HOME=/home/u, the home directory the fixtures use.
 # Also runs pd-read.sh refusal checks that need no Proton CLI.
 
@@ -437,7 +437,7 @@ check "lib-source/match-sibling"    1 "$(lsrun 'printf "/data/one\n" | src_match
 check "lib-source/dots"             0 "$(lsrun 'src_has_dots "/a/./b"; echo $?')"
 check "lib-source/no-dots"          1 "$(lsrun 'src_has_dots "/a/.b/c"; echo $?')"
 
-# sources.sh against a copy of guard-wiki (gmail, scans, local type books).
+# sources.sh against a copy of guard-wiki (gmail, scans, teams, local type books).
 cp -r "$here/guard-wiki" "$tmp/sw"
 git -C "$tmp/sw" init -q
 mkdir -p "$tmp/sw/raw"
@@ -470,6 +470,10 @@ case "$out" in *'${CLAUDE_PLUGIN_ROOT}'*) r=left ;; *) r=filled ;; esac
 check "sources/contract-root-filled" filled "$r"
 sexpect settings-gdrive '"mcp__claude_ai_Google_Drive__trash_file"' settings google-drive
 sexpect catalog-gdrive  '- google-drive (standard, mcp): Google Drive' catalog
+sexpect catalog-teams   '- ms-teams (standard, mcp): Microsoft Teams' catalog
+sexpect settings-teams-deny  '"mcp__claude_ai_Microsoft_365__teams_send_chat_message"' settings ms-teams
+sexpect settings-teams-write '"Write(~/.cache/wiki-sources/*/*/walk.tsv)"' settings ms-teams
+sexpect settings-teams-script '"Bash(bash */sources/ms-teams/snapshot.sh *)"' settings ms-teams
 # Every standard contract validates.
 for c in "$here"/../plugins/wiki/sources/*/SOURCE.md; do
   t=$(basename "$(dirname "$c")")
@@ -615,6 +619,61 @@ check "local-folder/copy-content"        new "$(cat "$tmp/home/.cache/wiki-sourc
 out=$(lf scans copy "$tmp/other/one.pdf")
 check "local-folder/copy-file-root"      "local-folder: copied to $tmp/home/.cache/wiki-sources/lfw/scans/one.pdf" "$out"
 check "local-folder/source-untouched"    "old" "$(cat "$tmp/scans/2026/old.pdf")"
+
+# ms-teams/snapshot.sh against a throwaway wiki and cache.
+mts="$here/../plugins/wiki/sources/ms-teams/snapshot.sh"
+git -C "$tmp" init -q mtw
+mkdir -p "$tmp/mtw/.claude/sources/instances"
+printf -- '---\nkey: teams\ntype: ms-teams\nfolders:\n  - Files | file:///b!d/\n---\n' > "$tmp/mtw/.claude/sources/instances/teams.md"
+printf -- '---\nkey: mail\ntype: gmail\nlabels: X\n---\n' > "$tmp/mtw/.claude/sources/instances/mail.md"
+mtc="$tmp/mthome/.cache/wiki-sources/mtw/teams"
+mkdir -p "$mtc"
+mt() { (cd "$tmp/mtw" && HOME="$tmp/mthome" bash "$mts" "$@" 2>&1); }
+mtx() { (cd "$tmp/mtw" && HOME="$tmp/mthome" bash "$mts" "$@" >/dev/null 2>&1); echo $?; }
+walk() { printf '%b' "$1" > "$mtc/walk.tsv"; }
+check "ms-teams/refuse-unknown-op"   1 "$(mtx teams delete)"
+check "ms-teams/refuse-extra-args"   1 "$(mtx teams compare --force)"
+check "ms-teams/refuse-no-instance"  1 "$(mtx nosuch compare)"
+check "ms-teams/refuse-bad-key"      1 "$(mtx ../x compare)"
+check "ms-teams/refuse-wrong-type"   1 "$(mtx mail compare)"
+check "ms-teams/refuse-outside-git"  1 "$(cd "$tmp" && HOME="$tmp/mthome" bash "$mts" teams compare >/dev/null 2>&1; echo $?)"
+check "ms-teams/refuse-no-walk"      1 "$(mtx teams compare)"
+walk 'file:///b!d/1\tFiles/a.pdf\t10\nfile:///b!d/2\tFiles/b.docx\n'
+check "ms-teams/refuse-two-fields"   1 "$(mtx teams compare)"
+walk 'file:///b!d/1\tFiles/a.pdf\tten\n'
+check "ms-teams/refuse-bad-size"     1 "$(mtx teams compare)"
+walk 'file:///b!d/1\tFiles/a.pdf\t10\nfile:///b!d/1\tFiles/copy.pdf\t10\n'
+case "$(mt teams compare)" in *'repeats URI file:///b!d/1'*) r=refused ;; *) r=accepted ;; esac
+check "ms-teams/refuse-duplicate-uri" refused "$r"
+walk 'file:///b!d/1\tFiles/a.pdf\t10\r\nfile:///b!d/2\tFiles/AP/plan 2026.pptx\t20\r\n\r\n'
+out=$(mt teams compare)
+case "$out" in *'no files.tsv yet'*) r=ok ;; *) r="$out" ;; esac
+check "ms-teams/first-run-note"      ok "$r"
+check "ms-teams/first-run-new"       2 "$(printf '%s\n' "$out" | grep -c '^new	')"
+check "ms-teams/crlf-path-spaces"    "new	Files/AP/plan 2026.pptx	20" "$(printf '%s\n' "$out" | grep plan)"
+check "ms-teams/compare-no-write"    absent "$([ -f "$mtc/files.tsv" ] && echo present || echo absent)"
+out=$(mt teams save)
+check "ms-teams/save"                "ms-teams snapshot: saved 2 files to $mtc/files.tsv" "$out"
+check "ms-teams/save-removes-walk"   absent "$([ -f "$mtc/walk.tsv" ] && echo present || echo absent)"
+grep -q $'\r' "$mtc/files.tsv" && r=crlf || r=lf
+check "ms-teams/save-strips-cr"      lf "$r"
+walk 'file:///b!d/2\tFiles/AP/plan 2026.pptx\t25\nfile:///b!d/3\tFiles/new.md\t5\n'
+out=$(mt teams compare)
+check "ms-teams/new"                 "new	Files/new.md	5" "$(printf '%s\n' "$out" | grep '^new')"
+check "ms-teams/changed"             "changed	Files/AP/plan 2026.pptx	25 (was 20)" "$(printf '%s\n' "$out" | grep '^changed')"
+check "ms-teams/removed"             "removed	Files/a.pdf	10" "$(printf '%s\n' "$out" | grep '^removed')"
+check "ms-teams/summary"             "ms-teams snapshot: summary: 1 new, 1 changed, 0 moved, 1 removed, 0 unchanged" "$(printf '%s\n' "$out" | grep summary)"
+walk 'file:///b!d/1\tFiles/Archive/a.pdf\t10\nfile:///b!d/2\tFiles/AP/plan 2026.pptx\t20\n'
+out=$(mt teams compare)
+check "ms-teams/moved"               "moved	Files/Archive/a.pdf	from Files/a.pdf" "$(printf '%s\n' "$out" | grep '^moved')"
+check "ms-teams/unchanged-silent"    0 "$(printf '%s\n' "$out" | grep -c 'plan 2026')"
+walk ''
+out=$(mt teams compare)
+case "$out" in *'WARNING: walk.tsv is empty'*) r=warned ;; *) r="$out" ;; esac
+check "ms-teams/empty-walk-warns"    warned "$r"
+check "ms-teams/empty-walk-removed"  2 "$(printf '%s\n' "$out" | grep -c '^removed')"
+printf 'garbage\n' > "$mtc/files.tsv"; walk 'file:///b!d/1\tFiles/a.pdf\t10\n'
+check "ms-teams/refuse-bad-snapshot" 1 "$(mtx teams compare)"
 
 # ocr.sh with a fake ocrmypdf that writes its arguments into the sidecar.
 ocrbin="$tmp/ocrbin"

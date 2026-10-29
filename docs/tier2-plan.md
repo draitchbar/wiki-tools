@@ -19,6 +19,7 @@ Status: **not started**, plan only (17.10.2026). Source: `~/reports/LLM wiki too
 | **Headless or `/loop` ingest** (report #20) | Ingests have become routine. Test `/loop` in a session first. Headless needs `--allowedTools` (incl. `Skill`) in untrusted folders; first ingests and data-model reviews need the user, so they can't run unattended. Unknown whether claude.ai connectors load under cron. |
 | **Obsidian Bases** view of frontmatter (report #11, CLI part dropped) | You want a "stale pages" or status view inside Obsidian. User-side only; `index.md` stays Claude's entry point. |
 | **Obsidian Importer for OneNote** (report #12) | New OneNote notes appear for a wiki (udbygning's OneNote was last read 24.05.2026). |
+| **Guard on `read_resource` URIs** (ms-teams, 2026-10-29) | The ms-teams drop rule (keep only results from listed channels, chats and folders) proves too weak in practice, or a second Microsoft 365 type arrives. A contract key such as `uri_prefixes` that the guard enforces on `mcp__claude_ai_Microsoft_365__read_resource` (refusing `mail:///` and `calendar:///` unless a type allows them). A hook can't filter what the tenant-wide searches return, only refuse calls by their input. |
 
 ## Dropped
 - Report #14, personal plugin: done (this repo).
