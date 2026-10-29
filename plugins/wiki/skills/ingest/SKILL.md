@@ -55,7 +55,8 @@ Never edit the shared files in `${CLAUDE_PLUGIN_ROOT}/schema/`; suggest changes 
 1. **List new** items as the contract says, from the instance's state (`last_checked_<key>` and any other state field the instance agreed) and the user's filter. At a first ingest, use the starting point instead. `last_checked` is a day, not a time: items from that same day may have arrived after the last ingest, so include them, then drop any that the `raw/sync-log.md` history or a page's `sources:` already names.
 2. **Fetch** each item as the contract says. Read fetched files with the core rules in `${CLAUDE_PLUGIN_ROOT}/skills/ingest/reading-files.md`: pdftotext, LibreOffice, `ocr.sh`, page images.
 3. Apply the contract's **Caveats** (formats it can't export, lag, things to tell the user).
-4. If a wrapper refuses (outside roots, syntax check, unknown op), stop and show the user the message. Don't try another route.
+4. **Privacy.** Skip, without quoting or summarising, anything about personnel matters: recruitment and candidates, performance, pay, health, absence, working from home, personal circumstances. When a message mixes such a matter with a work fact, record only the work fact, without the personal part; if they can't be separated, skip the message. Report how many messages or passages were skipped per item, not what they said. The wiki's CLAUDE.md may add its own rules (e.g. customers' personal data).
+5. If a wrapper refuses (outside roots, syntax check, unknown op), stop and show the user the message. Don't try another route.
 
 **raw**: new or changed files in `raw/` that aren't listed in `raw/sync-log.md`'s history. Read them with the same core rules.
 
