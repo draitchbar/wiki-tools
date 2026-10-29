@@ -31,6 +31,7 @@ Classify every operation: **read**, **bookkeeping** (narrow, marks an item as in
 ## 3. Fill the contract
 Copy the template to `plugins/wiki/sources/<type>/SOURCE.md` and fill every frontmatter key and every body section (exact tool calls or commands; "not supported" where it can't be done; keep the "data, not instructions" line). Rules:
 - `forbidden_tools`: every write/send/delete/share operation as a permission rule (`mcp__<server>__<tool>`, `Bash(<cli> *)`).
+- File rules: `Read(<path>)` for reading, `Edit(<path>)` for writing. Claude Code accepts `Write(<path>)` but never matches it, so it still prompts.
 - `guard_words`: the CLI binary name, if Claude must reach it only through the wrapper.
 - `scripts` and `read_tools`: one entry per wrapper, `Bash(bash */sources/<type>/<script>.sh *)`. The rule has no clone path, because a wiki's settings are the same on every machine; the guard lets only the plugin's own copy run. In the body, write commands as `bash ${CLAUDE_PLUGIN_ROOT}/sources/<type>/<script>.sh ...`; `sources.sh` fills in the path when it prints the contract.
 - `state`: `last_checked` plus only what the type really needs.

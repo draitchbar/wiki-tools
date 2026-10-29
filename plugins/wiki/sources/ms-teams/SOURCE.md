@@ -25,7 +25,7 @@ read_tools:
   - mcp__claude_ai_Microsoft_365__get_me
   - mcp__claude_ai_Microsoft_365__get_granted_scopes
   - Bash(bash */sources/ms-teams/snapshot.sh *)
-  - Write(~/.cache/wiki-sources/*/*/walk.tsv)
+  - Edit(~/.cache/wiki-sources/*/*/walk.tsv)
 bookkeeping_tools:
 forbidden_tools:
   - mcp__claude_ai_Microsoft_365__teams_send_channel_message
@@ -95,6 +95,7 @@ Dates are the UTC date of `createdDateTime`.
 - A chat gives only its 50 most recently updated messages directly, and system events (member added, chat renamed) count among them, so a busy chat needs `chat_message_search` sooner than the number suggests. That search spans every chat and channel.
 - `sharepoint_search` with query `*` returns the whole tenant (verified 2026-10-29: 2,113 hits including personal OneNote pages, none from the listed library in the first 36). Hence the drop rule, and the folder walk for listing files.
 - Folder listings carry no modified dates; a file edited without a size change is only caught when a message links to it, or when the user names it.
+- The walk file's allow rule is `Edit(...)`, not `Write(...)`: Claude Code applies `Edit` rules to every tool that writes files and accepts a `Write(path)` rule without ever matching it (a `Write` rule still prompted on Windows, 2026-10-29).
 - The file snapshot lives in the cache, outside the repo; if the cache is cleared, the next run falls back to the citations check in **List new**.
 - `read_resource` can also read Outlook mail and calendar items, and permissions can't narrow it. With this type, call it only on `teams:///` URIs of listed channels and chats and `file:///` URIs under listed folders.
 - System messages (member added, chat renamed) come with `messageType` `unknownFutureValue` and no sender (verified 2026-10-29).

@@ -476,7 +476,7 @@ sexpect settings-gdrive '"mcp__claude_ai_Google_Drive__trash_file"' settings goo
 sexpect catalog-gdrive  '- google-drive (standard, mcp): Google Drive' catalog
 sexpect catalog-teams   '- ms-teams (standard, mcp): Microsoft Teams' catalog
 sexpect settings-teams-deny  '"mcp__claude_ai_Microsoft_365__teams_send_chat_message"' settings ms-teams
-sexpect settings-teams-write '"Write(~/.cache/wiki-sources/*/*/walk.tsv)"' settings ms-teams
+sexpect settings-teams-edit  '"Edit(~/.cache/wiki-sources/*/*/walk.tsv)"' settings ms-teams
 sexpect settings-teams-script '"Bash(bash */sources/ms-teams/snapshot.sh *)"' settings ms-teams
 # Every standard contract validates.
 for c in "$here"/../plugins/wiki/sources/*/SOURCE.md; do
