@@ -51,7 +51,8 @@ case "$op" in
         case "$c" in "$SRC_PLUGIN"/*) kind=standard ;; *) kind=local ;; esac
         if src_validate_instance "$root" "$k" 2>/dev/null; then ok=valid; else ok="INVALID (run: sources.sh show $k)"; fi
         platform_ok "$c" && p=yes || p="no (only $(src_list "$c" platforms | paste -sd, -))"
-        printf -- '- %s: type %s (%s), %s, available here: %s, last checked: %s\n' "$k" "$t" "$kind" "$ok" "$p" "$(state_of "$k")"
+        m=""; [ "$(src_mode "$c")" = ingest ] || m=", research (/wiki:research $k \"<question>\"; not ingested)"
+        printf -- '- %s: type %s (%s)%s, %s, available here: %s, last checked: %s\n' "$k" "$t" "$kind" "$m" "$ok" "$p" "$(state_of "$k")"
       else
         printf -- '- %s: type %s: UNKNOWN TYPE\n' "$k" "${t:-?}"
       fi

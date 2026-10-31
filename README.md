@@ -5,8 +5,8 @@ Shared tooling for my Karpathy-style LLM wikis, used from Claude Code on both Li
 It is two things in one repo:
 
 1. **A local-directory plugin marketplace** with one plugin, `wiki`, containing:
-   - source-neutral skills `/wiki:init`, `/wiki:add-source`, `/wiki:ingest`, `/wiki:sync-status`, `/wiki:commit-themes`, `/wiki:lint` and `/wiki:audit`;
-   - a standard set of **source types** (`gmail`, `google-drive`, `ms-teams`, `proton-drive`, `local-folder`), each a `SOURCE.md` contract plus an optional read-only wrapper; see [Sources](#sources);
+   - source-neutral skills `/wiki:init`, `/wiki:add-source`, `/wiki:ingest`, `/wiki:research`, `/wiki:sync-status`, `/wiki:commit-themes`, `/wiki:lint` and `/wiki:audit`, and the agents `wiki:source-researcher` and `wiki:critic` that `/wiki:research` dispatches;
+   - a standard set of **source types** (`gmail`, `google-drive`, `ms-teams`, `proton-drive`, `local-folder`, `codebase`), each a `SOURCE.md` contract plus an optional read-only wrapper; see [Sources](#sources);
    - guard hooks that block `git push`, keep every source read-only as its contract says, and protect the guard machinery itself;
    - a SessionStart hook that reports how stale each source in `raw/sync-log.md` is;
    - **the shared wiki schema**, which SessionStart hooks (`schema.sh`, one per file, each under the 10,000-character cap on hook context) load into every session of a wiki, so a wiki's CLAUDE.md doesn't import it:
@@ -18,7 +18,7 @@ The clone can live anywhere. Skills and hooks name the plugin's files through `$
 
 The plugin is **enabled per wiki** (in each wiki's `.claude/settings.json`), never at user scope. So the guards apply only in wiki sessions.
 
-Source design and rationale: `docs/sources-design.md`.
+Source design and rationale: `docs/sources-design.md`; the `codebase` type and `/wiki:research`: `docs/codebase-design.md`.
 
 ## Layout
 
@@ -30,7 +30,8 @@ plugins/wiki/
   templates/project-settings.json core of a wiki's .claude/settings.json (source rules come from the types)
   templates/source-type/SOURCE.md the source contract template
   templates/pages/entity.md       shared page template for people and organisations
-  skills/{init,add-source,ingest,sync-status,commit-themes,lint,audit}/SKILL.md
+  skills/{init,add-source,ingest,research,sync-status,commit-themes,lint,audit}/SKILL.md
+  agents/{source-researcher,critic}.md  subagents /wiki:research dispatches (read-only research; independent critic)
   skills/ingest/reading-files.md  core rules for reading fetched files (pdftotext, LibreOffice, OCR)
   hooks/hooks.json                PreToolUse guards + SessionStart schema and status
   sources/                        standard source types
@@ -39,6 +40,7 @@ plugins/wiki/
     ms-teams/{SOURCE.md,snapshot.sh}  Teams channels, chats and SharePoint folders via the claude.ai Microsoft 365 connector (MCP)
     proton-drive/{SOURCE.md,read.sh}  Proton Drive via a read-only CLI wrapper
     local-folder/{SOURCE.md,read.sh}  folders outside the wiki, read-only
+    codebase/{SOURCE.md,git.sh,gh.sh}  a git clone researched on demand by subagents (research type, agent_only); PR/issue context via gh
   scripts/
     lib-hookjson.sh               jq-free hook-input parsing (fails closed)
     lib-source.sh                 jq-free parsing of source contracts and instances
@@ -64,7 +66,7 @@ Clone wherever you like; nothing depends on the path, and no environment variabl
 |---|---|---|
 | Prerequisites | git, bash | Git for Windows (Git Bash); Claude Code runs hooks in Git Bash |
 | OCR | `sudo apt install ocrmypdf` plus the Tesseract language packs your documents need (e.g. `tesseract-ocr-dan`); `/wiki:ingest` passes the languages from the wiki's CLAUDE.md | none; scans are read as page images |
-| Sources | whatever the wikis' source types need, listed in each type's Caveats; e.g. Proton Drive: `~/.local/bin/proton-drive` from [proton.me/download/drive/cli](https://proton.me/download/drive/cli/index.html) and `proton-drive auth login` by hand | the same; Proton's Windows build on PATH, check `proton-drive version` in Git Bash |
+| Sources | whatever the wikis' source types need, listed in each type's Caveats; e.g. codebase: a git clone of the repository, and `gh auth login` for the account in `gh_user`; Proton Drive: `~/.local/bin/proton-drive` from [proton.me/download/drive/cli](https://proton.me/download/drive/cli/index.html) and `proton-drive auth login` by hand | the same; Proton's Windows build on PATH, check `proton-drive version` in Git Bash |
 
 ```bash
 git clone git@github.com:draitchbar/wiki-tools.git ~/src/wiki-tools
@@ -100,10 +102,11 @@ The shared starting template for people and organisations is `plugins/wiki/templ
 The wiki skills know no particular source. They talk to every source through its **contract**.
 
 - **Source type**: a `SOURCE.md` contract (template: `plugins/wiki/templates/source-type/SOURCE.md`). Frontmatter (flat, bash-parseable): access kind, platforms, the parameters an instance must supply, the state it needs, `cite_prefix`, allowed read and bookkeeping tools, forbidden tools, guard words and wrapper scripts. Body: one section per operation, **Check**, **List new**, **Fetch**, **Mark ingested**, **Cite**, **Resolve citation**, plus **Caveats**.
-  - **Standard types** live in `plugins/wiki/sources/<type>/`: `gmail`, `google-drive`, `ms-teams`, `proton-drive`, `local-folder`. `gmail`, `google-drive` and `ms-teams` need their claude.ai connector connected once (Settings → Connectors); it then works on every platform. `ms-teams` also needs the Graph permissions `ChannelMessage.Read.All`, `Channel.ReadBasic.All`, `Chat.Read` and `Files.Read.All` or `Sites.Read.All` granted to the Microsoft 365 connector; `Team.ReadBasic.All` is usually missing and not needed (take a team id from the `groupId=` part of a channel link).
+  - **Standard types** live in `plugins/wiki/sources/<type>/`: `gmail`, `google-drive`, `ms-teams`, `proton-drive`, `local-folder`, `codebase`. `gmail`, `google-drive` and `ms-teams` need their claude.ai connector connected once (Settings → Connectors); it then works on every platform. `ms-teams` also needs the Graph permissions `ChannelMessage.Read.All`, `Channel.ReadBasic.All`, `Chat.Read` and `Files.Read.All` or `Sites.Read.All` granted to the Microsoft 365 connector; `Team.ReadBasic.All` is usually missing and not needed (take a team id from the `groupId=` part of a channel link).
   - **Local types** live in a wiki's `.claude/sources/types/<type>/`. They may ship wrapper scripts and have no test harness. A local type can't reuse a standard type's name.
 - **Source instance**: a wiki's use of a type, `.claude/sources/instances/<key>.md` (type, parameters, agreed state fields). The key is the `/wiki:ingest <key>` argument and names the state lines (`last_checked_<key>`, ...) in `raw/sync-log.md`. One wiki may have several instances of one type.
 - **Manual key**: a `last_checked_<key>` line with no instance file (e.g. `web`). Its material enters via `raw/` or as user statements; sync-status and `sources.sh list` show it, `/wiki:ingest` can't read it, and lint accepts citations starting `<key>:`. Add one with `/wiki:add-source manual <key>`.
+- **Research types** (`mode: research`, e.g. `codebase`): a source too large or too fast-moving to ingest. `/wiki:ingest` refuses it and sync-status leaves it out; `/wiki:research <key> "<question>" [--critique] [--worktree]` researches it on demand. The main session plans and dispatches up to 10 `wiki:source-researcher` agents per step (at most 5 steps), with notes in `~/.cache/wiki-sources/<wiki>/<key>/runs/`; an optional `wiki:critic` checks every claim through its own agents (at most 3 rounds). Findings are merged into existing pages, cited at a pinned commit. With `agent_only: yes` the main session can't read the source at all (the guard blocks its Read, Grep and Glob there, and every wrapper operation outside the contract's `main_ops`); only subagents can. The shared schema tells wiki sessions to check such citations for drift before answering from them. The `codebase` type needs a local git clone of the repository (a shallow clone works, with history only from its boundary) and, for PR and issue context, `gh` logged in with an account that can read the repository (`gh_user`; the wrapper never switches the active account).
 - **Read-only by contract.** The only writes a type may declare are narrow bookkeeping (Gmail's `wiki-ingested/<wiki>` label). The guard reads every contract and instance at hook time; `.claude/sources/` and `plugins/wiki/sources/` are protected, so Claude drafts these files and you save and commit them.
 
 **Add a source to a wiki**: `/wiki:add-source <type> [key]` in the wiki. It reads the contract, asks for the parameters, agrees the state, and drafts the instance file, the CLAUDE.md line, the sync-log line and the settings rules (`sources.sh settings <type>`). For a type that doesn't exist, it drafts a local type with you. You install each drafted file yourself, one at a time, in a terminal outside Claude (Git Bash on Windows): `bash ~/src/wiki-tools/plugins/wiki/scripts/install-source-file.sh instances/<key>.md < <file>` (or paste and Ctrl-D, which can break long lines), review the diff, `y`. It checks the file first and lists missing settings rules; it never commits.
@@ -264,6 +267,7 @@ Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for the wrapper (
   - **Exceptions (Bash only):** a plain `bash <plugin>/scripts/<ocr|sync-status|lint|wiki-check|sources>.sh <args>`, or a plain call of a wrapper a contract lists under `scripts` (`<plugin>/sources/<type>/<script>.sh`, or `.claude/sources/types/<type>/<script>.sh` in this wiki), with no `; & | < > $` or backticks and no `..`. `<plugin>` is the folder the guard itself runs from; the path may be in double quotes.
   - **Lookalikes:** the wikis' settings allow wrappers by wildcard (`Bash(bash */sources/<type>/read.sh *)`, since a committed rule can't name a per-machine path), so any other `*/sources/<type>/*.sh` or core-script name outside the plugin is blocked.
 - **Blocked in wiki sessions (Write/Edit):** the same protected paths, anything inside a filesystem instance's root (also written `C:/…` or `/c/…`), and non-Markdown content containing a guard word.
+- **Read, Grep and Glob (agent_only roots):** for an instance whose type says `agent_only: yes` (e.g. `codebase`), the main session's Read, Grep and Glob on its root are blocked (paths made absolute against the cwd, `~` expanded, patterns checked too); a subagent's calls (hook input with `agent_id`) pass. The main session may call such a type's wrappers only with the operations its contract lists under `main_ops`. Other reads are never blocked. Cost on Windows: about 0.4 s per subagent read and 1 s per main-session read when the wiki has such an instance.
 - **Fails closed:** unparseable hook input is refused. While an instance or contract can't be used (no frontmatter, unknown type, a local type shadowing a standard one, a filesystem instance without roots), every Bash and Write/Edit call is refused except read-only diagnostics: plain `git status`/`log`/`diff`/`show` (no `--output`) and `sources.sh list`/`show`. Read still works. The message names the file and its first line or the paths searched. Fix the file with `install-source-file.sh` or an editor, outside Claude.
 - **Cost:** reading the contracts adds about 0.1 s per tool call on Linux; Windows (Git Bash) is slower and not yet measured.
 - **Known false positives:**

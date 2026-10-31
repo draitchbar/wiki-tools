@@ -18,6 +18,9 @@ forbidden_tools:
   - <permission rule for every write the connector or CLI offers>
 guard_words:
 scripts:
+mode:
+agent_only:
+main_ops:
 ---
 
 # Source type: <Human name>
@@ -48,6 +51,15 @@ How to fill this contract
     (e.g. the CLI's binary name), so the CLI is reached only through `scripts`.
   - scripts: file names of wrapper scripts next to this file that the guard
     lets through as a plain `bash <path>/<script> <args>` call.
+  - mode (optional): `ingest` (default) or `research`. A research type is
+    not ingested: `/wiki:research <key> "<question>"` researches it on
+    demand and needs a `## Research` section; List new, Fetch and Mark
+    ingested say "not supported (research type)". sync-status skips it.
+  - agent_only (optional, filesystem only): `yes` means the main session
+    may not read the roots at all (Read, Grep, Glob, wrapper ops); only
+    subagents may. Keeps a large source out of the main context.
+  - main_ops (optional, with agent_only): wrapper operations the main
+    session may still call (metadata only, e.g. status, drift).
 - Body: keep every section heading below. Write exact tool calls or commands.
   Say "not supported" in a section the type can't do (only Mark ingested is
   optional).

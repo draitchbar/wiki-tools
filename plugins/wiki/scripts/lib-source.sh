@@ -58,6 +58,9 @@ src_values() {
   if [ -n "$v" ]; then printf '%s\n' "$v"; else src_list "$1" "$2"; fi
 }
 
+# src_mode FILE: the contract's mode: research, or ingest (the default).
+src_mode() { [ "$(src_field "$1" mode)" = research ] && echo research || echo ingest; }
+
 # src_names: first word of each stdin line, up to a space, "(" or ":".
 src_names() { sed -e 's/[[:space:](:].*//' | grep -v '^$'; }
 
@@ -176,6 +179,18 @@ src_validate_contract() {
   p=$(src_list "$f" platforms)
   [ -n "$p" ] || _src_ce "no platforms listed"
   for x in $p; do case "$x" in linux|windows|macos) ;; *) _src_ce "unknown platform '$x'" ;; esac; done
+  case "$(src_field "$f" mode)" in ingest|research|'') ;; *) _src_ce "mode must be ingest or research" ;; esac
+  case "$(src_field "$f" agent_only)" in
+    yes) [ "$(src_field "$f" access)" = filesystem ] || _src_ce "agent_only: yes needs access: filesystem (its roots are what the main session may not read)" ;;
+    no|'') ;;
+    *) _src_ce "agent_only must be yes or no" ;;
+  esac
+  for x in $(src_list "$f" main_ops); do
+    printf '%s' "$x" | grep -Eq '^[a-z][a-z0-9-]*$' || _src_ce "main_ops item '$x' must be a plain operation name"
+  done
+  if [ "$(src_field "$f" mode)" = research ]; then
+    grep -Eq '^## Research[[:space:]]*$' "$f" || _src_ce "mode: research needs a '## Research' section"
+  fi
   src_list "$f" state | src_names | grep -qx last_checked || _src_ce "state must include last_checked"
   for s in $(src_list "$f" scripts); do
     printf '%s' "$s" | grep -Eq '^[A-Za-z0-9_-]+\.sh$' || { _src_ce "script name '$s' must be a plain <name>.sh"; continue; }

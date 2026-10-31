@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"default","hook_event_name":"PreToolUse","agent_id":"a1","agent_type":"wiki:source-researcher","tool_name":"Bash","tool_input":{"command":"git -C /home/u/src/components checkout main"},"tool_use_id":"x"}

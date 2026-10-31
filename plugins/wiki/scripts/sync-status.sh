@@ -24,6 +24,15 @@ log="$root/raw/sync-log.md"
 manual=""
 [ -z "$(src_instances "$root")" ] || manual=" $(src_manual_keys "$root" | tr '\n' ' ')"
 
+# Research instances (mode: research) aren't ingested, so their age isn't a
+# reason to ingest; they are left out.
+research=" "
+for k in $(src_instances "$root"); do
+  t=$(src_field "$(src_instance_dir "$root")/$k.md" type)
+  c=$(src_contract "$root" "$t" 2>/dev/null) || continue
+  [ "$(src_mode "$c")" = research ] && research="$research$k "
+done
+
 today=$(date +%s)
 out=""
 while IFS= read -r line; do
@@ -34,6 +43,7 @@ while IFS= read -r line; do
   esac
   key=${line%%:*}
   key=${key#last_checked_}
+  case "$research" in *" $key "*) continue ;; esac
   case "$manual" in *" $key "*) note=" (manual key: enters via raw/ or user statements)" ;; *) note="" ;; esac
   val=$(printf '%s' "${line#*:}" | tr -d '[:space:]')
   if [ "$val" = never ] && [ -n "$note" ]; then
@@ -53,6 +63,7 @@ while IFS= read -r line; do
 done < "$log"
 
 for k in $(src_instances "$root"); do
+  case "$research" in *" $k "*) continue ;; esac
   grep -q "^last_checked_$k:" "$log" || out="$out
 - $k: no last_checked_$k line yet (treated as never checked)"
 done

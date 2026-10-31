@@ -100,6 +100,16 @@ check "guard/broken-message" ok "$r"
 win='{"session_id":"t","cwd":"C:\\Users\\u\\wikis\\mywiki","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"C:\\Users\\u\\Pictures\\Receipts\\a.txt","content":"x"},"tool_use_id":"x"}'
 printf '%s' "$win" | CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/c/Users/u bash "$scripts/guard.sh" >/dev/null 2>&1
 check "guard/windows-drive-root" 2 "$?"
+# An agent_only root written with ~, read by the main session as C:\...
+rm -rf "$tmp/gc"; cp -r "$here/guard-wiki" "$tmp/gc"
+sed -i 's#  - /home/u/src/components#  - ~/src/components#' "$tmp/gc/.claude/sources/instances/code.md"
+gwin() { # NAME EXPECTED AGENT-FIELD
+  printf '{"session_id":"t","cwd":"C:\\\\Users\\\\u\\\\wikis\\\\mywiki","hook_event_name":"PreToolUse"%s,"tool_name":"Read","tool_input":{"file_path":"C:\\\\Users\\\\u\\\\src\\\\components\\\\app\\\\A.java"},"tool_use_id":"x"}' "$3" |
+    CLAUDE_PROJECT_DIR="$tmp/gc" HOME=/c/Users/u bash "$scripts/guard.sh" >/dev/null 2>&1
+  check "guard/$1" "$2" "$?"
+}
+gwin codebase-read-windows-main  2 ''
+gwin codebase-read-windows-agent 0 ',"agent_id":"a1"'
 
 # Every Proton test runs with the fake CLI (tests/sources/proton-drive/
 # fake-proton-drive) first on PATH, never the real one. Abort if the fake
@@ -171,6 +181,128 @@ check "proton-drive/new-path-not-date"  1 "$(cd "$tmp/pdw" && FAKE_PD_TREE=1 PAT
 out=$(cd "$tmp/pdw" && FAKE_PD_FORMAT=changed FAKE_PD_TREE=1 PATH="$fakebin:$PATH" bash "$pdr" drive new never 2>&1; echo "exit=$?")
 case "$out" in *"no longer has the shape"*exit=1) r=refused ;; *) r="$out" ;; esac
 check "proton-drive/new-format-changed" refused "$r"
+
+# codebase/git.sh and gh.sh against a throwaway repo with a bare "remote"
+# and a fake gh. Every gh.sh call runs with the fake first on PATH; abort if
+# the fake isn't the gh that PATH finds.
+cp "$here/sources/codebase/fake-gh" "$fakebin/gh" && chmod u+x "$fakebin/gh"
+if [ "$(PATH="$fakebin:$PATH" command -v gh)" != "$fakebin/gh" ]; then
+  printf 'ABORT: the fake gh is not first on PATH; refusing to run codebase tests against a real gh.\n'
+  exit 1
+fi
+cb="$tmp/cb"
+mkdir -p "$cb"
+git init -q --bare "$cb/remote.git"
+git -c init.defaultBranch=main init -q "$cb/clone"
+cg() { git -C "$cb/clone" -c user.name=T -c user.email=t@t -c core.autocrlf=false "$@" >/dev/null 2>&1; }
+cg config core.autocrlf false
+mkdir -p "$cb/clone/app/src" "$cb/clone/lib"
+printf 'l1\nfoo\nl3\nl4\nl5\nl6\n' > "$cb/clone/app/src/A.java"
+printf 'b1\nb2\n' > "$cb/clone/lib/B.java"
+cg add -A; cg commit -m one
+cg remote add origin "$cb/remote.git"; cg push origin HEAD:main; cg fetch origin; cg remote set-head origin main
+c1=$(git -C "$cb/clone" rev-parse HEAD)
+printf 'l0\nl1\nfoo\nl3\nl4\nl5\nl6\n' > "$cb/clone/app/src/A.java"; cg commit -am "two: insert at top"
+c2=$(git -C "$cb/clone" rev-parse HEAD)
+printf 'l0\nl1\nFOO\nl3\nl4\nl5\nl6\n' > "$cb/clone/app/src/A.java"; cg commit -am "three: change foo"
+c3=$(git -C "$cb/clone" rev-parse HEAD)
+printf 'c1\n' > "$cb/clone/lib/C.java"; cg add -A; cg commit -m "four: add C"
+c4=$(git -C "$cb/clone" rev-parse HEAD)
+cg mv lib/B.java lib/B2.java; cg rm -q lib/C.java; cg commit -m "five: rename B, delete C"
+printf 'l0\nl1\nFOO\nl3\nl4\nl5\nL6\n' > "$cb/clone/app/src/A.java"; cg commit -am "six: change last line"
+cg push origin HEAD:main; cg fetch origin
+cg checkout -q -b local-work; printf 'local\n' > "$cb/clone/lib/local.txt"   # uncommitted, unpushed branch
+git clone -q "$cb/remote.git" "$cb/ghclone" 2>/dev/null
+git -C "$cb/ghclone" remote set-url origin https://github.com/acme/widgets.git
+git -C "$cb" init -q cbw
+mkdir -p "$cb/cbw/.claude/sources/instances"
+printf -- '---\nkey: code\ntype: codebase\nroots:\n  - %s\n---\n' "$cb/clone" > "$cb/cbw/.claude/sources/instances/code.md"
+printf -- '---\nkey: sub\ntype: codebase\nroots:\n  - %s/app\nref: origin/main\n---\n' "$cb/clone" > "$cb/cbw/.claude/sources/instances/sub.md"
+printf -- '---\nkey: hub\ntype: codebase\nroots:\n  - %s\ngh_user: reader\n---\n' "$cb/ghclone" > "$cb/cbw/.claude/sources/instances/hub.md"
+printf -- '---\nkey: two\ntype: codebase\nroots:\n  - %s\n  - %s\n---\n' "$cb/clone" "$cb/ghclone" > "$cb/cbw/.claude/sources/instances/two.md"
+printf -- '---\nkey: mail\ntype: gmail\nlabels: X\n---\n' > "$cb/cbw/.claude/sources/instances/mail.md"
+cbr="$here/../plugins/wiki/sources/codebase/git.sh"
+cbh="$here/../plugins/wiki/sources/codebase/gh.sh"
+cbn() { (cd "$cb/cbw" && PATH="$fakebin:$PATH" bash "$cbr" "$@" 2>&1); }
+cbx() { (cd "$cb/cbw" && PATH="$fakebin:$PATH" bash "$cbr" "$@" >/dev/null 2>&1); echo $?; }
+ghn() { (cd "$cb/cbw" && PATH="$fakebin:$PATH" bash "$cbh" "$@" 2>&1); }
+ghx() { (cd "$cb/cbw" && PATH="$fakebin:$PATH" bash "$cbh" "$@" >/dev/null 2>&1); echo $?; }
+has() { case "$1" in *"$2"*) echo yes ;; *) echo "no: $1" ;; esac; }
+s1=$(printf '%s' "$c1" | cut -c1-12) s3=$(printf '%s' "$c3" | cut -c1-12)
+out=$(cbn code status)
+check "codebase/status-checkout"  yes "$(has "$out" 'checkout: local-work @')"
+check "codebase/status-dirty"     yes "$(has "$out" '1 uncommitted changes in the root')"
+check "codebase/status-ref"       yes "$(has "$out" 'ref: origin/main @')"
+check "codebase/status-shallow"   yes "$(has "$out" 'shallow: no')"
+check "codebase/resolve"          yes "$(has "$(cbn code resolve "$s1")" "$s1 $c1")"
+check "codebase/resolve-ref"      yes "$(has "$(cbn code resolve ref)" "ref $(git -C "$cb/clone" rev-parse origin/main)")"
+check "codebase/grep"             yes "$(has "$(cbn code grep "$c1" 'fo+')" 'app/src/A.java#L2: foo')"
+check "codebase/igrep"            yes "$(has "$(cbn code igrep ref 'foo')" 'app/src/A.java#L3: FOO')"
+check "codebase/grep-none"        yes "$(has "$(cbn code grep ref 'nomatch')" 'no matches')"
+check "codebase/grep-pathspec"    yes "$(has "$(cbn code grep ref 'b' 'lib/*.java')" 'lib/B2.java#L1: b1')"
+check "codebase/grep-dash-regex"  yes "$(has "$(cbn code grep ref '-x')" 'no matches')"
+out=$(cbn code show "$c1" app/src/A.java L2-L3)
+check "codebase/show-header"      yes "$(has "$out" "app/src/A.java#L2-L3 @$s1 (6 lines in the file)")"
+check "codebase/show-lines"       yes "$(has "$out" '     3  l3')"
+check "codebase/show-more"        yes "$(has "$out" "(more: show $c1 app/src/A.java L4-L6)")"
+check "codebase/show-folder"      1   "$(cbx code show ref app)"
+check "codebase/ls"               yes "$(has "$(cbn code ls ref lib)" "f 6 lib/B2.java")"
+check "codebase/log"              yes "$(has "$(cbn code log ref app/src/A.java)" 'three: change foo')"
+check "codebase/log-range"        yes "$(has "$(cbn code log ref app/src/A.java L3-L3)" 'three: change foo')"
+check "codebase/blame"            yes "$(has "$(cbn code blame ref app/src/A.java L3-L3)" 'FOO')"
+check "codebase/branches"         "main" "$(cbn code branches | cut -d' ' -f1 | sed 's#^origin/##' | paste -sd' ' -)"
+check "codebase/contains"         "origin/main" "$(cbn code contains "$c1")"
+cg commit -q -m "seven: local only" --allow-empty
+check "codebase/contains-unpushed" yes "$(has "$(cbn code contains local-work)" 'unpushed:')"
+check "codebase/verify"           "ok: app/src/A.java#L2-L3 @$s1" "$(cbn code verify "$c1" app/src/A.java L2-L3)"
+check "codebase/verify-past-end"  1 "$(cbx code verify "$c1" app/src/A.java L5-L9)"
+check "codebase/verify-missing"   1 "$(cbx code verify "$c1" app/src/Z.java L1-L1)"
+check "codebase/drift-elsewhere"  yes "$(has "$(cbn code drift "$c3" app/src/A.java L1-L2)" "changed-elsewhere")"
+check "codebase/drift-moved"      yes "$(has "$(cbn code drift "$c1" app/src/A.java L4-L5)" 'moved L5-L6')"
+check "codebase/drift-overlap"    yes "$(has "$(cbn code drift "$c1" app/src/A.java L2-L3)" 'changed-overlap')"
+check "codebase/drift-renamed"    yes "$(has "$(cbn code drift "$c3" lib/B.java L1-L2)" "renamed lib/B2.java")"
+check "codebase/drift-deleted"    yes "$(has "$(cbn code drift "$c4" lib/C.java L1-L1)" 'deleted')"
+check "codebase/drift-same"       yes "$(has "$(cbn code drift ref app/src/A.java L1-L2)" 'unchanged')"
+check "codebase/sub-ls"           yes "$(has "$(cbn sub ls ref)" 'd - app/src')"
+check "codebase/sub-outside"      1   "$(cbx sub show ref lib/B2.java)"
+check "codebase/sub-sibling"      1   "$(cbx sub show ref apples/x)"
+check "codebase/sub-grep-scoped"  yes "$(has "$(cbn sub grep ref 'b1')" 'no matches')"
+check "codebase/refuse-unknown-op" 1  "$(cbx code checkout ref)"
+check "codebase/refuse-write-ops" "1 1 1 1" "$(cbx code reset ref) $(cbx code worktree ref) $(cbx code clone ref) $(cbx code push)"
+check "codebase/refuse-extra-args" 1  "$(cbx code show ref app/src/A.java L1-L2 --output=x)"
+check "codebase/refuse-few-args"  1   "$(cbx code show ref)"
+check "codebase/refuse-dotdot"    1   "$(cbx code show ref app/../lib/B2.java)"
+check "codebase/refuse-abs"       1   "$(cbx code show ref /etc/passwd)"
+check "codebase/refuse-drive"     1   "$(cbx code show ref C:/x)"
+check "codebase/refuse-option-path" 1 "$(cbx code show ref --output=x)"
+check "codebase/refuse-magic-spec" 1  "$(cbx code grep ref x ':(top)')"
+check "codebase/refuse-option-rev" 1  "$(cbx code show --output=x app/src/A.java)"
+check "codebase/refuse-range-rev" 1   "$(cbx code show 'ref..HEAD' app/src/A.java)"
+check "codebase/refuse-bad-range" "1 1" "$(cbx code show ref app/src/A.java L3-L1) $(cbx code show ref app/src/A.java 3x)"
+check "codebase/refuse-unknown-rev" 1 "$(cbx code show deadbeef app/src/A.java)"
+check "codebase/refuse-two-roots" 1   "$(cbx two status)"
+check "codebase/refuse-wrong-type" 1  "$(cbx mail status)"
+check "codebase/refuse-no-instance" 1 "$(cbx nosuch status)"
+check "codebase/refuse-outside-git" 1 "$(cd "$tmp" && bash "$cbr" code status >/dev/null 2>&1; echo $?)"
+check "codebase/fetch"            yes "$(has "$(cbn code fetch)" 'fetched origin; origin/main @')"
+check "gh/pr-of"                  yes "$(has "$(ghn hub pr-of "$(printf '%s' "$c1" | cut -c1-7)")" "FAKE gh api -X GET repos/acme/widgets/commits/$c1/pulls --jq")"
+check "gh/pr-of-token"            yes "$(has "$(ghn hub pr-of "$c1")" 'token=tok-reader')"
+check "gh/pr"                     yes "$(has "$(ghn hub pr 12)" 'FAKE gh pr view 12 -R acme/widgets --json')"
+check "gh/pr-diff"                yes "$(has "$(ghn hub pr-diff 12)" 'FAKE gh pr diff 12 -R acme/widgets --color never')"
+check "gh/pr-search"              yes "$(has "$(ghn hub pr-search 'payment routing')" 'FAKE gh pr list -R acme/widgets --state all --search payment routing --limit 30')"
+check "gh/issue"                  yes "$(has "$(ghn hub issue 7)" 'FAKE gh issue view 7 -R acme/widgets')"
+check "gh/issue-search"           yes "$(has "$(ghn hub issue-search 'is:open bug')" 'FAKE gh issue list -R acme/widgets --state all --search is:open bug')"
+check "gh/refuse-no-gh-user"      1 "$(ghx code pr 12)"
+check "gh/refuse-not-github"      1 "$(sed -i 's/^key: code/key: code\ngh_user: reader/' "$cb/cbw/.claude/sources/instances/code.md"; ghx code pr 12)"
+check "gh/refuse-unknown-op"      "1 1 1" "$(ghx hub pr-merge 12) $(ghx hub api x) $(ghx hub auth x)"
+check "gh/refuse-bad-number"      "1 1" "$(ghx hub pr 12x) $(ghx hub pr -R)"
+check "gh/refuse-bad-sha"         "1 1" "$(ghx hub pr-of xyz) $(ghx hub pr-of deadbeefdead)"
+check "gh/refuse-extra-args"      1 "$(ghx hub pr 12 --web)"
+check "gh/refuse-no-token"        1 "$(sed -i 's/gh_user: reader/gh_user: nobody/' "$cb/cbw/.claude/sources/instances/hub.md"; ghx hub pr 12)"
+sed -i 's/gh_user: nobody/gh_user: reader/' "$cb/cbw/.claude/sources/instances/hub.md"
+out=$(cd "$cb/cbw" && FAKE_GH_SYNTAX=changed PATH="$fakebin:$PATH" bash "$cbh" hub pr 12 2>&1; echo "exit=$?")
+case "$out" in *"syntax changed"*exit=1) r=refused ;; *) r="not refused: $out" ;; esac
+check "gh/refuse-changed-syntax" refused "$r"
 
 # lint.sh against the fixture wiki in tests/lint-wiki (one planted problem per check).
 cp -r "$here/lint-wiki" "$tmp/lw"
@@ -271,6 +403,13 @@ case "$ss_out" in *"- gmail: never checked (manual key: enters via raw/ or user 
 check "sync-status/manual-never" ok "$r"
 case "$ss_out" in *"days ago) (manual key"*) r=ok ;; *) r="$ss_out" ;; esac
 check "sync-status/manual-dated" ok "$r"
+# A research instance (mode: research) is left out, line or no line.
+printf -- '---\nkey: code\ntype: codebase\nroots:\n  - /x\n---\n' > "$tmp/ss/.claude/sources/instances/code.md"
+printf -- '---\nkey: repo\ntype: codebase\nroots:\n  - /y\n---\n' > "$tmp/ss/.claude/sources/instances/repo.md"
+printf 'last_checked_code: 2026-01-01\n' >> "$tmp/ss/raw/sync-log.md"
+ss_out=$(cd "$tmp/ss" && CLAUDE_PROJECT_DIR= bash "$scripts/sync-status.sh" 2>&1)
+case "$ss_out" in *"code"*|*"repo"*) r="$ss_out" ;; *"- scans:"*) r=ok ;; *) r="$ss_out" ;; esac
+check "sync-status/research-skipped" ok "$r"
 
 # wiki-check.sh: a freshly initialised wiki passes; each planted fault fails.
 mkwiki() { # DIR
@@ -414,6 +553,24 @@ check "lib-source/match-root"       "/data/one" "$(lsrun 'printf "/data/one\n/da
 check "lib-source/match-sibling"    1 "$(lsrun 'printf "/data/one\n" | src_match_root /data/one-old >/dev/null; echo $?')"
 check "lib-source/dots"             0 "$(lsrun 'src_has_dots "/a/./b"; echo $?')"
 check "lib-source/no-dots"          1 "$(lsrun 'src_has_dots "/a/.b/c"; echo $?')"
+# Contract keys for research types.
+lsc() { # NAME FRONTMATTER-ADDITION EXPECTED-TEXT|valid [BODY-ADDITION]
+  mkdir -p "$tmp/rk/$1"
+  sed "s/^cite_prefix:/$2\ncite_prefix:/" "$tmp/ls/plugin/sources/std/SOURCE.md" | sed "s/^type: .*/type: $1/" > "$tmp/rk/$1/SOURCE.md"
+  [ -z "${4:-}" ] || printf '\n## Research\n%s\n' "$4" >> "$tmp/rk/$1/SOURCE.md"
+  for s in $(sed -n '/^scripts:/,/^[a-z_]*:/s/^  - //p' "$tmp/rk/$1/SOURCE.md"); do touch "$tmp/rk/$1/$s"; done
+  out=$(lsrun "src_validate_contract '$tmp/rk/$1/SOURCE.md'; echo exit=\$?")
+  if [ "$3" = valid ]; then case "$out" in exit=0) r=ok ;; *) r="$out" ;; esac
+  else case "$out" in *"$3"*exit=1) r=ok ;; *) r="$out" ;; esac; fi
+  check "lib-source/$1" ok "$r"
+}
+lsc research-ok      'mode: research\nmain_ops:\n  - status' valid 'How to research.'
+lsc agent-only-fs    'agent_only: yes' 'agent_only: yes needs access: filesystem'
+lsc research-nobody  'mode: research' "mode: research needs a '## Research' section"
+lsc bad-mode         'mode: sometimes' 'mode must be ingest or research'
+lsc bad-agent-only   'agent_only: maybe' 'agent_only must be yes or no'
+lsc bad-main-op      'main_ops:\n  - rm -rf' "main_ops item '-rf' must be a plain operation name"
+check "lib-source/mode-default" ingest "$(lsrun 'src_mode "$SRC_PLUGIN/sources/std/SOURCE.md"')"
 
 # sources.sh against a copy of guard-wiki (gmail, scans, teams, local type books).
 cp -r "$here/guard-wiki" "$tmp/sw"
@@ -449,6 +606,8 @@ check "sources/contract-root-filled" filled "$r"
 sexpect settings-gdrive '"mcp__claude_ai_Google_Drive__trash_file"' settings google-drive
 sexpect catalog-gdrive  '- google-drive (standard, mcp): Google Drive' catalog
 sexpect catalog-teams   '- ms-teams (standard, mcp): Microsoft Teams' catalog
+sexpect list-research   '- code: type codebase (standard), research (/wiki:research code "<question>"; not ingested), valid' list
+sexpect catalog-codebase '- codebase (standard, filesystem): Codebase' catalog
 sexpect settings-teams-deny  '"mcp__claude_ai_Microsoft_365__teams_send_chat_message"' settings ms-teams
 sexpect settings-teams-edit  '"Edit(~/.cache/wiki-sources/*/*/walk.tsv)"' settings ms-teams
 sexpect settings-teams-script '"Bash(bash */sources/ms-teams/snapshot.sh *)"' settings ms-teams

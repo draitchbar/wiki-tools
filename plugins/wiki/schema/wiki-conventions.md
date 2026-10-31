@@ -7,6 +7,8 @@ These rules apply to every LLM wiki. The wiki's own CLAUDE.md adds project facts
 2. **Sources second.** If the wiki doesn't cover it, go to the sources (`raw/` and the wiki's sources in `.claude/sources/`, read as their contracts say).
 3. **Web last.** If the sources don't cover it either, research the web and say clearly that the answer comes from general research, not project documents. Mark forum posts and review sites as anecdotal.
 
+**Research sources** (contracts with `mode: research`, e.g. a codebase) are never ingested. When an answer rests on their citations, first run the contract's `drift` check (a `main_ops` operation) on each cited range: `unchanged` or `changed-elsewhere`, answer and say "as of `<sha12>`"; `moved`, update the citation; `changed-overlap`, `renamed` or `deleted`, or the pages don't answer fully, run `/wiki:research <key> "<question>"` scoped to what is missing or changed. Never read such a source yourself; `/wiki:research` dispatches agents.
+
 Verify sub-agent claims against the source before putting them in a page or report.
 
 ## Ask for context, don't guess

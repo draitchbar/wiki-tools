@@ -71,7 +71,7 @@ After "go":
    1. Local type files first, if you drafted a type (`SOURCE.md`, then each script), then the instance file: for each, the command `bash ${CLAUDE_PLUGIN_ROOT}/scripts/install-source-file.sh <instances/<key>.md | types/<type>/<file>>` and the file's full content. Show the next file only after the user has installed this one.
    2. The settings lines to add to `.claude/settings.json` (the installer prints the ones still missing).
    3. One commit line for the user: `git add -- <each installed file> .claude/settings.json && git commit -m "Add source <key>"`.
-   4. Run `/wiki:init` (check mode) to verify, then `/wiki:ingest <key>` for the first ingest, which checks the source and asks for a starting point.
+   4. Run `/wiki:init` (check mode) to verify, then `/wiki:ingest <key>` for the first ingest, which checks the source and asks for a starting point. For a research type (`mode: research`, e.g. `codebase`), instead: `/wiki:research <key> "<a first question>"`, which runs the contract's **Check** first. In the CLAUDE.md line, say "researched via `/wiki:research <key> \"<question>\"`" instead of "read via `/wiki:ingest <key>`".
    5. If the instance has roots, the guard treats them as read-only from the moment the file is installed.
 
 ## New local type

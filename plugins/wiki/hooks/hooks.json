@@ -28,6 +28,17 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Read|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "onFailure": "block",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard.sh\""
+          }
+        ]
       }
     ],
     "SessionStart": [

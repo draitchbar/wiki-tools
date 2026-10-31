@@ -34,7 +34,7 @@ Also mark claims that are the page's own **inference** (a conclusion, an interpr
 
 ## 3. Verify the claims
 By default, group the claims by source and dispatch one `Agent` per source in a single message. Two alternatives are fine when they are simpler:
-- **Fetch once, check in subagents:** fetch the source yourself (e.g. through its wrapper script), extract the text (`pdftotext` into the scratchpad), and give the subagents the extract instead of the access route.
+- **Fetch once, check in subagents** (not for a contract with `agent_only: yes`, whose source only subagents may read): fetch the source yourself (e.g. through its wrapper script), extract the text (`pdftotext` into the scratchpad), and give the subagents the extract instead of the access route.
 - **Check inline:** with only a handful of claims (about five or fewer) against short sources, read the sources and check them yourself.
 Either way, use the rubric below. Each subagent gets:
 - the source reference and how to read it:

@@ -25,6 +25,10 @@
 # and non-Markdown content that contains a guard word (a helper script
 # around a CLI).
 #
+# agent_only types (e.g. codebase): their roots are for subagents only. In
+# the main session (hook input without agent_id) Read, Grep and Glob on
+# them are blocked, and their wrappers run only the contract's main_ops.
+#
 # This is a guardrail, not a security boundary: an obfuscated command can
 # still get through.
 
@@ -32,6 +36,10 @@
 . "$(dirname "$0")/lib-source.sh"
 
 [ "$HOOK_PARSE_OK" = 1 ] || block "could not parse hook input; refusing (fail closed)."
+
+# A subagent may read anything the permissions allow; agent_only roots are
+# closed to the main session only (see Read|Grep|Glob below).
+case "$HOOK_TOOL" in Read|Grep|Glob) [ -z "$HOOK_AGENT_ID" ] || exit 0 ;; esac
 
 # The plugin folder this guard runs from, in every spelling a command may use:
 # as Git Bash writes it (/c/...), as Claude Code substitutes it on Windows
@@ -86,6 +94,77 @@ elif [ -n "$HOOK_CWD" ] && [ -d "$HOOK_CWD" ]; then
   wiki_root=$(src_wiki_root "$HOOK_CWD")
 fi
 
+# root_forms INSTANCE: each root of the instance as written, expanded, and
+# with Git Bash's /c/ as c:/ and back; a ~ also as PowerShell's $home and
+# $env:userprofile. Normalised, one per line.
+root_forms() {
+  src_values "$1" roots | while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    x=$(norm "$(src_expand "$r")")
+    w=$(norm "$r" | sed 's#\(.\)/$#\1#')
+    printf '%s\n' "$w" "$x"
+    printf '%s\n' "$w" | sed -n 's#^~/#$home/#p'
+    printf '%s\n' "$w" | sed -n 's#^~/#$env:userprofile/#p'
+    printf '%s\n' "$x" | sed -n 's#^/\([a-z]\)/#\1:/#p'
+    printf '%s\n' "$x" | sed -n 's#^\([a-z]\):/#/\1/#p'
+  done
+}
+
+# abs_path PATH: PATH with ~ expanded, made absolute against the hook's cwd,
+# "." and ".." segments folded, so a relative Read can't slip past a root.
+# Normalised.
+abs_path() {
+  p=$(norm "$(src_expand "$1")")
+  [ -n "$p" ] || return 0
+  if ! src_is_abs "$p"; then p="$(norm "$HOOK_CWD")/$p"; fi
+  printf '%s' "$p" | awk -F/ '{
+    n = 0
+    for (i = 1; i <= NF; i++) {
+      if ($i == "" && i > 1) continue
+      if ($i == ".") continue
+      if ($i == "..") { if (n > 1) n--; continue }
+      s[++n] = $i
+    }
+    out = s[1]; for (i = 2; i <= n; i++) out = out "/" s[i]
+    print (out == "" ? "/" : out)
+  }'
+}
+
+# Read, Grep, Glob: only the roots of agent_only types matter (e.g.
+# codebase), and only for the main session; a subagent's call carries
+# agent_id. Decided here, before the full scan of every source file, so the
+# hook stays cheap on every read. A broken source file doesn't block reads.
+case "$HOOK_TOOL" in
+  Read|Grep|Glob)
+    [ -n "$wiki_root" ] || exit 0
+    # Two greps instead of parsing every file: the agent_only types, then
+    # the instances of those types.
+    # [[:space:]] also takes the CR of a CRLF line.
+    types=$(grep -l -E '^agent_only:[[:space:]]*yes[[:space:]]*$' "$SRC_PLUGIN"/sources/*/SOURCE.md "$wiki_root"/.claude/sources/types/*/SOURCE.md 2>/dev/null |
+      sed 's#/SOURCE.md$##; s#.*/##' | grep -E "$SRC_NAME_RE" | paste -sd'|' -)
+    [ -n "$types" ] || exit 0
+    AGENT_ROOTS=""
+    for f in $(grep -l -E "^type:[[:space:]]*($types)[[:space:]]*\$" "$(src_instance_dir "$wiki_root")"/*.md 2>/dev/null); do
+      AGENT_ROOTS="$AGENT_ROOTS
+$(root_forms "$f")"
+    done
+    [ -n "$(printf '%s' "$AGENT_ROOTS" | tr -d '[:space:]')" ] || exit 0
+    for v in "$HOOK_FILE" "$HOOK_PATH"; do
+      [ -n "$v" ] || continue
+      a=$(abs_path "$v")
+      hit=$(printf '%s\n' "$AGENT_ROOTS" | while IFS= read -r r; do
+        [ -n "$r" ] || continue
+        case "$a" in "$r"|"$r"/*) echo "$r"; break ;; esac
+      done)
+      [ -z "$hit" ] || block "'$v' is in '$hit', a source only subagents may read (agent_only). Dispatch an agent, as /wiki:research does."
+    done
+    # Glob and Grep patterns may carry a path of their own.
+    hit=$(contains_any "$(norm "$HOOK_PATTERN")" "$AGENT_ROOTS")
+    [ -z "$hit" ] || block "the pattern names '$hit', a source only subagents may read (agent_only). Dispatch an agent, as /wiki:research does."
+    exit 0
+    ;;
+esac
+
 # A source file the guard can't read: remember the first one. Bash and
 # Write/Edit are then refused, except the read-only diagnostics below.
 BROKEN=""
@@ -113,22 +192,8 @@ if [ -n "$wiki_root" ]; then
     [ "$(src_field "$c" access)" = filesystem ] || continue
     # The guard can't protect folders it can't read.
     [ -n "$(src_values "$f" roots)" ] || { broken "$f" "a filesystem instance (type $t) with no roots"; continue; }
-    while IFS= read -r r; do
-      [ -n "$r" ] || continue
-      # As written, expanded, and with Git Bash's /c/ as c:/ and back; a ~
-      # also as PowerShell's $home and $env:userprofile.
-      x=$(norm "$(src_expand "$r")")
-      w=$(norm "$r" | sed 's#\(.\)/$#\1#')
-      ROOTS="$ROOTS
-$w
-$(printf '%s' "$w" | sed -n 's#^~/#$home/#p')
-$(printf '%s' "$w" | sed -n 's#^~/#$env:userprofile/#p')
-$x
-$(printf '%s' "$x" | sed -n 's#^/\([a-z]\)/#\1:/#p')
-$(printf '%s' "$x" | sed -n 's#^\([a-z]\):/#/\1/#p')"
-    done <<EOF
-$(src_values "$f" roots)
-EOF
+    ROOTS="$ROOTS
+$(root_forms "$f")"
   done
 fi
 
@@ -148,6 +213,7 @@ script_path() {
 # scripts, of a standard type's listed script, or of a listed script of one
 # of this wiki's local types.
 allowed_script() {
+  c="" name=""
   s=$(script_path "$1") || return 1
   rel=""
   while IFS= read -r f; do
@@ -190,6 +256,13 @@ diagnostic_ok() {
   printf '%s' "$1" | grep -Eq 'sources\.sh"?[[:space:]]+(list|show)([[:space:]]'"$NOCHAIN"'*)?$'
 }
 
+# main_session_op CMD: the operation of a wrapper call `bash <script> <key>
+# <op> ...` (its third word), quotes removed. CMD is normalised.
+main_session_op() {
+  printf '%s' "$1" | sed -E 's#^[[:space:]]*bash[[:space:]]+("[^"]+"|[^[:space:]]+)##' |
+    awk '{ print $2 }' | tr -d '"'"'"
+}
+
 # under_root PATH: the root PATH is in, if any. PATH is normalised.
 under_root() {
   printf '%s\n' "$ROOTS" | while IFS= read -r r; do
@@ -207,7 +280,16 @@ case "$HOOK_TOOL" in
       block "$BROKEN"
     fi
     if [ "$HOOK_TOOL" = Bash ]; then
-      allowed_script "$cmd" && exit 0
+      if allowed_script "$cmd"; then
+        # An agent_only type's wrapper: the main session may call only the
+        # operations its contract lists under main_ops.
+        if [ -z "$HOOK_AGENT_ID" ] && [ "$(src_field "$c" agent_only)" = yes ]; then
+          wop=$(main_session_op "$cmd")
+          src_list "$c" main_ops | tr '[:upper:]' '[:lower:]' | grep -qxF -- "$wop" ||
+            block "'${wop:-?}' of $name reads the source itself; only subagents may (the main session may call: $(src_list "$c" main_ops | paste -sd' ' -)). Dispatch an agent, as /wiki:research does."
+        fi
+        exit 0
+      fi
       # The wikis' settings allow wrappers by wildcard (bash */sources/<type>/
       # <script>.sh *), so a lookalike outside the plugin must not run.
       s=$(script_path "$cmd") && case "$s" in
