@@ -269,6 +269,7 @@ Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for the wrapper (
 - **Cost:** reading the contracts adds about 0.1 s per tool call on Linux; Windows (Git Bash) is slower and not yet measured.
 - **Known false positives:**
   - A commit message containing "push", or mentioning `proton-roots`, `hooks.json` or a guard word, is blocked. Rephrase the message.
+  - `git stash push` passes only when written exactly so (`git` or `git.exe` directly followed by `stash push`); `git -C <dir> stash push` is blocked, because `git -C stash push` is a real push. Use plain `git stash` or `cd` first.
   - `git add .claude/settings.json` or `git add .claude/sources` in a wiki is blocked. Commit `.claude/` files yourself.
   - `cat .claude/settings.json` via Bash is blocked. Claude's Read tool still works.
   - A Bash command that mentions a path that merely starts with a root (`~/Scans-old` for root `~/Scans`) is blocked.
@@ -285,8 +286,9 @@ Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for the wrapper (
 
 ## Open checks (plan step 9)
 
-- **Plugin loading:** does `enabledPlugins` in a wiki's project settings load the plugin, with the marketplace registered only at user scope? If Claude Code asks for an install, run `claude plugin install wiki@wiki-tools --scope project` once per machine and note it here.
-- **Skill injections:** is `${CLAUDE_PLUGIN_ROOT}` filled in inside `` !`…` `` injections, and do they pass the guard? The docs (checked 27.10.2026) say plugin variables are substituted in a skill's body and `allowed-tools`, but don't name injections. Check with `/wiki:sync-status` in a wiki.
+- **Plugin loading (checked 31.10.2026 on Linux, both wikis):** with the marketplace registered at user scope and a project-scope install in the wiki (Setting up a wiki, step 2), `enabledPlugins` in the wiki's settings loads the plugin, its skills and its hooks. Whether it loads without that install, e.g. in a fresh clone of a wiki on another machine, is unchecked.
+- **Skill injections (checked 31.10.2026 on Linux, both wikis):** `${CLAUDE_PLUGIN_ROOT}` is filled in inside `` !`…` `` injections, and they pass the guard without a permission prompt (`/wiki:sync-status`).
+- **Schema hook and wrapper rules (checked 31.10.2026 on Linux, both wikis):** the SessionStart hooks load both schema files on start and resume, with `${CLAUDE_PLUGIN_ROOT}` filled in. A wiki's settings rule `Bash(bash */sources/proton-drive/read.sh *)` matches the wrapper's absolute path without a prompt. Windows (Git Bash) is unchecked.
 - **Plugin variables (checked 27.10.2026 in the skills, hooks and plugins-reference docs):** `${CLAUDE_PLUGIN_ROOT}` is substituted in a plugin skill's body and in Bash rules in its `allowed-tools`, and set for hooks. It is not available to commands Claude runs through the Bash tool, so scripts find their own folder. Project settings and CLAUDE.md imports expand no variables.
 - **Bash rule wildcards (checked 24.10.2026 in the permissions docs):** a `*` may stand anywhere in a Bash rule and matches any text, slashes and spaces included, so `Bash(bash ${CLAUDE_PLUGIN_ROOT}/sources/*/*.sh *)` in the skills' `allowed-tools` and `Bash(bash */sources/<type>/read.sh *)` in a wiki's settings work; the guard rejects `..` and lookalikes.
 - **Hook environment (checked 24.10.2026 in the hooks docs):** hooks get `CLAUDE_PROJECT_DIR` (where the session started) and the input JSON has `cwd`; the guard uses the former and falls back to the git root of the latter.
