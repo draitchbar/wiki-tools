@@ -15,8 +15,6 @@
 #
 # Rules:
 # - <key> is a proton-drive instance in <wiki>/.claude/sources/instances/.
-#   Until a wiki is migrated, key "proton" without an instance file falls
-#   back to the old <wiki>/.claude/proton-roots.
 # - Only the read operations in READ_OPS are passed to the CLI.
 # - Remote paths must sit under one of the instance's roots.
 # - Downloads always go to ~/.cache/wiki-sources/<wiki>/<key>/<path below root>.
@@ -34,7 +32,7 @@ set -u
 READ_OPS="list info size"    # plus "download", handled separately below
 CLI=proton-drive
 
-die() { printf 'pd-read: %s\n' "$1" >&2; exit 1; }
+die() { printf 'proton-drive: %s\n' "$1" >&2; exit 1; }
 
 [ $# -eq 3 ] || die "usage: read.sh <key> <list|info|size|download> \"<remote path>\" | read.sh <key> new \"<YYYY-MM-DD|never>\""
 key=$1
@@ -52,17 +50,10 @@ root=$(src_wiki_root) || die "not inside a git repo; run from a wiki."
 wiki=$(basename "$root")
 printf '%s' "$key" | grep -Eq "$SRC_NAME_RE" || die "invalid instance key '$key'"
 inst="$(src_instance_dir "$root")/$key.md"
-if [ -f "$inst" ]; then
-  [ "$(src_field "$inst" type)" = proton-drive ] || die "instance '$key' is not a proton-drive instance."
-  src_validate_instance "$root" "$key" 2>/dev/null || die "instance file $inst doesn't validate; run /wiki:init to check it."
-  roots=$(src_values "$inst" roots)
-  where=$inst
-elif [ "$key" = proton ] && [ -f "$root/.claude/proton-roots" ]; then
-  roots=$(cat "$root/.claude/proton-roots")      # old layout, until migrated
-  where="$root/.claude/proton-roots"
-else
-  die "no instance '$key' ($inst); this wiki has no such Proton access."
-fi
+[ -f "$inst" ] || die "no instance '$key' ($inst); this wiki has no such Proton access."
+[ "$(src_field "$inst" type)" = proton-drive ] || die "instance '$key' is not a proton-drive instance."
+src_validate_instance "$root" "$key" 2>/dev/null || die "instance file $inst doesn't validate; run /wiki:init to check it."
+roots=$(src_values "$inst" roots)
 
 # 3. Normalise and check the remote path (for new: the date).
 if [ "$op" = new ]; then
@@ -77,7 +68,7 @@ else
   remote=$(printf '%s' "$remote" | sed -e 's#//*#/#g' -e 's#/$##')
   ! src_has_dots "$remote" || die "'.' and '..' are not allowed in remote paths."
   matched_root=$(printf '%s\n' "$roots" | src_match_root "$remote") ||
-    die "'$remote' is outside the Proton roots of '$key' ($where)."
+    die "'$remote' is outside the Proton roots of '$key' ($inst)."
 fi
 
 # 4. CLI present and still speaking the syntax this wrapper was written for.
@@ -127,7 +118,7 @@ nodes() {
         gsub(/\\\//, "/", name); gsub(/\\"/, "\"", name); gsub(/\\\\/, "\\", name)
         line = substr(line, 1, RSTART - 1) substr(line, RSTART + RLENGTH)
       } else if (line ~ /"name":\{"ok":false/) {
-        print "pd-read: skipped a node whose name cannot be decrypted, in " parent > "/dev/stderr"
+        print "proton-drive: skipped a node whose name cannot be decrypted, in " parent > "/dev/stderr"
         next
       } else { bad = 1; exit }
       type = str("type"); mod = str("modificationTime")
@@ -174,7 +165,7 @@ $sub"
       queue=$(printf '%s\n' "$queue" | sed '/^$/d')
     done
     printf '%s\n' "$out" | sed '/^$/d' | LC_ALL=C sort -k2,3
-    printf 'pd-read: walked %s folders\n' "$walked" >&2
+    printf 'proton-drive: walked %s folders\n' "$walked" >&2
     ;;
   list|info|size)
     exec "$CLI" filesystem "$op" --json "$remote"
@@ -201,6 +192,6 @@ $sub"
     # non-interactive call: -f remove replaces a stale copy in the cache
     # (local only), -d merge merges a folder into its cached copy.
     "$CLI" filesystem download --json -f remove -d merge "$remote" "$dest_dir" || exit $?
-    printf 'pd-read: downloaded to %s/%s\n' "$dest_dir" "$(basename "$rel")"
+    printf 'proton-drive: downloaded to %s/%s\n' "$dest_dir" "$(basename "$rel")"
     ;;
 esac

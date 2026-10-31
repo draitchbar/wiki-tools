@@ -136,9 +136,6 @@ fi
 
 # 6. Sources in .claude/sources/: every instance valid, available, committed.
 sd="$root/.claude/sources"
-if [ -f "$root/.claude/proton-roots" ] && [ ! -f "$sd/instances/proton.md" ]; then
-  fail "old source layout: \`.claude/proton-roots\` without \`.claude/sources/instances/proton.md\`" "run /wiki:init (check mode) and follow its migration"
-fi
 if [ -z "$instances" ]; then
   info "no sources besides \`raw/\` (no files in \`.claude/sources/instances/\`)"
 fi

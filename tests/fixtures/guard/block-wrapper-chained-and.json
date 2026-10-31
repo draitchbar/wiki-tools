@@ -1,1 +1,0 @@
-{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"bash @PLUGIN@/scripts/pd-read.sh list /my-files/x && proton-drive fs delete /my-files/x","description":"x"},"tool_use_id":"x"}

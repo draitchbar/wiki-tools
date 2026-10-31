@@ -29,12 +29,11 @@ Sources of this wiki:
 ## Before you start
 1. Read the wiki's CLAUDE.md (project facts, sources, page templates) and `raw/sync-log.md`.
 2. Parse the arguments: the first word is the source key (`raw`, or an instance key listed above); anything after it is a filter. If the key is missing, stop and ask.
-3. If the list above says **Old layout**, stop: tell the user to run `/wiki:init` (check mode), which migrates the wiki to `.claude/sources/`.
-4. For any key other than `raw`, run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh show <key>`. It prints the instance file (parameters, agreed state fields) and the type's contract (`SOURCE.md`). If it refuses (unknown key, invalid, not available on this platform), stop and show the user the message. For an unknown key, suggest `/wiki:add-source`. Don't try another route to the source.
-5. From here on, the contract's sections (**Check**, **List new**, **Fetch**, **Mark ingested**, **Cite**, **Resolve citation**, **Caveats**) say exactly how to reach this source. Use only the tools and commands they name, in the forms they give (wrapper scripts: one command per call, no `;`, `&&`, pipes or redirection).
-6. Ingest **one source at a time**. If the user named several, do them in turn, each with its own commit.
-7. If the instance's `last_checked_<key>` is `never`, or the source has no line yet, follow **First ingest of a source** below before anything else. If `sources.sh show` prints **Check needed** (the instance file changed since the last ingest, e.g. after a migration), run step 1 of that section (**Check the source**) before listing, but keep the existing `last_checked` as the starting point.
-8. When something in the material is unclear (who someone is, which offer or version is meant, an unstated VAT or tax basis where amounts matter), ask the user rather than guess, and cite the answer as `"User statement (YYYY-MM-DD)"`.
+3. For any key other than `raw`, run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh show <key>`. It prints the instance file (parameters, agreed state fields) and the type's contract (`SOURCE.md`). If it refuses (unknown key, invalid, not available on this platform), stop and show the user the message. For an unknown key, suggest `/wiki:add-source`. Don't try another route to the source.
+4. From here on, the contract's sections (**Check**, **List new**, **Fetch**, **Mark ingested**, **Cite**, **Resolve citation**, **Caveats**) say exactly how to reach this source. Use only the tools and commands they name, in the forms they give (wrapper scripts: one command per call, no `;`, `&&`, pipes or redirection).
+5. Ingest **one source at a time**. If the user named several, do them in turn, each with its own commit.
+6. If the instance's `last_checked_<key>` is `never`, or the source has no line yet, follow **First ingest of a source** below before anything else. If `sources.sh show` prints **Check needed** (the instance file changed since the last ingest, e.g. new roots or labels), run step 1 of that section (**Check the source**) before listing, but keep the existing `last_checked` as the starting point.
+7. When something in the material is unclear (who someone is, which offer or version is meant, an unstated VAT or tax basis where amounts matter), ask the user rather than guess, and cite the answer as `"User statement (YYYY-MM-DD)"`.
 
 ## First ingest of a source
 A source at `never` has not been checked against reality yet. Before ingesting it:

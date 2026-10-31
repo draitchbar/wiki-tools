@@ -59,16 +59,12 @@ plugins/wiki/scripts
 plugins/wiki/hooks
 plugins/wiki/sources"'
 .claude/sources
-.claude/proton-roots
 .claude/settings
 .claude/plugins/'
 
-# Core keywords, blocked in shell commands only. proton-drive and
-# proton-roots stay here until the wikis have moved to .claude/sources/
-# (proton-drive is also a guard word of the proton-drive type).
-PROTECTED_WORDS='proton-drive
-hooks.json
-proton-roots
+# Core keywords, blocked in shell commands only. Source CLIs come from the
+# contracts' guard_words (e.g. proton-drive), read on every call.
+PROTECTED_WORDS='hooks.json
 claude plugin
 disableallhooks'
 
@@ -162,7 +158,7 @@ $PLUGIN_FORMS
 EOF
   if [ -n "$rel" ]; then
     case "$rel" in
-      scripts/pd-read.sh|scripts/ocr.sh|scripts/sync-status.sh|scripts/lint.sh|scripts/wiki-check.sh|scripts/sources.sh|scripts/decode-download.sh) return 0 ;;
+      scripts/ocr.sh|scripts/sync-status.sh|scripts/lint.sh|scripts/wiki-check.sh|scripts/sources.sh|scripts/decode-download.sh) return 0 ;;
       sources/*/*.sh) c="$SRC_PLUGIN/sources/$(printf '%s' "$rel" | cut -d/ -f2)/SOURCE.md" ;;
       *) return 1 ;;
     esac
@@ -215,7 +211,7 @@ case "$HOOK_TOOL" in
       # The wikis' settings allow wrappers by wildcard (bash */sources/<type>/
       # <script>.sh *), so a lookalike outside the plugin must not run.
       s=$(script_path "$cmd") && case "$s" in
-        */sources/*/*.sh|*/scripts/pd-read.sh|*/scripts/ocr.sh|*/scripts/sync-status.sh|*/scripts/lint.sh|*/scripts/wiki-check.sh|*/scripts/sources.sh|*/scripts/decode-download.sh)
+        */sources/*/*.sh|*/scripts/ocr.sh|*/scripts/sync-status.sh|*/scripts/lint.sh|*/scripts/wiki-check.sh|*/scripts/sources.sh|*/scripts/decode-download.sh)
           block "'$s' is not this plugin's copy or not a script its contract lists. Run the wiki's scripts from the plugin folder the skills name." ;;
       esac
       ps=""
@@ -244,8 +240,7 @@ $GUARD_WORDS")
     case "$path" in
       *.md) ;;
       *)
-        hit=$(contains_any "$(norm "$HOOK_CONTENT")" "proton-drive
-$GUARD_WORDS")
+        hit=$(contains_any "$(norm "$HOOK_CONTENT")" "$GUARD_WORDS")
         [ -z "$hit" ] || block "non-Markdown content calling '$hit' is not allowed; use the source's wrapper script."
         ;;
     esac

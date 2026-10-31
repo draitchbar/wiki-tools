@@ -8,7 +8,7 @@
 # They run with CLAUDE_PROJECT_DIR on a copy of tests/guard-wiki (its
 # .claude/sources/ has gmail, local-folder, ms-teams and local-type instances)
 # and HOME=/home/u, the home directory the fixtures use.
-# Also runs pd-read.sh refusal checks that need no Proton CLI.
+# Also runs the proton-drive wrapper's refusal checks against a fake Proton CLI.
 
 here=$(cd "$(dirname "$0")" && pwd)
 scripts="$here/../plugins/wiki/scripts"
@@ -112,67 +112,46 @@ if [ "$(PATH="$fakebin:$PATH" command -v proton-drive)" != "$fakebin/proton-driv
   exit 1
 fi
 
-# pd-read.sh refusals, run inside a throwaway git repo with a roots file.
-git -C "$tmp" init -q wiki
-mkdir -p "$tmp/wiki/.claude"
-printf '/my-files/Projects/alpha/plan 2026\r\n' > "$tmp/wiki/.claude/proton-roots"
-pd() { (cd "$tmp/wiki" && PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" "$@" >/dev/null 2>&1); echo $?; }
-pdout() { (cd "$tmp/wiki" && PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" "$@" 2>&1); }
-
-check "pd-read/refuse-trash"            1 "$(pd trash '/my-files/Projects/alpha/plan 2026/a.pdf')"
-check "pd-read/refuse-upload"           1 "$(pd upload '/my-files/Projects/alpha/plan 2026')"
-check "pd-read/refuse-delete"           1 "$(pd delete '/my-files/Projects/alpha/plan 2026/a.pdf')"
-check "pd-read/refuse-outside-roots"    1 "$(pd list /my-files)"
-check "pd-read/refuse-sibling-prefix"   1 "$(pd list '/my-files/Projects/alpha/plan 2026-old')"
-check "pd-read/refuse-dotdot"           1 "$(pd list '/my-files/Projects/alpha/plan 2026/../..')"
-check "pd-read/refuse-relative"         1 "$(pd list 'my-files/Projects')"
-check "pd-read/refuse-extra-args"       1 "$(pd list '/my-files/Projects/alpha/plan 2026' --force)"
-check "pd-read/refuse-outside-git"      1 "$(cd "$tmp" && PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" list '/my-files/Projects/alpha/plan 2026' >/dev/null 2>&1; echo $?)"
-# Behaviour against the fake CLI. pd-read.sh is the transition shim for key
-# "proton" with .claude/proton-roots; proton-drive/read.sh checks follow.
-fake() { (cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" "$@" 2>&1); }
-root='/my-files/Projects/alpha/plan 2026'
-
-out=$(fake list "$root/offers")
-check "pd-read/list-calls-cli"          "FAKE filesystem list --json $root/offers" "$out"
-out=$(fake size "$root")
-check "pd-read/size-calls-cli"          "FAKE filesystem size --json $root" "$out"
-out=$(fake download "$root/offers/a.pdf" | head -n 1)
-check "pd-read/download-args"           "FAKE filesystem download --json -f remove -d merge $root/offers/a.pdf $tmp/home/.cache/wiki-sources/wiki/proton/offers" "$out"
-printf '/my-files/Projects/manual.pdf\n' >> "$tmp/wiki/.claude/proton-roots"
-out=$(fake download "/my-files/Projects/manual.pdf" | head -n 1)
-check "pd-read/download-file-root"      "FAKE filesystem download --json -f remove -d merge /my-files/Projects/manual.pdf $tmp/home/.cache/wiki-sources/wiki/proton" "$out"
-out=$(fake download "$root/a.pdf" | head -n 1)
-check "pd-read/download-top-level"      "FAKE filesystem download --json -f remove -d merge $root/a.pdf $tmp/home/.cache/wiki-sources/wiki/proton" "$out"
-check "pd-read/refuse-download-folder"  1 "$(cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root/offers" >/dev/null 2>&1; echo $?)"
-check "pd-read/refuse-download-root"    1 "$(cd "$tmp/wiki" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root" >/dev/null 2>&1; echo $?)"
-out=$(cd "$tmp/wiki" && FAKE_PD_SYNTAX=changed HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$scripts/pd-read.sh" download "$root/a.pdf" 2>&1; echo "exit=$?")
-case "$out" in *"syntax changed"*exit=1) r=refused ;; *) r="not refused: $out" ;; esac
-check "pd-read/refuse-changed-syntax"   refused "$r"
-
-# proton-drive/read.sh with instance files (new layout).
+# proton-drive/read.sh against the fake CLI, in a throwaway wiki with two
+# proton-drive instances ("drive"; "plans", whose root has a space) and a gmail one.
 pdr="$here/../plugins/wiki/sources/proton-drive/read.sh"
 git -C "$tmp" init -q pdw
 mkdir -p "$tmp/pdw/.claude/sources/instances"
 printf -- '---\nkey: drive\ntype: proton-drive\nroots:\n  - /my-files/Archive\n  - /my-files/Projects/manual.pdf\n---\n' > "$tmp/pdw/.claude/sources/instances/drive.md"
+printf -- '---\nkey: plans\ntype: proton-drive\nroots:\n  - /my-files/Projects/alpha/plan 2026\n---\n' > "$tmp/pdw/.claude/sources/instances/plans.md"
 printf -- '---\nkey: mail\ntype: gmail\nlabels: X\n---\n' > "$tmp/pdw/.claude/sources/instances/mail.md"
-printf '/my-files\n' > "$tmp/pdw/.claude/proton-roots"
 pdn() { (cd "$tmp/pdw" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" 2>&1); }
 pdnx() { (cd "$tmp/pdw" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" >/dev/null 2>&1); echo $?; }
+plan='/my-files/Projects/alpha/plan 2026'
+
 check "proton-drive/list"                 "FAKE filesystem list --json /my-files/Archive/2026" "$(pdn drive list /my-files/Archive/2026)"
+check "proton-drive/list-space"           "FAKE filesystem list --json $plan/offers" "$(pdn plans list "$plan/offers")"
+check "proton-drive/size"                 "FAKE filesystem size --json $plan" "$(pdn plans size "$plan")"
 out=$(pdn drive download "/my-files/Archive/2026/contract.pdf" | head -n 1)
 check "proton-drive/download-to-key"      "FAKE filesystem download --json -f remove -d merge /my-files/Archive/2026/contract.pdf $tmp/home/.cache/wiki-sources/pdw/drive/2026" "$out"
-out=$(pdn drive download "/my-files/Projects/manual.pdf" | tail -n 1)
-check "proton-drive/download-file-root"   "pd-read: downloaded to $tmp/home/.cache/wiki-sources/pdw/drive/manual.pdf" "$out"
+out=$(pdn plans download "$plan/a.pdf" | head -n 1)
+check "proton-drive/download-top-level"   "FAKE filesystem download --json -f remove -d merge $plan/a.pdf $tmp/home/.cache/wiki-sources/pdw/plans" "$out"
+out=$(pdn drive download "/my-files/Projects/manual.pdf")
+check "proton-drive/download-file-root"   "FAKE filesystem download --json -f remove -d merge /my-files/Projects/manual.pdf $tmp/home/.cache/wiki-sources/pdw/drive" "$(printf '%s\n' "$out" | head -n 1)"
+check "proton-drive/download-file-root-msg" "proton-drive: downloaded to $tmp/home/.cache/wiki-sources/pdw/drive/manual.pdf" "$(printf '%s\n' "$out" | tail -n 1)"
+check "proton-drive/refuse-download-folder" 1 "$(pdnx plans download "$plan/offers")"
+check "proton-drive/refuse-download-root" 1 "$(pdnx plans download "$plan")"
 check "proton-drive/refuse-outside"       1 "$(pdnx drive list /my-files/Projects)"
-check "proton-drive/refuse-sibling"       1 "$(pdnx drive list /my-files/Archive-old)"
+check "proton-drive/refuse-sibling"       1 "$(pdnx plans list "$plan-old")"
 check "proton-drive/refuse-dotdot"        1 "$(pdnx drive list /my-files/Archive/../Projects)"
-check "proton-drive/refuse-write-op"      1 "$(pdnx drive upload /my-files/Archive)"
+check "proton-drive/refuse-relative"      1 "$(pdnx drive list my-files/Archive)"
+check "proton-drive/refuse-write-ops"     "1 1 1" "$(pdnx drive upload /my-files/Archive) $(pdnx drive trash /my-files/Archive/a.pdf) $(pdnx drive delete /my-files/Archive/a.pdf)"
 check "proton-drive/refuse-two-args"      1 "$(pdnx list /my-files/Archive)"
+check "proton-drive/refuse-extra-args"    1 "$(pdnx drive list /my-files/Archive --force)"
 check "proton-drive/refuse-wrong-type"    1 "$(pdnx mail list /my-files/Archive)"
 check "proton-drive/refuse-no-instance"   1 "$(pdnx nosuch list /my-files/Archive)"
-check "proton-drive/legacy-only-proton"   1 "$(pdnx other list /my-files/Archive)"
-check "proton-drive/legacy-proton-roots"  "FAKE filesystem list --json /my-files/X" "$(pdn proton list /my-files/X)"
+check "proton-drive/refuse-outside-git"   1 "$(cd "$tmp" && PATH="$fakebin:$PATH" bash "$pdr" drive list /my-files/Archive >/dev/null 2>&1; echo $?)"
+printf '/my-files\n' > "$tmp/pdw/.claude/proton-roots"
+check "proton-drive/ignore-proton-roots"  1 "$(pdnx proton list /my-files)"
+rm "$tmp/pdw/.claude/proton-roots"
+out=$(cd "$tmp/pdw" && FAKE_PD_SYNTAX=changed HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" drive download /my-files/Archive/a.pdf 2>&1; echo "exit=$?")
+case "$out" in *"syntax changed"*exit=1) r=refused ;; *) r="not refused: $out" ;; esac
+check "proton-drive/refuse-changed-syntax" refused "$r"
 # new: walk the roots against the fake's canned tree (FAKE_PD_TREE=1).
 pdtree() { (cd "$tmp/pdw" && FAKE_PD_TREE=1 HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" 2>&1); }
 out=$(pdtree drive new 2026-10-20)
@@ -184,7 +163,7 @@ check "proton-drive/new-file-root"      yes "$(printf '%s\n' "$out" | grep -qxF 
 check "proton-drive/new-older-dropped"  no  "$(printf '%s\n' "$out" | grep -q 'old.pdf' && echo yes || echo no)"
 check "proton-drive/new-no-folders"     no  "$(printf '%s\n' "$out" | grep -q '^d ' && echo yes || echo no)"
 check "proton-drive/new-undecryptable"  yes "$(printf '%s\n' "$out" | grep -q 'cannot be decrypted' && echo yes)"
-check "proton-drive/new-walk-count"     yes "$(printf '%s\n' "$out" | grep -qxF 'pd-read: walked 3 folders' && echo yes)"
+check "proton-drive/new-walk-count"     yes "$(printf '%s\n' "$out" | grep -qxF 'proton-drive: walked 3 folders' && echo yes)"
 check "proton-drive/new-sorted"         "2026-10-20 2026-10-20 2026-10-21 2026-10-22 2026-10-25" "$(printf '%s\n' "$out" | grep '^[fp] ' | cut -d' ' -f2 | paste -sd' ' -)"
 check "proton-drive/new-never"          yes "$(pdtree drive new never | grep -q 'old.pdf' && echo yes)"
 check "proton-drive/new-bad-date"       1 "$(cd "$tmp/pdw" && FAKE_PD_TREE=1 PATH="$fakebin:$PATH" bash "$pdr" drive new yesterday >/dev/null 2>&1; echo $?)"
@@ -192,8 +171,6 @@ check "proton-drive/new-path-not-date"  1 "$(cd "$tmp/pdw" && FAKE_PD_TREE=1 PAT
 out=$(cd "$tmp/pdw" && FAKE_PD_FORMAT=changed FAKE_PD_TREE=1 PATH="$fakebin:$PATH" bash "$pdr" drive new never 2>&1; echo "exit=$?")
 case "$out" in *"no longer has the shape"*exit=1) r=refused ;; *) r="$out" ;; esac
 check "proton-drive/new-format-changed" refused "$r"
-printf -- '---\nkey: proton\ntype: proton-drive\nroots:\n  - /my-files/Archive\n---\n' > "$tmp/pdw/.claude/sources/instances/proton.md"
-check "proton-drive/instance-beats-legacy" 1 "$(pdnx proton list /my-files/X)"
 
 # lint.sh against the fixture wiki in tests/lint-wiki (one planted problem per check).
 cp -r "$here/lint-wiki" "$tmp/lw"
@@ -333,9 +310,6 @@ check "wiki-check/fault-exits-1" 1 "$(wc_exit f1)"
 
 mkwiki f2; printf 'last_checked_web: soon\n' >> "$tmp/f2/raw/sync-log.md"
 wc_expect bad-sync-value f2 "FAIL \`last_checked_web: soon\` in raw/sync-log.md"
-
-mkwiki f3; printf '/my-files/Test\n' > "$tmp/f3/.claude/proton-roots"
-wc_expect old-layout f3 "FAIL old source layout"
 
 mkwiki f4; sed -i '/Bash(git push \*)/d' "$tmp/f4/.claude/settings.json"
 wc_expect missing-permission f4 'FAIL permission rules missing from .claude/settings.json: "Bash(git push *)"'
@@ -512,9 +486,6 @@ sexpect show-platform   "isn't available on" show books
 printf -- '---\nkey: bad\ntype: gmail\n---\n' > "$tmp/sw/.claude/sources/instances/bad.md"
 sed -i 's/^key: bad/key: worse/' "$tmp/sw/.claude/sources/instances/bad.md"
 sexpect show-invalid    "doesn't validate" show bad
-rm "$tmp/sw/.claude/sources/instances/proton.md"
-printf '/my-files/X\n' > "$tmp/sw/.claude/proton-roots"
-sexpect list-old-layout 'Old layout: .claude/proton-roots' list
 
 # install-source-file.sh against a throwaway wiki (the user's installer).
 isf="$scripts/install-source-file.sh"

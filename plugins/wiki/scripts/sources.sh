@@ -59,9 +59,6 @@ case "$op" in
     for k in $(src_manual_keys "$root"); do
       printf -- '- %s: manual key (no source file; enters via raw/ or user statements; /wiki:ingest cannot read it), last checked: %s\n' "$k" "$(state_of "$k")"
     done
-    if [ -f "$root/.claude/proton-roots" ] && [ ! -f "$(src_instance_dir "$root")/proton.md" ]; then
-      printf '\nOld layout: .claude/proton-roots without .claude/sources/instances/proton.md. Run /wiki:init (check mode) to migrate.\n'
-    fi
     ;;
   show)
     [ $# -eq 2 ] || die "usage: sources.sh show <key>"
@@ -78,8 +75,8 @@ $errs"
     c=$(src_contract "$root" "$(src_field "$f" type)")
     platform_ok "$c" || die "source '$k' (type $(src_field "$f" type)) isn't available on $plat; it supports: $(src_list "$c" platforms | paste -sd' ' -)."
     printf 'Source %s: valid, available on %s, last checked: %s\n' "$k" "$plat" "$(state_of "$k")"
-    # The instance file changed since the last ingest (a migration, a new
-    # root or label): its parameters haven't met reality yet.
+    # The instance file changed since the last ingest (a new root or label):
+    # its parameters haven't met reality yet.
     last=$(state_of "$k")
     case "$last" in
       [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])

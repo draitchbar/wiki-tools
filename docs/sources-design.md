@@ -1,6 +1,6 @@
 # Source redesign: source-neutral wiki skills and pluggable sources
 
-Status: built on branch `sources-redesign` (24.10.2026); migration of udbygning and carleasing pending (plan step 8). Intents were grilled and the design approved on 24.10.2026.
+Status: built 24.10.2026, merged to main; both wikis migrated 2026-10-25, transition code removed 2026-10-31. Intents were grilled and the design approved on 24.10.2026.
 
 ## Context
 Before this redesign, sources were baked into the `wiki` plugin: `ingest` (gmail/proton/raw sections), `audit` (per-citation re-read), `sync-status` (hard-coded key list), `init` (source checklist, proton-roots, Gmail allow-list), `guard.sh` (Proton keywords), `pd-read.sh`, `templates/project-settings.json`, README. Adding a source meant editing all of them, and every new wiki inherited Gmail/Proton assumptions.
@@ -92,7 +92,7 @@ Skills' `allowed-tools` become generic: core commands plus `Bash(bash ~/src/wiki
 
 ### 7. Compatibility and migration
 - Keys `gmail`, `proton`, `raw`, `last_checked_*` lines and `"Gmail: …"`/`"Proton: …"` citations stay valid.
-- Transition: guard and proton-drive `read.sh` still honour `.claude/proton-roots` when no `proton` instance file exists; `pd-read.sh` stays as a thin shim calling the new script. Removed after both wikis migrate.
+- Transition (removed 2026-10-31): guard and proton-drive `read.sh` honoured `.claude/proton-roots` when no `proton` instance file existed, and `pd-read.sh` was a thin shim calling the new script, until both wikis had migrated.
 - `/wiki:init` check mode detects the old layout and proposes the instance files and settings diff.
 
 ### 8. Proving
@@ -116,4 +116,4 @@ Notes for later:
 ## Remaining
 1. ~~Migrate udbygning and carleasing~~ (done 2026-10-25).
 2. Add Brave bookmarks to udbygning as a wiki-local type with `/wiki:add-source` (replaces Tier 2 item D).
-3. Remove the transition code: `.claude/proton-roots` fallback in `proton-drive/read.sh`, `scripts/pd-read.sh`, `proton-roots` and `proton-drive` in the guard's protected words and paths, the old-layout checks in `sources.sh`/`wiki-check.sh`, init's migration section.
+3. ~~Remove the transition code~~ (done 2026-10-31; the manual-key text moved to `/wiki:add-source`).
