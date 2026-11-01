@@ -74,3 +74,5 @@ For each step:
 
 ## 7. Report
 In a few lines: the answer; pages created or updated; **steps used (x/5)**; **agents dispatched** (research, critic, checkers; from the critics' CHECKERS lines); critique rounds and verdicts; open questions (the agents' HUMAN items you couldn't answer); anything the user should double-check. Mention the run folder path.
+
+At the end of `plan.md`, add `## Tracing`: which sub-questions were cross-module tracing (call chains, which service calls which, config wiring), and how many agents and steps they took. These notes feed the open decision on a code-graph tool.
