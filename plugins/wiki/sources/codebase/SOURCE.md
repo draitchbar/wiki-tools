@@ -70,8 +70,8 @@ bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/git.sh <key> branches ["<text>"]
 bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/git.sh <key> contains <rev>
 bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/git.sh <key> drift    <rev> "<path>" Lx-Ly
 bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/git.sh <key> verify   <rev> "<path>" Lx-Ly
-bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/git.sh <key> verify-all <@path below the cache folder | wiki-relative path>
-bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/git.sh <key> drift-all  <@path below the cache folder | wiki-relative path>
+bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/git.sh <key> verify-all <@path below the cache folder | wiki-relative path> [--all]
+bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/git.sh <key> drift-all  <@path below the cache folder | wiki-relative path> [--all]
 bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/gh.sh  <key> pr-of    <sha>
 bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/gh.sh  <key> pr       <number>
 bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/gh.sh  <key> pr-diff  <number>
@@ -82,7 +82,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/sources/codebase/gh.sh  <key> issue-search "<query>"
 
 `<rev>` is a commit SHA, a ref name (`origin/main`), or `ref` for the instance's ref. Paths are relative to the repository's top folder and must lie in the root. Output lines that point at code read `<path>#L<n> @<sha12>`; copy them, never type line numbers yourself. `gh.sh` works only when the instance has `gh_user`.
 
-`verify-all` and `drift-all` run `verify` or `drift` on every citation in one file (a run's answer as `@runs/<run>/answer.md`, or a wiki page as `wiki/<...>.md`) and end with a tally; use them instead of one call per citation.
+`verify-all` and `drift-all` run `verify` or `drift` on every citation in one file (a run's answer as `@runs/<run>/answer.md`, or a wiki page as `wiki/<...>.md`) and end with a tally; use them instead of one call per citation. They print only the citations that need attention (anything but `ok` or `unchanged`); `--all` prints every one. `drift-all` compares with the ref **as of the last fetch** and prints when that was: "unchanged" means unchanged since then, not current. If the fetch is old and currency matters (before writing pages), have one agent run `fetch` first.
 
 **Regexes the guard refuses.** A command line may not contain `| $ ; & < > ( )` or a backtick, so a regex with alternation or an end anchor goes in a pattern file: Write it into the run folder (one ERE per line, at most 20; a line matches if any pattern does) and pass `@<path below the instance cache folder>`, e.g. `grep <sha> @runs/<run>/p1.txt "app/*"`. Without a pattern file, run one `grep` per alternative. Patterns are POSIX EREs: inline flags such as `(?i)` don't work; use `igrep` for case-insensitive search.
 

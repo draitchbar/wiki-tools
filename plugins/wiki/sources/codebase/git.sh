@@ -14,12 +14,14 @@
 #   bash <plugin>/sources/codebase/git.sh <key> contains <rev>
 #   bash <plugin>/sources/codebase/git.sh <key> drift    <rev> "<path>" Lx-Ly
 #   bash <plugin>/sources/codebase/git.sh <key> verify   <rev> "<path>" Lx-Ly
-#   bash <plugin>/sources/codebase/git.sh <key> verify-all <file>
-#   bash <plugin>/sources/codebase/git.sh <key> drift-all  <file>
+#   bash <plugin>/sources/codebase/git.sh <key> verify-all <file> [--all]
+#   bash <plugin>/sources/codebase/git.sh <key> drift-all  <file> [--all]
 #
 # verify-all and drift-all run verify or drift on every citation
 # `<path>#L<x>-L<y> @<sha>` in <file>: @<path below the cache folder> (a run's
 # answer.md) or a path relative to the wiki (a page). At most 300 citations.
+# They print only results other than ok/unchanged (all with --all) and a
+# tally; drift-all also prints when the ref was last fetched.
 #
 # A grep <regex> of the form @<file> names a pattern file below the
 # instance's cache folder ~/.cache/wiki-sources/<wiki>/<key>/ (e.g.
@@ -75,7 +77,10 @@ nargs() { # MIN MAX
 ARGC=$#
 case "$op" in
   status|fetch)      nargs 0 0 ;;
-  resolve|contains|verify-all|drift-all) nargs 1 1 ;;
+  resolve|contains)  nargs 1 1 ;;
+  verify-all|drift-all)
+    nargs 1 2
+    [ $# -eq 1 ] || [ "$2" = --all ] || die "'$op' takes <file> [--all], got '$2'." ;;
   grep|igrep)        nargs 2 3 ;;
   show)              nargs 2 3 ;;
   ls)                nargs 1 2 ;;
@@ -164,6 +169,23 @@ lines_of() { g cat-file blob "$1:$2" | awk 'END { print NR }'; }
 s12() { printf '%s' "$1" | cut -c1-12; }
 here() { [ -n "$pre" ] && printf '%s' "$pre" || printf '.'; }
 
+# fetch_note: when the remote refs were last fetched (status, drift-all).
+fetch_note() {
+  fh=$(g rev-parse --git-path FETCH_HEAD)
+  case "$fh" in /*|[A-Za-z]:*) ;; *) fh="$top/$fh" ;; esac
+  stamp="$cache/last-fetch"
+  if [ -f "$stamp" ]; then
+    printf 'last fetch: completed %s\n' "$(head -n 1 "$stamp")"
+    if [ -f "$fh" ] && [ "$fh" -nt "$stamp" ]; then
+      printf 'fetch: one started %s and has not completed (still running, or it failed)\n' "$(date -r "$fh" '+%Y-%m-%d %H:%M')"
+    fi
+  elif [ -f "$fh" ]; then
+    printf 'last fetch: started %s (completion not recorded)\n' "$(date -r "$fh" '+%Y-%m-%d %H:%M')"
+  else
+    printf 'last fetch: never\n'
+  fi
+}
+
 # 4. Run.
 case "$op" in
   status)
@@ -193,19 +215,7 @@ case "$op" in
     else
       printf 'shallow: no\n'
     fi
-    fh=$(g rev-parse --git-path FETCH_HEAD)
-    case "$fh" in /*|[A-Za-z]:*) ;; *) fh="$top/$fh" ;; esac
-    stamp="$cache/last-fetch"
-    if [ -f "$stamp" ]; then
-      printf 'last fetch: completed %s\n' "$(head -n 1 "$stamp")"
-      if [ -f "$fh" ] && [ "$fh" -nt "$stamp" ]; then
-        printf 'fetch: one started %s and has not completed (still running, or it failed)\n' "$(date -r "$fh" '+%Y-%m-%d %H:%M')"
-      fi
-    elif [ -f "$fh" ]; then
-      printf 'last fetch: started %s (completion not recorded)\n' "$(date -r "$fh" '+%Y-%m-%d %H:%M')"
-    else
-      printf 'last fetch: never\n'
-    fi
+    fetch_note
     ;;
   resolve)
     sha=$(rev "$1") || exit 1
@@ -354,19 +364,27 @@ case "$op" in
     [ -n "$cites" ] || { printf 'no citations found in %s\n' "$pf"; exit 0; }
     n=$(printf '%s\n' "$cites" | grep -c .)
     [ "$n" -le 300 ] || die "$n citations in $pf; at most 300 per call."
+    all=${2:-}
     bad=0 kinds=""
     while IFS= read -r c; do
       p=${c%%#*} r=${c%% @*} s=${c##*@}
       r=${r#*#}
       res=$(bash "$0" "$key" "$one" "$s" "$p" "$r" 2>&1) || bad=$((bad + 1))
       res=$(printf '%s' "$res" | head -n 1 | sed 's/^codebase: //')
-      printf '%s -> %s\n' "$c" "$res"
-      kinds="$kinds${res%%[ :]*}
+      kind=${res%%[ :]*}
+      kinds="$kinds$kind
 "
+      # Only what needs attention, unless --all.
+      case "$kind" in ok|unchanged) [ -n "$all" ] || continue ;; esac
+      printf '%s -> %s\n' "$c" "$res"
     done <<EOF
 $cites
 EOF
     printf '%s citations: %s\n' "$n" "$(printf '%s' "$kinds" | grep . | LC_ALL=C sort | uniq -c | awk '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $1, $2 }')"
+    if [ "$one" = drift ]; then
+      printf 'compared with %s as of the last fetch; fetch first (an agent) if that is old.\n' "$iref"
+      fetch_note
+    fi
     [ "$bad" -eq 0 ] || exit 1
     ;;
   drift|verify)
