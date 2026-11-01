@@ -13,7 +13,7 @@ Repo rules (CLAUDE.md): POSIX bash for Linux and Git Bash, no jq or Python; LF e
 
 ## 0. Mode
 - `promote <wiki path> <type>`: copy `<wiki>/.claude/sources/types/<type>/` to `plugins/wiki/sources/<type>/`, then run steps 3 to 7 on the copy (rewrite script paths from `.claude/sources/types/<type>/`: in `read_tools` to `*/sources/<type>/`, in the body to `${CLAUDE_PLUGIN_ROOT}/sources/<type>/`; source `lib-source.sh` relative to the script). At the end, tell the user to delete the local copy in the wiki (the guard blocks Claude there), and that the type name must stay the same so instances keep working.
-- Otherwise: a new type named `<type>` (kebab-case; refuse a name that exists).
+- Otherwise: a new type named `<type>` (kebab-case; refuse a name that exists). Also look for a wiki-local type of the same name in the user's wikis (ask where they are; `<wiki>/.claude/sources/types/<type>/`): once the standard type exists, that wiki's guard fails closed until the local type is deleted and its instances are rewritten. If there is one, say so before the interview, choose another name or plan the migration (step 8), and treat the local contract as research material.
 
 ## 1. Interview (one question at a time, recommended answer first)
 1. What the source is and which wikis will use it.
@@ -55,7 +55,7 @@ Model them on `plugins/wiki/sources/local-folder/read.sh`:
 - `tests/run-tests.sh`: a section for the type: every refusal (unknown op, extra args, outside roots, sibling prefix, `..`, relative path, wrong instance type, outside git, changed CLI syntax) and every happy path against the fake.
 - Guard fixtures in `tests/fixtures/guard/`: `pass-<type>-wrapper` (a plain call), `block-<type>-wrapper-chained`, and `block-<type>-cli-direct` if it has guard words. If the guard wiki needs an instance of the type, add it to `tests/guard-wiki/.claude/sources/instances/`.
 - **`agent_only` types:** the guard tells the main session from a subagent by the hook's `agent_id`. Add fixtures for both sides of every route: `block-<type>-read-main` / `pass-<type>-read-agent`, the same for Grep, Glob patterns and the wrapper, `pass-<type>-wrapper-main-<op>` for each `main_ops` operation and a block for a non-`main_ops` one. The main-session fixtures carry no `agent_id`, the agent ones do; a missing `agent_id` must count as the main session. See the `*-codebase-*` fixtures.
-- **Tool-neutral (`access: tools`):** no wrapper, fixtures or tool lists (validation requires them empty). Add `sexpect` checks for `catalog` (listed as `tools`) and `settings <type>` (the "names no tools" note, no rules); `onenote` is the worked example.
+- **Tool-neutral (`access: tools`):** no wrapper, fixtures or tool lists (validation requires them empty; `read_tools` may hold only Read/Edit rules on the source cache). Add `sexpect` checks for `catalog` (listed as `tools`) and `settings <type>` (the "names no tools" note, no tool rules, narrowed cache rules); `onenote` is the worked example.
 - **No wrapper (an MCP type):** the wrapper and guard-fixture bullets above don't apply. Add `sexpect` checks in the `sources.sh` block of `run-tests.sh` for `settings <type>` (a forbidden tool appears) and `catalog` (the type is listed).
 - Every standard contract is validated by the `contract/<type>-valid` loop in `run-tests.sh`; no need to run `src_validate_contract` by hand.
 - Run `bash tests/run-tests.sh`; it must end "0 failed". On Windows (Git Bash) it takes over 10 minutes: run it with `run_in_background`, output to a log in the scratchpad, and wait for the notification. Never start it with `&`, which leaves stray processes behind.
@@ -70,4 +70,4 @@ Model them on `plugins/wiki/sources/local-folder/read.sh`:
 One commit, staging named paths only: `Add source type <type>` (or `Promote source type <type>`). Say in the message what the guard now lets through (the new wrapper) and what it now blocks (guard words). Never push.
 
 ## 8. Report and improve this skill
-Tell the user how to use it in a wiki: `/wiki:add-source <type>`. If anything in this skill was missing or wrong while you did this, propose the edit to this file.
+Tell the user how to use it in a wiki: `/wiki:add-source <type>`. For a wiki that had a local type of the same name, give the migration order (delete the local type, install the rewritten instances right after, add new state lines). An end-to-end test in a wiki session (yours or a peer's) needs the user to type `/wiki:ingest`, `/wiki:audit` and the like, which models can't invoke; say so in the test plan. If anything in this skill was missing or wrong while you did this, propose the edit to this file.

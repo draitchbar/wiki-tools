@@ -33,9 +33,10 @@ How to fill this contract
   - access: mcp (an MCP connector), script (a wrapper script around a CLI or
     file format), filesystem (local files through a wrapper script), tools
     (the contract names no tools: it lists the operations it needs and the
-    machine supplies a reader for them; read_tools, bookkeeping_tools,
-    forbidden_tools, guard_words and scripts stay empty, and read-only rests
-    on the connection's scope, which Check should report).
+    machine supplies a reader for them; bookkeeping_tools, forbidden_tools,
+    guard_words and scripts stay empty, read_tools holds at most Read/Edit
+    rules on ~/.cache/wiki-sources/, and read-only rests on the connection's
+    scope, which Check should report).
   - platforms: where it works: linux, windows (Git Bash).
   - parameters: one item per instance setting, `name (required|optional): description`.
     A parameter named `roots` holds absolute paths; the guard treats them as

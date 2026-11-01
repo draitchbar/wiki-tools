@@ -124,7 +124,13 @@ $errs"
     ;;
   contract)
     [ $# -eq 2 ] || die "usage: sources.sh contract <type>"
-    c=$(src_contract "$root" "$2") || exit 1
+    if ! c=$(src_contract "$root" "$2"); then
+      # Shadowed by a local type: still show the standard contract, which is
+      # what the instances must be rewritten to.
+      printf '%s' "$2" | grep -Eq "$SRC_NAME_RE" && [ -f "$SRC_PLUGIN/sources/$2/SOURCE.md" ] || exit 1
+      c="$SRC_PLUGIN/sources/$2/SOURCE.md"
+      printf 'WARNING: shown is the standard contract; a local type of the same name shadows it (see above).\n\n'
+    fi
     errs=$(src_validate_contract "$c" 2>&1) || printf 'WARNING: contract does not validate:\n%s\n\n' "$errs"
     printf '===== Contract %s =====\n' "$c"
     print_contract "$c"
@@ -167,7 +173,7 @@ $errs"
     for t in $types; do
       c=$(src_contract "$root" "$t" 2>/dev/null) || continue
       [ "$(src_field "$c" access)" = tools ] || continue
-      printf '\n%s (access: tools) names no tools, so it adds no rules here. Allow the read tools this machine supplies for it yourself (this wiki'"'"'s settings or your user settings; see its Caveats). Read-only rests on the connection'"'"'s scope, not on these settings.\n' "$t"
+      printf '\n%s (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). Allow the read tools this machine supplies for it yourself (this wiki'"'"'s settings or your user settings; see its Caveats). Read-only rests on the connection'"'"'s scope, not on these settings.\n' "$t"
     done
     ;;
   check-settings)

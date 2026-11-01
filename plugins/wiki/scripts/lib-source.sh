@@ -109,7 +109,7 @@ src_contract() {
   std="$SRC_PLUGIN/sources/$t/SOURCE.md"
   loc="$1/.claude/sources/types/$t/SOURCE.md"
   if [ -f "$std" ] && [ -f "$loc" ]; then
-    src_err "local type '$t' ($loc) shadows the standard type of the same name; rename it"
+    src_err "local type '$t' ($loc) shadows the standard type of the same name. If the standard type replaces it, in a terminal outside Claude: 1) delete the folder .claude/sources/types/$t/; 2) right after, install each instance of type $t rewritten to the standard contract's parameters and state (sources.sh contract $t shows it); 3) add any new state lines to raw/sync-log.md. Otherwise rename the local type"
     return 1
   fi
   if [ -f "$std" ]; then printf '%s\n' "$std"
@@ -278,11 +278,14 @@ src_validate_contract() {
   [ "$t" = "${dir##*/}" ] || _src_ce "type '$t' doesn't match its folder '${dir##*/}'"
   case "$(src_field "$f" access)" in mcp|script|filesystem|tools|'') ;; *) _src_ce "access must be mcp, script, filesystem or tools" ;; esac
   # access: tools names no tools: the machine supplies them and the connection's
-  # scope keeps them read-only, so there is nothing to allow, deny or guard.
+  # scope keeps them read-only, so there is nothing to allow, deny or guard,
+  # except its own folder in the source cache.
   if [ "$(src_field "$f" access)" = tools ]; then
-    for k in read_tools bookkeeping_tools forbidden_tools guard_words scripts; do
+    for k in bookkeeping_tools forbidden_tools guard_words scripts; do
       [ -z "$(src_list "$f" "$k")" ] || _src_ce "access: tools names no tools, so '$k' must be empty"
     done
+    src_list "$f" read_tools | grep -Ev '^(Read|Edit)\(~/\.cache/wiki-sources/[^)]*\)$' | grep -q . &&
+      _src_ce "access: tools names no tools, so 'read_tools' may hold only Read/Edit rules on ~/.cache/wiki-sources/"
   fi
   p=$(src_list "$f" platforms)
   [ -n "$p" ] || _src_ce "no platforms listed"

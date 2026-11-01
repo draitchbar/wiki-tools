@@ -85,6 +85,8 @@ gdiag git-log           0 Bash '{"command":"git log --oneline -5 -- .claude/sour
 gdiag git-show          0 Bash '{"command":"git show HEAD:.claude/sources/instances/x.md"}'
 gdiag sources-show      0 Bash "{\"command\":\"bash $plugin/scripts/sources.sh show x\"}"
 gdiag sources-list      0 Bash "{\"command\":\"bash $plugin/scripts/sources.sh list\"}"
+gdiag sources-contract  0 Bash "{\"command\":\"bash $plugin/scripts/sources.sh contract gmail\"}"
+gdiag sources-contract-chain 2 Bash "{\"command\":\"bash $plugin/scripts/sources.sh contract gmail && rm -rf wiki\"}"
 gdiag sources-list-other-clone 2 Bash '{"command":"bash ~/src/wiki-tools/plugins/wiki/scripts/sources.sh list"}'
 gdiag sources-settings  2 Bash "{\"command\":\"bash $plugin/scripts/sources.sh settings\"}"
 gdiag lint              2 Bash "{\"command\":\"bash $plugin/scripts/lint.sh\"}"
@@ -623,15 +625,19 @@ mkdir -p "$tmp/at/tl"
 sed 's/^type: std/type: tl/; s/^access: script/access: tools/' "$tmp/ls/plugin/sources/std/SOURCE.md" > "$tmp/at/tl/SOURCE.md"
 touch "$tmp/at/tl/read.sh"
 out=$(lsrun "src_validate_contract '$tmp/at/tl/SOURCE.md'; echo exit=\$?")
-for k in read_tools forbidden_tools guard_words scripts; do
+for k in forbidden_tools guard_words scripts; do
   case "$out" in *"access: tools names no tools, so '$k' must be empty"*exit=1) r=ok ;; *) r="$out" ;; esac
   check "lib-source/tools-$k" ok "$r"
 done
+case "$out" in *"'read_tools' may hold only Read/Edit rules on ~/.cache/wiki-sources/"*exit=1) r=ok ;; *) r="$out" ;; esac
+check "lib-source/tools-read_tools" ok "$r"
 case "$out" in *"'bookkeeping_tools' must be empty"*) r="$out" ;; *) r=ok ;; esac
 check "lib-source/tools-empty-ok" ok "$r"
 awk '/^(read_tools|forbidden_tools|guard_words|scripts):/ { print; skip = 1; next } skip && /^  - / { next } { skip = 0; print }' \
   "$tmp/ls/plugin/sources/std/SOURCE.md" | sed 's/^type: std/type: tl/; s/^access: script/access: tools/' > "$tmp/at/tl/SOURCE.md"
 check "lib-source/tools-valid" 0 "$(lsrun "src_validate_contract '$tmp/at/tl/SOURCE.md'; echo \$?")"
+sed -i 's#^read_tools:#read_tools:\n  - Read(~/.cache/wiki-sources/*/*/**)\n  - Edit(~/.cache/wiki-sources/*/*/**)#' "$tmp/at/tl/SOURCE.md"
+check "lib-source/tools-cache-rules" 0 "$(lsrun "src_validate_contract '$tmp/at/tl/SOURCE.md'; echo \$?")"
 
 # sources.sh against a copy of guard-wiki (gmail, scans, teams, local type books).
 cp -r "$here/guard-wiki" "$tmp/sw"
@@ -680,13 +686,22 @@ sexpect settings-narrow-note  'covers them too' settings codebase --key code
 sexpect settings-key-alone    '--key goes with a type' settings --key code
 sexpect settings-key-bad      "invalid instance key" settings codebase --key 'a b'
 sexpect catalog-onenote       '- onenote (standard, tools): OneNote' catalog
-sexpect settings-tools-note   'onenote (access: tools) names no tools, so it adds no rules here.' settings onenote
+sexpect settings-tools-note   'onenote (access: tools) names no tools, so it adds no tool rules here' settings onenote
 check "sources/settings-tools-empty" 0 "$(srun settings onenote | grep -c 'mcp__\|Bash(')"
 check "sources/settings-tools-quiet" 0 "$(srun settings gmail | grep -c 'access: tools')"
 printf -- '---\nkey: notes\ntype: onenote\nsections:\n  - Book > Tab\nstate:\n  - last_checked\n  - cursor\n---\n' > "$tmp/sw/.claude/sources/instances/notes.md"
 sexpect show-tools-instance   'Source notes: valid' show notes
 sexpect settings-tools-all    'onenote (access: tools) names no tools' settings
+sexpect settings-tools-cache  '"Edit(~/.cache/wiki-sources/sw/notes/**)"' settings onenote --key notes
 rm "$tmp/sw/.claude/sources/instances/notes.md"
+# A local type shadowing a standard one: the error names the fix order, and
+# `contract` still shows the standard contract to migrate to.
+mkdir -p "$tmp/sw/.claude/sources/types/onenote"
+cp "$tmp/sw/.claude/sources/types/bookish/SOURCE.md" "$tmp/sw/.claude/sources/types/onenote/"
+sexpect shadow-fix-order      'delete the folder .claude/sources/types/onenote/' contract onenote
+sexpect shadow-contract       'shown is the standard contract' contract onenote
+sexpect shadow-contract-body  '# Source type: OneNote' contract onenote
+rm -r "$tmp/sw/.claude/sources/types/onenote"
 # check-settings: start from what `settings` prints, then plant one fault each.
 sjson=$(srun settings | sed -n '/^{/,/^}/p')
 sck() { # NAME EXIT TEXT [SED]: plant SED in settings.json, run check-settings

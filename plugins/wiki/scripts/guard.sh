@@ -13,7 +13,7 @@
 # A source file that can't be used (no frontmatter, unknown type, a
 # filesystem instance without roots) blocks every shell command and
 # Write/Edit call (fail closed), except read-only diagnostics: git
-# status/log/diff/show and sources.sh list/show.
+# status/log/diff/show and sources.sh list/show/contract.
 #
 # Bash and PowerShell: block commands that mention a protected path, a core
 # keyword, a guard word or a filesystem root. Exceptions (Bash only, since the
@@ -170,7 +170,7 @@ esac
 BROKEN=""
 broken() { # FILE REASON
   [ -z "$BROKEN" ] || return 0
-  BROKEN="source file '$1' can't be used: $2. Until it is fixed, shell commands and Write/Edit are refused (fail closed), except git status/log/diff/show and sources.sh list/show; Read still works on the file. The user fixes it with install-source-file.sh or an editor, outside Claude."
+  BROKEN="source file '$1' can't be used: $2. Until it is fixed, shell commands and Write/Edit are refused (fail closed), except git status/log/diff/show and sources.sh list/show/contract; Read still works on the file. The user fixes it with install-source-file.sh or an editor, outside Claude."
 }
 first_line() { printf 'its first line is "%s"' "$(head -n 1 "$1" 2>/dev/null | tr -d '\r' | cut -c1-60)"; }
 
@@ -247,13 +247,13 @@ EOF
 }
 
 # diagnostic_ok CMD: read-only calls allowed while a source file is broken:
-# a plain git status/log/diff/show (no --output) or sources.sh list/show.
+# a plain git status/log/diff/show (no --output) or sources.sh list/show/contract.
 diagnostic_ok() {
   case "$1" in *--output*) return 1 ;; esac
   printf '%s' "$1" | grep -Eq '^[[:space:]]*git[[:space:]]+(status|log|diff|show)([[:space:]]'"$NOCHAIN"'*)?$' && return 0
   allowed_script "$1" || return 1
   case "$(script_path "$1")" in */scripts/sources.sh) ;; *) return 1 ;; esac
-  printf '%s' "$1" | grep -Eq 'sources\.sh"?[[:space:]]+(list|show)([[:space:]]'"$NOCHAIN"'*)?$'
+  printf '%s' "$1" | grep -Eq 'sources\.sh"?[[:space:]]+(list|show|contract)([[:space:]]'"$NOCHAIN"'*)?$'
 }
 
 # main_session_op CMD: the operation of a wrapper call `bash <script> <key>
