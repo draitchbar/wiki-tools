@@ -50,10 +50,12 @@ One call: `new "<last_checked_<key>>"` (at a first ingest: `new "<starting point
 Not supported; the date state is enough.
 
 ## Cite
-`"Proton: <path below the root>, p. N"` in `sources:`; inline `(Proton: <path below the root>, p. N)`. Older pages may write `Proton Drive: <path>`; both mean the same.
+`"Proton: <path below the root>, p. N"` in `sources:`; inline `(Proton: <path below the root>, p. N)`. Always the full path below the root, never only the file name: the same name can sit in several folders, and Resolve citation needs the path. Older pages may write `Proton Drive: <path>`; both mean the same.
 
 ## Resolve citation
 The path is relative to the instance's root. `download "<root>/<path>"`, then read the downloaded file (`raw/ocr/<name>.txt` for scans if it exists). Proton Docs and Sheets can't be downloaded; mark them `source-missing`.
+
+**A citation with only a file name** (older pages, e.g. `Proton Drive: vvs tilbud.pdf`): find the path before giving up. 1) Look for the name in the cache, `~/.cache/wiki-sources/<wiki>/<key>/` (Glob `**/<file name>`); 2) else `new never` and pick the printed paths ending in `/<file name>`. One match: use it, and offer to rewrite the citation with the full path. Several: pick by the cited date or the page's context and say so. None: mark it `source-missing`.
 
 ## Caveats
 - **Proton Docs and Sheets are skipped by the CLI's download.** If CLAUDE.md says only exported copies are ingested (Docs → .md, Sheets → .csv, uploaded next to the originals), skip `.protondoc`/`.protonsheet` files and list them for the user.
