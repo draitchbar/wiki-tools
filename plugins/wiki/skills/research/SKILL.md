@@ -46,8 +46,10 @@ For each step:
    - **Boundaries:** what the sibling agents cover ("don't investigate X; another agent has it"), and what is out of scope;
    - **Source:** the instance key, the pinned SHA, the exact wrapper commands it may use (from the contract), the orientation map's path, and relevant earlier notes or wiki pages (as leads to verify);
    - **Output:** its notes path `<run folder>/agent-<step>-<n>.md` and the return format of its agent definition.
-3. **Observe.** Read the returns (not the notes files). In `plan.md`, record per agent: what was learned, the claims and their citations, leads, human-only questions.
-4. **Enough?** If the question can be answered with cited claims, stop stepping. Otherwise choose the next hypothesis from the leads and gaps. Don't repeat a sub-question an agent already answered.
+3. **Observe.** Read the returns (not the notes files). In `plan.md`, record per agent: what was learned, the claims and their citations, leads, human-only questions. A citation without the full path from the repository's top folder, or one that spans a whole file or more than ~60 lines for a narrow claim, goes back to that agent (SendMessage) to be made exact before you use it.
+4. **The question itself.** If agents report that the question's premise is wrong (a component that isn't one, a name that means something else), ask the user how to re-scope it, and record the original question, the finding and the new scope under `## Scope` in `plan.md` and in `answer.md`.
+5. **Secrets.** If an agent reports credentials, keys or passwords in the source, tell the user at once: where (citation), what kind, and that the values weren't copied. Never copy the values into the run folder or the wiki.
+6. **Enough?** If the question can be answered with cited claims, stop stepping. Otherwise choose the next hypothesis from the leads and gaps. Don't repeat a sub-question an agent already answered.
 
 ## 4. Draft and check citations
 1. Draft the answer as **numbered atomic claims** (C1, C2, …), each with its citations as the agents returned them, then a short prose answer built on them. Save it as `<run folder>/answer.md`.
@@ -66,6 +68,7 @@ For each step:
 3. Update `updated:`, `wiki/index.md` rows for new pages, and prepend to `wiki/log.md`: `## YYYY-MM-DD | research | <short title>` with the question, the pinned SHA, and the pages created or updated.
 4. Update `last_checked_<key>` in `raw/sync-log.md` to today and add a history row (`| YYYY-MM-DD | <key> | research: <question, shortened> @<sha12> |`).
 5. One commit: `git add` the named paths only; message `Research <key>: <short title>`. Never push.
+6. **No pages** (the user decides the answer stays in the run folder, or nothing new was learned): still prepend the `wiki/log.md` entry, with "no pages; answer in <run folder>/answer.md" instead of the page list, and do 4 and 5. The log keeps the run findable from the wiki.
 
 ## 7. Report
 In a few lines: the answer; pages created or updated; **steps used (x/5)**; **agents dispatched** (research, critic, checkers; from the critics' CHECKERS lines); critique rounds and verdicts; open questions (the agents' HUMAN items you couldn't answer); anything the user should double-check. Mention the run folder path.
