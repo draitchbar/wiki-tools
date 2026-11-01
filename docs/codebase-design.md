@@ -1,6 +1,6 @@
 # Source type `codebase` and `/wiki:research`
 
-Status: intents grilled, design approved and built on 2026-10-31 (on main). Remaining: the ai-wiki test (section 8).
+Status: intents grilled, design approved and built on 2026-10-31 (on main); tested in ai-wiki on Windows 2026-11-01 (section 8, results below). Remaining: the graphify/SCIP decision after ~10 real runs.
 
 ## Context
 Some sources are too large and change too fast to ingest: a monorepo like `festina-life/components` (50k tracked files, 2.4M lines of Java/Kotlin, ~280 commits a week on main). We still want the wiki to know about it. So the code is not ingested; it is **researched on demand**, and what a run learns is consolidated into wiki pages with commit-pinned citations that can be re-checked later.
@@ -100,6 +100,14 @@ Uses the contract's **Research** section for everything type-specific (ops, read
 
 ### 8. Test in ai-wiki
 Through SendMessage to the user's ai-wiki session: reload the plugin; first a logging check that `agent_id` is absent in the main session and present in a subagent (Windows); the user creates the instance with their own prompt to the ai-wiki session (`/wiki:add-source codebase` with their parameters; the user installs the protected files) and tells me the instance key when done; two questions (one new, one follow-up that should reuse the pages; one with `--critique`); report steps/agents, pages, citations, guard blocks.
+
+**Results (2026-11-01, ai-wiki on Windows, instance `components`, gh_user `mvb_festina`):**
+- Guard split confirmed: the main session's Read of the root and `git.sh grep` were blocked; a `wiki:source-researcher` Read and `git.sh show` passed with no prompt. `agent_id` behaves as documented on Windows.
+- Run 1 (moneyin → paymenthub, no critique): 2/5 steps, 8 agents, 28 claims, 27 line citations all `verify ok`, 49 min (9 min fetch). The question's premise was wrong (paymenthub/ is a customer layer); agents raised it through HUMAN, and the user re-scoped.
+- Run 2 (paymenthub validations, `--critique`): 1/5 steps, 8 research agents, 3 critics (10, 10, 0 checkers), 3 revise rounds then user accept, 62 claims all verified, about 71 min. Critique caught a wrong citation, precision errors and missing validation paths; splitting wide citations caught a factual error.
+- No wiki pages (the user's choice for the test); answers stay in the run folders, runs logged in `wiki/log.md`.
+- Fixed from the test: the orientation map reads `.agents/` and other agent folders (88be1dd); fetch never prompts, uses the gh_user token, records completion (0bb49df); grep pattern files for `|`, `$`, `(` (0bb49df); exact-citation, re-scope, secrets and no-pages rules (0a2d501); `verify-all`/`drift-all`, the `revise-prose` verdict, delta re-checks in later rounds, scope carry-over and critic-supplied citations.
+- Found in the source: clear-text SFTP/PGP keys in a dev `application.conf`; reported to the user, values not copied.
 
 ## Decisions after research (2026-10-31)
 - Default read mode = pinned SHA of `ref`; the working tree only with `--worktree`.

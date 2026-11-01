@@ -152,24 +152,20 @@ printf 'Installed .claude/sources/%s.\n' "$target"
 
 # 3. Settings rules the wiki's source types need that settings.json lacks.
 settings="$root/.claude/settings.json"
-missing() { # LIST-OF-RULES: those not quoted in settings.json
-  while IFS= read -r r; do
-    [ -n "$r" ] || continue
-    [ -f "$settings" ] && grep -qF -- "\"$r\"" "$settings" && continue
+missing() { # LIST: the needed rules of that list not quoted in settings.json
+  # (a per-instance cache rule is also satisfied by the contract's broader form)
+  printf '%s\n' "$need" | while IFS="$(printf '\t')" read -r l r orig; do
+    [ "$l" = "$1" ] || continue
+    if [ -f "$settings" ]; then
+      grep -qF -- "\"$r\"" "$settings" && continue
+      grep -qF -- "\"$orig\"" "$settings" && continue
+    fi
     printf '      "%s",\n' "$r"
-  done
+  done | awk '!seen[$0]++'
 }
-types=$(for k in $(src_instances "$root"); do src_field "$(src_instance_dir "$root")/$k.md" type; done | LC_ALL=C sort -u)
-allow="" deny=""
-for t in $types; do
-  c=$(src_contract "$root" "$t" 2>/dev/null) || continue
-  allow="$allow
-$(printf '%s\n%s\n' "$(src_list "$c" read_tools)" "$(src_list "$c" bookkeeping_tools)" | missing)"
-  deny="$deny
-$(src_list "$c" forbidden_tools | missing)"
-done
-allow=$(printf "%s\n" "$allow" | grep -v "^$" | awk "!seen[\$0]++")
-deny=$(printf "%s\n" "$deny" | grep -v "^$" | awk "!seen[\$0]++")
+need=$(src_needed_rules "$root")
+allow=$(missing allow)
+deny=$(missing deny)
 if [ -n "$allow$deny" ]; then
   printf '\n.claude/settings.json still lacks rules these sources need. Add them by hand:\n'
   [ -z "$allow" ] || printf '  under "permissions" -> "allow":\n%s\n' "$allow"

@@ -5,14 +5,19 @@
 #   bash <plugin>/scripts/sources.sh show <key>
 #   bash <plugin>/scripts/sources.sh catalog
 #   bash <plugin>/scripts/sources.sh contract <type>
-#   bash <plugin>/scripts/sources.sh settings [<type>...]
+#   bash <plugin>/scripts/sources.sh settings [<type>... [--key <key>]]
+#   bash <plugin>/scripts/sources.sh check-settings
 #
 # list      the wiki's instances: key, type, standard/local, platform, state
 # show      one instance: checks, its instance file and its type's contract
 # catalog   every source type this wiki can use (standard and local)
 # contract  one type's SOURCE.md
 # settings  the permission rules (allow, deny) for the given types, or for
-#           the types of all instances
+#           all instances. Cache rules (~/.cache/wiki-sources/...) are
+#           narrowed to <wiki>/<key>/ per instance, or for --key <key>.
+# check-settings  .claude/settings.json: well-formed JSON, the rules the
+#           instances need, duplicates, rules in both allow and deny, and
+#           broad cache rules. Exit 1 on a problem other than the last.
 #
 # Run it from inside a wiki (any directory of its git repo). Writes nothing.
 
@@ -126,24 +131,61 @@ $errs"
     ;;
   settings)
     shift
-    types="$*"
-    if [ -z "$types" ]; then
-      types=$(for k in $(src_instances "$root"); do src_field "$(src_instance_dir "$root")/$k.md" type; done | LC_ALL=C sort -u)
-    fi
-    allow="" deny=""
-    for t in $types; do
-      c=$(src_contract "$root" "$t") || exit 1
-      allow="$allow
-$(src_list "$c" read_tools)
-$(src_list "$c" bookkeeping_tools)"
-      deny="$deny
-$(src_list "$c" forbidden_tools)"
+    types="" key=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --key) [ $# -ge 2 ] || die "--key needs an instance key"; key=$2; shift 2 ;;
+        *) types="$types $1"; shift ;;
+      esac
     done
+    if [ -n "$key" ]; then
+      printf '%s' "$key" | grep -Eq "$SRC_NAME_RE" || die "invalid instance key '$key'"
+    fi
+    if [ -z "$types" ]; then
+      [ -z "$key" ] || die "--key goes with a type: settings <type> --key <key>"
+      rules=$(src_needed_rules "$root")
+    else
+      rules=$(for t in $types; do
+        c=$(src_contract "$root" "$t") || exit 1
+        if [ -n "$key" ]; then src_type_rules "$c" | src_narrow_rules "$(basename "$root")" "$key"
+        else src_type_rules "$c" | awk -F'\t' 'BEGIN { OFS = "\t" } { print $1, $2, $2 }'; fi
+      done) || exit 1
+    fi
     json_list() { grep -v '^$' | awk '!seen[$0]++' | sed 's/\\/\\\\/g; s/"/\\"/g; s/.*/      "&"/' | sed '$!s/$/,/'; }
+    pick() { printf '%s\n' "$rules" | awk -F'\t' -v l="$1" '$1 == l { print $2 }'; }
     printf '{\n  "permissions": {\n    "allow": [\n%s\n    ],\n    "deny": [\n%s\n    ]\n  }\n}\n' \
-      "$(printf '%s\n' "$allow" | json_list)" "$(printf '%s\n' "$deny" | json_list)"
+      "$(pick allow | json_list)" "$(pick deny | json_list)"
+    if printf '%s\n' "$rules" | awk -F'\t' '$2 != $3 { f = 1 } END { exit !f }'; then
+      printf '\nCache rules are narrowed to this wiki and instance (~/.cache/wiki-sources/<wiki>/<key>/); a broader rule already in settings.json, e.g. %s, covers them too.\n' \
+        "$(printf '%s\n' "$rules" | awk -F'\t' '$2 != $3 { print $3; exit }')"
+    fi
+    ;;
+  check-settings)
+    [ $# -eq 1 ] || die "usage: sources.sh check-settings"
+    sf="$root/.claude/settings.json"
+    [ -f "$sf" ] || { printf 'settings.json: missing (%s)\n' "$sf"; exit 1; }
+    have=$(src_settings_rules "$sf") || { printf 'settings.json: NOT valid JSON: %s\n' "$(printf '%s' "$have" | cut -f2-)"; exit 1; }
+    printf 'settings.json: valid JSON, %s permission rules\n' "$(printf '%s' "$have" | grep -c .)"
+    bad=0
+    need=$(src_needed_rules "$root")
+    miss=$(printf '%s\n' "$need" | while IFS="$(printf '\t')" read -r l r orig; do
+      [ -n "$l" ] || continue
+      printf '%s\n' "$have" | grep -qxF -- "$l	$r" && continue
+      printf '%s\n' "$have" | grep -qxF -- "$l	$orig" && continue
+      printf '  %s: %s\n' "$l" "$r"
+    done)
+    if [ -n "$miss" ]; then bad=1; printf 'missing (rules your sources need):\n%s\n' "$miss"; else printf 'missing: none\n'; fi
+    dup=$(printf '%s\n' "$have" | grep . | LC_ALL=C sort | uniq -d | sed 's/	/: /; s/^/  /')
+    if [ -n "$dup" ]; then bad=1; printf 'duplicates:\n%s\n' "$dup"; else printf 'duplicates: none\n'; fi
+    both=$(printf '%s\n' "$have" | awk -F'\t' '$1 == "allow" { a[$2] = 1 } $1 == "deny" { d[$2] = 1 } END { for (r in a) if (r in d) print "  " r }' | LC_ALL=C sort)
+    if [ -n "$both" ]; then bad=1; printf 'in both allow and deny (deny wins):\n%s\n' "$both"; else printf 'conflicts: none\n'; fi
+    broad=$(printf '%s\n' "$need" | awk -F'\t' '$2 != $3 { print $1 "\t" $3 }' | awk '!s[$0]++' | while IFS="$(printf '\t')" read -r l r; do
+      printf '%s\n' "$have" | grep -qxF -- "$l	$r" && printf '  %s\n' "$r"
+    done)
+    [ -z "$broad" ] || printf 'note: these rules reach every wiki'"'"'s cache; the per-instance rules (sources.sh settings) would do:\n%s\n' "$broad"
+    exit "$bad"
     ;;
   *)
-    die "usage: sources.sh <list|show <key>|catalog|contract <type>|settings [<type>...]>"
+    die "usage: sources.sh <list|show <key>|catalog|contract <type>|settings [<type>... [--key <key>]]|check-settings>"
     ;;
 esac

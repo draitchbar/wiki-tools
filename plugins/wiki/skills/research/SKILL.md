@@ -32,7 +32,7 @@ You are the **reasoning agent** of a ReAct loop: you plan, dispatch **action age
 3. If `last_checked_<key>` is `never`, do the contract's **Check** first and report it.
 4. Run the contract's status operation (a `main_ops` one) and pin the revision as **Research** says (one agent fetches first if it says so). Write the SHA down; every agent reads at it. `--worktree` only when the question is about local, uncommitted work.
 5. Make the run folder `~/.cache/wiki-sources/<wiki>/<key>/runs/<YYYY-MM-DD>-<slug>/` (`<wiki>` is the wiki folder's name, `<slug>` a few words of the question) by writing `plan.md` into it: the question, flags, pinned SHA, and an empty step log.
-6. **Wiki and earlier runs first.** Read the wiki pages relevant to the question (index, `[[links]]`) and list the earlier runs' `answer.md` files in `~/.cache/wiki-sources/<wiki>/<key>/runs/` whose folder names match the topic. What they say are **leads**: claims to re-verify at the pinned SHA, not facts. Note in `plan.md` which pages you expect to update.
+6. **Wiki and earlier runs first.** Read the wiki pages relevant to the question (index, `[[links]]`) and list the earlier runs' `answer.md` files in `~/.cache/wiki-sources/<wiki>/<key>/runs/` whose folder names match the topic. What they say are **leads**: claims to re-verify at the pinned SHA, not facts. A `## Scope` the user set in an earlier run on the same topic carries over: copy it into `plan.md` with its run folder and say so in your first message; ask again only if the new question reaches beyond it. Note in `plan.md` which pages you expect to update.
 7. If the question is ambiguous in a way that changes where agents should look, ask now.
 
 ## 2. Orientation map
@@ -48,19 +48,21 @@ For each step:
    - **Output:** its notes path `<run folder>/agent-<step>-<n>.md` and the return format of its agent definition.
 3. **Observe.** Read the returns (not the notes files). In `plan.md`, record per agent: what was learned, the claims and their citations, leads, human-only questions. A citation without the full path from the repository's top folder, or one that spans a whole file or more than ~60 lines for a narrow claim, goes back to that agent (SendMessage) to be made exact before you use it.
 4. **The question itself.** If agents report that the question's premise is wrong (a component that isn't one, a name that means something else), ask the user how to re-scope it, and record the original question, the finding and the new scope under `## Scope` in `plan.md` and in `answer.md`.
-5. **Secrets.** If an agent reports credentials, keys or passwords in the source, tell the user at once: where (citation), what kind, and that the values weren't copied. Never copy the values into the run folder or the wiki.
+5. **Secrets.** If an agent reports credentials, keys or passwords in the source, tell the user at once: where (citation), what kind, and that the values weren't copied. Never copy the values into the run folder or the wiki. Record them (path, lines, kind; never values) under `## Known secrets` in `plan.md` and `answer.md`. At setup, collect the `## Known secrets` of earlier runs into `plan.md`, mention them to the user once ("still present: …" after an agent confirms, or just "known from earlier runs"), and give the list to every brief as "already known; report only new ones".
 6. **Enough?** If the question can be answered with cited claims, stop stepping. Otherwise choose the next hypothesis from the leads and gaps. Don't repeat a sub-question an agent already answered.
 
 ## 4. Draft and check citations
 1. Draft the answer as **numbered atomic claims** (C1, C2, …), each with its citations as the agents returned them, then a short prose answer built on them. Save it as `<run folder>/answer.md`.
-2. **Always** verify every citation with the contract's verify operation (a `main_ops` one, one call per citation). A citation that fails is dropped, and its claim goes back to an agent or out of the answer.
+2. **Always** verify every citation with the contract's verify operation (a `main_ops` one; its batch form over `answer.md` if the contract has one, else one call per citation). A citation that fails is dropped, and its claim goes back to an agent or out of the answer.
 
 ## 5. Critique (only with `--critique`; at most 3 rounds)
-1. Dispatch a **fresh** critic per round (`subagent_type: wiki:critic`). Give it: the question; the claims with citations (not your plan, notes or reasoning); the pinned SHA; the source's research operations from the contract; the run folder; the budget (at most 10 checkers at once); the previous round's issue list, if any. It checks every claim against the source, including claims that came from wiki pages.
+1. Dispatch a **fresh** critic per round (`subagent_type: wiki:critic`). Give it: the question; the claims with citations (not your plan, notes or reasoning); the pinned SHA; the source's research operations from the contract; the run folder; the checker budget (first round: about one checker per 6 claims, at least 2, at most 10; later rounds: sized to the claims to re-check, often 1–3); the previous round's issue list, if any. It checks every claim against the source, including claims that came from wiki pages.
 2. **accept**: go to step 6.
-3. **revise**: re-research only the claims and gaps it names, in targeted steps (they don't count against the 5), update `answer.md`, verify the new citations, and start a new round with a new critic. Record each round in `plan.md`.
-4. If a round brings no new issues compared with the previous one, stop and treat the remaining points as disagreement for the user to judge. After the **3rd revise**, stop and ask the user: accept as is, steer, or drop.
-5. Pages are written only after accept or the user's decision.
+3. **revise-prose**: apply the named wording fixes yourself (no new research, no new round), verify any citation you moved, record it in `plan.md`, and go to step 6.
+4. **revise**: re-research only the claims and gaps it names, in targeted steps (they don't count against the 5), update `answer.md`, verify the new citations, and start a new round with a new critic. Record each round in `plan.md`. A citation the critic supplies as evidence may be used once `verify` passes; mark its claim "(from critique)" in `plan.md`. A fix that rests on it alone and changes what the answer says goes back to a research agent first.
+5. If a round brings no new issues compared with the previous one, stop and treat the remaining points as disagreement for the user to judge. After the **3rd revise**, stop and ask the user: accept as is, steer, or drop.
+6. A late return from a critic's checker that reaches you directly is not yours to act on; ignore it (the critic already used it).
+7. Pages are written only after accept, revise-prose, or the user's decision.
 
 ## 6. Write pages
 1. **Consolidate; don't multiply pages.** Find the existing pages on the concepts (index, links, titles). Prefer adding or rewriting a section in an existing page over a new page. Create a page only for a concept that has none, following CLAUDE.md's page types and templates.
@@ -68,7 +70,7 @@ For each step:
 3. Update `updated:`, `wiki/index.md` rows for new pages, and prepend to `wiki/log.md`: `## YYYY-MM-DD | research | <short title>` with the question, the pinned SHA, and the pages created or updated.
 4. Update `last_checked_<key>` in `raw/sync-log.md` to today and add a history row (`| YYYY-MM-DD | <key> | research: <question, shortened> @<sha12> |`).
 5. One commit: `git add` the named paths only; message `Research <key>: <short title>`. Never push.
-6. **No pages** (the user decides the answer stays in the run folder, or nothing new was learned): still prepend the `wiki/log.md` entry, with "no pages; answer in <run folder>/answer.md" instead of the page list, and do 4 and 5. The log keeps the run findable from the wiki.
+6. **No pages** (the user decides against pages, or nothing new was learned): the run folder is a cache that may be cleared, so offer to copy `answer.md` (with its `## Scope`, pinned SHA and critique verdicts) into `outputs/research-<slug>-<YYYY-MM-DD>.md`. Still prepend the `wiki/log.md` entry, with "no pages; answer in outputs/research-<slug>-<date>.md" (or the run folder, if the user declined the copy) instead of the page list, and do 4 and 5, committing the output file too.
 
 ## 7. Report
 In a few lines: the answer; pages created or updated; **steps used (x/5)**; **agents dispatched** (research, critic, checkers; from the critics' CHECKERS lines); critique rounds and verdicts; open questions (the agents' HUMAN items you couldn't answer); anything the user should double-check. Mention the run folder path.

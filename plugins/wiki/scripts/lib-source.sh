@@ -118,6 +118,107 @@ src_contract() {
   fi
 }
 
+# src_type_rules CONTRACT: the type's permission rules, one per line as
+# "allow<TAB>rule" (read_tools, bookkeeping_tools) or "deny<TAB>rule".
+src_type_rules() {
+  { src_list "$1" read_tools; src_list "$1" bookkeeping_tools; } | awk 'NF { print "allow\t" $0 }'
+  src_list "$1" forbidden_tools | awk 'NF { print "deny\t" $0 }'
+}
+
+# src_narrow_rules WIKI KEY: type rules on stdin, as "<list><TAB><rule><TAB><as
+# written in the contract>". A Read or Edit rule on the shared cache
+# (~/.cache/wiki-sources/** or ~/.cache/wiki-sources/*/*/<rest>) is narrowed
+# to this wiki's and instance's folder; the third field keeps the contract's
+# form, which also satisfies the rule.
+src_narrow_rules() {
+  awk -F'\t' -v w="$1" -v k="$2" 'BEGIN { OFS = "\t"; c = "~/.cache/wiki-sources/" }
+    { r = $2
+      if (match(r, /^(Read|Edit)\(/)) {
+        tool = substr(r, 1, RLENGTH); rest = substr(r, RLENGTH + 1)
+        if (rest == c "**)") r = tool c w "/" k "/**)"
+        else if (substr(rest, 1, length(c) + 4) == c "*/*/") r = tool c w "/" k "/" substr(rest, length(c) + 5)
+      }
+      print $1, r, $2 }'
+}
+
+# src_needed_rules ROOT: the rules the wiki's instances need, narrowed per
+# instance (src_narrow_rules), without repeats.
+src_needed_rules() {
+  local k c w d
+  w=$(basename "$1") d=$(src_instance_dir "$1")
+  for k in $(src_instances "$1"); do
+    c=$(src_contract "$1" "$(src_field "$d/$k.md" type)" 2>/dev/null) || continue
+    src_type_rules "$c" | src_narrow_rules "$w" "$k"
+  done | awk '!seen[$0]++'
+}
+
+# src_settings_rules FILE: parse a settings.json. Prints "allow|deny|ask<TAB>
+# rule" for each string in a list of that name, or a single line
+# "ERROR<TAB><what, where>" (exit 1) if the file isn't well-formed JSON.
+src_settings_rules() {
+  awk '{ s = s $0 "\n" }
+    function lineno(p,  t) { t = substr(s, 1, p); return gsub(/\n/, "", t) + 1 }
+    function fail(m) { if (err == "") err = m " (line " lineno(i) ")"; return 0 }
+    function ws() { while (i <= n && index(" \t\r\n", substr(s, i, 1))) i++ }
+    function str(  c, out) {
+      i++; out = ""
+      while (i <= n) {
+        c = substr(s, i, 1)
+        if (c == "\\") { c = substr(s, i + 1, 1); out = out ((c == "\\" || c == "\"" || c == "/") ? c : "\\" c); i += 2; continue }
+        if (c == "\"") { i++; last = out; return 1 }
+        if (c == "\n") return fail("line break inside a string")
+        out = out c; i++
+      }
+      return fail("unterminated string")
+    }
+    function value(key,  c) {
+      ws(); c = substr(s, i, 1)
+      if (c == "{") return obj()
+      if (c == "[") return arr(key)
+      if (c == "\"") return str()
+      if (match(substr(s, i), /^(true|false|null|-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?)/)) { i += RLENGTH; return 1 }
+      return fail(c == "" ? "unexpected end of file" : "unexpected \"" c "\"")
+    }
+    function obj(  k, c) {
+      i++; ws()
+      if (substr(s, i, 1) == "}") { i++; return 1 }
+      while (1) {
+        ws(); if (substr(s, i, 1) != "\"") return fail("expected a quoted key")
+        if (!str()) return 0
+        k = last; ws()
+        if (substr(s, i, 1) != ":") return fail("expected : after \"" k "\"")
+        i++
+        if (!value(k)) return 0
+        ws(); c = substr(s, i, 1)
+        if (c == ",") { i++; ws(); if (substr(s, i, 1) == "}") return fail("comma before }"); continue }
+        if (c == "}") { i++; return 1 }
+        return fail(c == "" ? "unexpected end of file" : "expected , or } (a missing comma?)")
+      }
+    }
+    function arr(key,  c) {
+      i++; ws()
+      if (substr(s, i, 1) == "]") { i++; return 1 }
+      while (1) {
+        ws()
+        if (substr(s, i, 1) == "\"" && (key == "allow" || key == "deny" || key == "ask")) {
+          if (!str()) return 0
+          out[++no] = key "\t" last
+        } else if (!value("")) return 0
+        ws(); c = substr(s, i, 1)
+        if (c == ",") { i++; ws(); if (substr(s, i, 1) == "]") return fail("comma before ]"); continue }
+        if (c == "]") { i++; return 1 }
+        return fail(c == "" ? "unexpected end of file" : "expected , or ] (a missing comma?)")
+      }
+    }
+    END {
+      n = length(s); i = 1
+      ok = value(""); ws()
+      if (ok && i <= n) fail("text after the end")
+      if (err != "") { print "ERROR\t" err; exit 1 }
+      for (j = 1; j <= no; j++) print out[j]
+    }' "$1"
+}
+
 # src_catalog ROOT: "<type><TAB>standard|local<TAB><title>" for every type.
 src_catalog() {
   local f t kind

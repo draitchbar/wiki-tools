@@ -35,7 +35,7 @@ A **source type** is a contract (`SOURCE.md`) that says how to reach one kind of
 4. Key: kebab-case, unique in this wiki, not `raw`. Recommend the type's short name for the first instance of a type (`gmail`, `proton`, `scans`), a descriptive one otherwise.
 
 ## 2. Parameters
-For each item under `parameters:` in the contract, ask for the value: required ones first, then optional ones (offer to skip them). Use what CLAUDE.md already says (Sources, Project) for your recommendations. Values that are paths must be absolute (`/…`, `~/…` or `C:/…`) and contain no `.` or `..` segments.
+For each item under `parameters:` in the contract, ask for the value: required ones first, then optional ones (offer to skip them). If a parameter names an account of a CLI the guard keeps you from calling, ask the user to run the listing command with `!` (the contract's parameter text names it) rather than guessing. Use what CLAUDE.md already says (Sources, Project) for your recommendations. Values that are paths must be absolute (`/…`, `~/…` or `C:/…`) and contain no `.` or `..` segments.
 
 ## 3. State
 Show the contract's `state:` fields and their rules. `last_checked` is always kept. Ask whether this instance needs anything beyond the contract's list or wants to drop an optional field, and agree the final list. Then explain where they live: `<field>_<key>: <value>` lines in `raw/sync-log.md`, starting at `never` (for `last_checked`) or empty, updated by `/wiki:ingest` as the contract says.
@@ -57,9 +57,9 @@ Show everything at once, then ask "Go?":
 
    <Notes for whoever ingests: what this source holds for the wiki, who the senders are, which folders matter.>
    ```
-2. **Settings**: the permission rules for the new type, from
-   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh settings <type>`.
-   Show the rules that aren't yet in `.claude/settings.json` (Read it) and where they go (`permissions.allow`, `permissions.deny`).
+2. **Settings**: the permission rules for the new instance, from
+   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh settings <type> --key <key>` (cache rules come out narrowed to this wiki's and instance's folder).
+   Show the rules that aren't yet in `.claude/settings.json` (Read it) and where they go (`permissions.allow`, `permissions.deny`). Say which existing rules stay: other sources' rules, and a broader cache rule another type needs; a narrowed rule doesn't replace a `Read` rule or another type's `Edit` rule.
 3. **CLAUDE.md**: the line for `## Sources`: `- \`<key>\` (<type title>): <what it holds>; read via \`/wiki:ingest <key>\`; state in \`raw/sync-log.md\`.`
 4. **raw/sync-log.md**: the new lines `last_checked_<key>: never` (and any other agreed field, empty) and a history row `| YYYY-MM-DD | <key> | added (type <type>) |`.
 5. **Local type files** (only if you drafted a new local type).
@@ -70,9 +70,10 @@ After "go":
 2. Hand over the protected files as wiki-conventions **Protected files** says, one step at a time:
    1. Local type files first, if you drafted a type (`SOURCE.md`, then each script), then the instance file: for each, the command `bash ${CLAUDE_PLUGIN_ROOT}/scripts/install-source-file.sh <instances/<key>.md | types/<type>/<file>>` and the file's full content. Show the next file only after the user has installed this one.
    2. The settings lines to add to `.claude/settings.json` (the installer prints the ones still missing).
-   3. One commit line for the user: `git add -- <each installed file> .claude/settings.json && git commit -m "Add source <key>"`.
-   4. Run `/wiki:init` (check mode) to verify, then `/wiki:ingest <key>` for the first ingest, which checks the source and asks for a starting point. For a research type (`mode: research`, e.g. `codebase`), instead: `/wiki:research <key> "<a first question>"`, which runs the contract's **Check** first. In the CLAUDE.md line, say "researched via `/wiki:research <key> \"<question>\"`" instead of "read via `/wiki:ingest <key>`".
-   5. If the instance has roots, the guard treats them as read-only from the moment the file is installed.
+   3. After the user has edited `.claude/settings.json`, run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh check-settings` (well-formed JSON, the needed rules, duplicates, conflicts) and report the result before the commit. Don't parse the file with other tools; the guard blocks commands that name it.
+   4. One commit line for the user: `git add -- <each installed file> .claude/settings.json && git commit -m "Add source <key>"`.
+   5. Run `/wiki:init` (check mode) to verify, then `/wiki:ingest <key>` for the first ingest, which checks the source and asks for a starting point. For a research type (`mode: research`, e.g. `codebase`), instead: `/wiki:research <key> "<a first question>"`, which runs the contract's **Check** first. In the CLAUDE.md line, say "researched via `/wiki:research <key> \"<question>\"`" instead of "read via `/wiki:ingest <key>`".
+   6. If the instance has roots, the guard treats them as read-only from the moment the file is installed.
 
 ## New local type
 When the type doesn't exist, draft a wiki-local type with the user. It can be promoted to the standard set later, in a wiki-tools session (`/new-source-type promote`), at the user's discretion.

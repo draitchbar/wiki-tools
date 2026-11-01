@@ -269,7 +269,21 @@ check "codebase/drift-overlap"    yes "$(has "$(cbn code drift "$c1" app/src/A.j
 check "codebase/drift-renamed"    yes "$(has "$(cbn code drift "$c3" lib/B.java L1-L2)" "renamed lib/B2.java")"
 check "codebase/drift-deleted"    yes "$(has "$(cbn code drift "$c4" lib/C.java L1-L1)" 'deleted')"
 check "codebase/drift-same"       yes "$(has "$(cbn code drift ref app/src/A.java L1-L2)" 'unchanged')"
-check "codebase/sub-ls"           yes "$(has "$(cbn sub ls ref)" 'd - app/src')"
+mkdir -p "$cb/cbw/wiki" "$cbcache/code/runs/r2"
+printf 'a (Codebase code: app/src/A.java#L2-L3 @%s) b app/src/A.java#L5-L9 @%s\nc lib/C.java#L1 @%s; again app/src/A.java#L2-L3 @%s\n' "$s1" "$s1" "$c4" "$s1" > "$cb/cbw/wiki/page.md"
+printf 'C1: app/src/A.java#L2-L3 @%s\r\n' "$s1" > "$cbcache/code/runs/r2/answer.md"
+out=$(cbn code verify-all wiki/page.md; echo "exit=$?")
+check "codebase/verify-all-ok"     yes "$(has "$out" "app/src/A.java#L2-L3 @$s1 -> ok: app/src/A.java#L2-L3 @$s1")"
+check "codebase/verify-all-broken" yes "$(has "$out" "app/src/A.java#L5-L9 @$s1 -> broken: app/src/A.java has 6 lines")"
+check "codebase/verify-all-tally"  yes "$(has "$out" '3 citations: 1 broken, 2 ok')"
+check "codebase/verify-all-exit"   yes "$(has "$out" 'exit=1')"
+out=$(cbn code drift-all wiki/page.md)
+check "codebase/drift-all"         yes "$(has "$out" "lib/C.java#L1 @$c4 -> deleted")"
+check "codebase/drift-all-tally"   yes "$(has "$out" '3 citations: 1 broken, 1 changed-overlap, 1 deleted')"
+check "codebase/verify-all-cache"  yes "$(has "$(cbn code verify-all @runs/r2/answer.md; echo "exit=$?")" '1 citations: 1 ok
+exit=0')"
+check "codebase/refuse-all-paths"  "1 1 1 1" "$(cbx code verify-all ../x.md) $(cbx code verify-all @runs/../../x) $(cbx code verify-all /etc/passwd) $(cbx code verify-all wiki/none.md)"
+check "codebase/sub-ls"          yes "$(has "$(cbn sub ls ref)" 'd - app/src')"
 check "codebase/sub-outside"      1   "$(cbx sub show ref lib/B2.java)"
 check "codebase/sub-sibling"      1   "$(cbx sub show ref apples/x)"
 check "codebase/sub-grep-scoped"  yes "$(has "$(cbn sub grep ref 'b1')" 'no matches')"
@@ -505,6 +519,9 @@ wc_expect instance-no-sync-line f12 "FAIL source \`scans\` has no \`last_checked
 mkwiki f13; sed -i 's/"mcp__claude_ai_Gmail__send_message",//' "$tmp/f13/.claude/settings.json"
 wc_expect source-rule-missing f13 'FAIL source permission rules missing from .claude/settings.json: "mcp__claude_ai_Gmail__send_message"'
 
+mkwiki f19; sed -i 's/"x-source-rules": \[/"x-source-rules": [,/' "$tmp/f19/.claude/settings.json"
+wc_expect settings-not-json f19 'FAIL `.claude/settings.json` is not valid JSON: unexpected ","'
+
 mkwiki f14; sed -i '/!.claude\/sources/d' "$tmp/f14/.gitignore"
 wc_expect gitignore-sources f14 "FAIL \`.gitignore\` lacks \`!.claude/sources/\`"
 
@@ -636,6 +653,33 @@ sexpect catalog-codebase '- codebase (standard, filesystem): Codebase' catalog
 sexpect settings-teams-deny  '"mcp__claude_ai_Microsoft_365__teams_send_chat_message"' settings ms-teams
 sexpect settings-teams-edit  '"Edit(~/.cache/wiki-sources/*/*/walk.tsv)"' settings ms-teams
 sexpect settings-teams-script '"Bash(bash */sources/ms-teams/snapshot.sh *)"' settings ms-teams
+sexpect settings-narrow-key   '"Edit(~/.cache/wiki-sources/sw/code/**)"' settings codebase --key code
+sexpect settings-narrow-read  '"Read(~/.cache/wiki-sources/sw/code/**)"' settings codebase --key code
+sexpect settings-narrow-teams '"Edit(~/.cache/wiki-sources/sw/x/walk.tsv)"' settings ms-teams --key x
+sexpect settings-narrow-all   '"Edit(~/.cache/wiki-sources/sw/code/**)"' settings
+sexpect settings-narrow-note  'covers them too' settings codebase --key code
+sexpect settings-key-alone    '--key goes with a type' settings --key code
+sexpect settings-key-bad      "invalid instance key" settings codebase --key 'a b'
+# check-settings: start from what `settings` prints, then plant one fault each.
+sjson=$(srun settings | sed -n '/^{/,/^}/p')
+sck() { # NAME EXIT TEXT [SED]: plant SED in settings.json, run check-settings
+  printf '%s\n' "$sjson" > "$tmp/sw/.claude/settings.json"
+  [ -z "${4:-}" ] || sed -i "$4" "$tmp/sw/.claude/settings.json"
+  o=$(srun check-settings; printf '@%s' "$?")
+  case "$o" in *"$3"*"@$2") r=ok ;; *) r="$o" ;; esac
+  check "sources/check-settings-$1" ok "$r"
+}
+sck ok          0 'missing: none'
+sck ok-json     0 'settings.json: valid JSON'
+sck trailing    1 'NOT valid JSON: comma before ]' '0,/",$/s//",\n/; 0,/^      "[^"]*"$/s//&,/'
+sck no-comma    1 'NOT valid JSON: expected , or ] (a missing comma?)' '0,/",$/s/",$/"/'
+sck unclosed    1 'NOT valid JSON: unexpected end of file' '$d'
+sck missing     1 'allow: Edit(~/.cache/wiki-sources/sw/code/**)' '/wiki-sources\/sw\/code\/\*\*)"/{/Edit/d}'
+sck dup         1 'duplicates:' 's#^\(      "mcp__claude_ai_Gmail__send_message"\)\(,\{0,1\}\)$#\1,\n\1\2#'
+sck conflict    1 'in both allow and deny' 's#^\(      "Bash(bash \*/sources/codebase/git.sh \*)"\)\(,\{0,1\}\)$#\1,\n      "mcp__claude_ai_Gmail__send_message"\2#'
+sck broad-ok    0 'note: these rules reach every wiki' 's#"Edit(~/.cache/wiki-sources/sw/code/\*\*)"#"Edit(~/.cache/wiki-sources/**)"#'
+rm -f "$tmp/sw/.claude/settings.json"
+sexpect check-settings-none 'settings.json: missing' check-settings
 # Every standard contract validates.
 for c in "$here"/../plugins/wiki/sources/*/SOURCE.md; do
   t=$(basename "$(dirname "$c")")
@@ -706,6 +750,13 @@ iexpect gmail-rules     '"mcp__claude_ai_Gmail__send_message",' 0 y instances/gm
 o=$(inst y instances/gmail.md "${gm}More.\n")
 case "$o" in *'"mcp__claude_ai_Gmail__search_threads"'*) r=listed ;; *) r=omitted ;; esac
 check "install/present-rule-omitted" omitted "$r"
+cbi="---\nkey: code\ntype: codebase\nroots:\n  - $tmp/iw\n---\n"
+iexpect codebase-narrow '"Edit(~/.cache/wiki-sources/iw/code/**)",' 0 y instances/code.md "$cbi"
+sed -i 's#"mcp__claude_ai_Gmail__search_threads"#"mcp__claude_ai_Gmail__search_threads", "Edit(~/.cache/wiki-sources/**)"#' "$tmp/iw/.claude/settings.json"
+o=$(inst y instances/code.md "${cbi}Notes.\n")
+case "$o" in *'"Edit(~/.cache/wiki-sources/iw/code/**)"'*) r=listed ;; *) r=omitted ;; esac
+check "install/broad-cache-rule-counts" omitted "$r"
+rm -f "$tmp/iw/.claude/sources/instances/code.md"
 iexpect unchanged       'already exactly this' 0 y instances/gmail.md "${gm}More.\n"
 iexpect diff-shown      '+Changed.' 0 y instances/gmail.md "${gm}Changed.\n"
 iexpect crlf            'Installed' 0 y instances/gmail.md '---\r\nkey: gmail\r\ntype: gmail\r\nlabels: Y\r\n---\r\n'

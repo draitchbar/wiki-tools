@@ -111,7 +111,7 @@ Draft the plan (step 5's content). Then dispatch one reviewer subagent with the 
    - Work in progress that is neither a source nor a page (decks being edited, diagram generators, handoff notes) → `work/`, as wiki-layout describes; propose which parts to gitignore and a CLAUDE.md line saying what goes there.
    - Anything you can't classify → stays where it is; listed in the guide.
    Flag files the user is likely editing (recently modified, drafts) and ask whether to move them now.
-6. **For the user to paste** (shown, not written): `.claude/settings.json` = the full content of `${CLAUDE_PLUGIN_ROOT}/templates/project-settings.json` with the rules from `sources.sh settings <type> ...` for the chosen types merged into `permissions.allow` and `permissions.deny` (in adopt mode with an existing settings file, a diff to apply); one `.claude/sources/instances/<key>.md` per instance, and the files of any drafted local type.
+6. **For the user to paste** (shown, not written): `.claude/settings.json` = the full content of `${CLAUDE_PLUGIN_ROOT}/templates/project-settings.json` with the rules from `sources.sh settings <type> --key <key>` for each planned instance merged into `permissions.allow` and `permissions.deny` (in adopt mode with an existing settings file, a diff to apply); one `.claude/sources/instances/<key>.md` per instance, and the files of any drafted local type.
 7. **Research notes** to be saved: `outputs/init-research-YYYY-MM-DD.md`, with frontmatter `type: report` and the findings with their citations.
 8. **Reviewer findings** not yet resolved.
 

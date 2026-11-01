@@ -118,13 +118,13 @@ else
   else
     info "settings template not found at $template; permissions not compared"
   fi
+  if jerr=$(src_settings_rules "$st" | grep '^ERROR'); then
+    fail "\`.claude/settings.json\` is not valid JSON: $(printf '%s' "$jerr" | cut -f2-)" "fix it by hand (\`sources.sh check-settings\` shows where)"
+  fi
   if [ -n "$instances" ]; then
-    missing=$(for k in $instances; do
-        c=$(src_contract "$root" "$(src_field "$root/.claude/sources/instances/$k.md" type)" 2>/dev/null) || continue
-        src_list "$c" read_tools; src_list "$c" bookkeeping_tools; src_list "$c" forbidden_tools
-      done | awk '!seen[$0]++' |
-      while IFS= read -r rule; do
-        grep -qF -- "\"$rule\"" "$st" || printf ' "%s"' "$rule"
+    # A per-instance cache rule is also satisfied by the contract's broader form.
+    missing=$(src_needed_rules "$root" | while IFS="$(printf '\t')" read -r l rule orig; do
+        grep -qF -- "\"$rule\"" "$st" || grep -qF -- "\"$orig\"" "$st" || printf ' "%s"' "$rule"
       done)
     if [ -z "$missing" ]; then pass "all permission rules of the sources' types are present"
     else fail "source permission rules missing from .claude/settings.json:$missing" "add them as \`sources.sh settings\` prints (allow: read and bookkeeping tools, deny: forbidden tools)"; fi

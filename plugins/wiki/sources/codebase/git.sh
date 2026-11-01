@@ -14,6 +14,12 @@
 #   bash <plugin>/sources/codebase/git.sh <key> contains <rev>
 #   bash <plugin>/sources/codebase/git.sh <key> drift    <rev> "<path>" Lx-Ly
 #   bash <plugin>/sources/codebase/git.sh <key> verify   <rev> "<path>" Lx-Ly
+#   bash <plugin>/sources/codebase/git.sh <key> verify-all <file>
+#   bash <plugin>/sources/codebase/git.sh <key> drift-all  <file>
+#
+# verify-all and drift-all run verify or drift on every citation
+# `<path>#L<x>-L<y> @<sha>` in <file>: @<path below the cache folder> (a run's
+# answer.md) or a path relative to the wiki (a page). At most 300 citations.
 #
 # A grep <regex> of the form @<file> names a pattern file below the
 # instance's cache folder ~/.cache/wiki-sources/<wiki>/<key>/ (e.g.
@@ -48,7 +54,7 @@ set -u
 
 die() { printf 'codebase: %s\n' "$1" >&2; exit 1; }
 
-OPS="status resolve fetch grep igrep show ls log blame branches contains drift verify"
+OPS="status resolve fetch grep igrep show ls log blame branches contains drift verify drift-all verify-all"
 GREP_CAP=200
 LINE_CAP=300
 SHOW_DEFAULT=400
@@ -69,7 +75,7 @@ nargs() { # MIN MAX
 ARGC=$#
 case "$op" in
   status|fetch)      nargs 0 0 ;;
-  resolve|contains)  nargs 1 1 ;;
+  resolve|contains|verify-all|drift-all) nargs 1 1 ;;
   grep|igrep)        nargs 2 3 ;;
   show)              nargs 2 3 ;;
   ls)                nargs 1 2 ;;
@@ -332,6 +338,36 @@ case "$op" in
     sha=$(rev "$1") || exit 1
     b=$(g branch -r --no-color --contains "$sha" --format='%(refname)' | grep -v '/HEAD$' | sed 's#^refs/remotes/##' | head -n 50)
     if [ -n "$b" ]; then printf '%s\n' "$b"; else printf 'unpushed: %s is on no remote branch\n' "$(s12 "$sha")"; fi
+    ;;
+  verify-all|drift-all)
+    # Every citation <path>#L<x>[-L<y>] @<sha> in a file, checked one by one.
+    f=$1
+    case "$f" in
+      @*) pf=${f#@}; base=$cache ;;
+      *) pf=$f; base=$root_wiki ;;
+    esac
+    printf '%s' "$pf" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9._/ -]*$' || die "'$f': give @<path below $cache/> or a path relative to the wiki."
+    src_has_dots "$pf" && die "'.' and '..' are not allowed in the file path."
+    [ -f "$base/$pf" ] || die "'$base/$pf' not found."
+    one=${op%-all}
+    cites=$(tr -d '\r' < "$base/$pf" | grep -oE '[A-Za-z0-9_][A-Za-z0-9_./-]*#L[0-9]{1,7}(-L[0-9]{1,7})? @[0-9a-f]{7,40}' | awk '!s[$0]++')
+    [ -n "$cites" ] || { printf 'no citations found in %s\n' "$pf"; exit 0; }
+    n=$(printf '%s\n' "$cites" | grep -c .)
+    [ "$n" -le 300 ] || die "$n citations in $pf; at most 300 per call."
+    bad=0 kinds=""
+    while IFS= read -r c; do
+      p=${c%%#*} r=${c%% @*} s=${c##*@}
+      r=${r#*#}
+      res=$(bash "$0" "$key" "$one" "$s" "$p" "$r" 2>&1) || bad=$((bad + 1))
+      res=$(printf '%s' "$res" | head -n 1 | sed 's/^codebase: //')
+      printf '%s -> %s\n' "$c" "$res"
+      kinds="$kinds${res%%[ :]*}
+"
+    done <<EOF
+$cites
+EOF
+    printf '%s citations: %s\n' "$n" "$(printf '%s' "$kinds" | grep . | LC_ALL=C sort | uniq -c | awk '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $1, $2 }')"
+    [ "$bad" -eq 0 ] || exit 1
     ;;
   drift|verify)
     sha=$(rev "$1") || exit 1; p=$(path_ok "$2") || exit 1; r=$(range "$3") || exit 1; x=${r% *} y=${r#* }
