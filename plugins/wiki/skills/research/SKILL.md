@@ -53,7 +53,7 @@ For each step:
 
 ## 4. Draft and check citations
 1. Draft the answer as **numbered atomic claims** (C1, C2, …), each with its citations as the agents returned them, then a short prose answer built on them. Save it as `<run folder>/answer.md`.
-2. **Always** verify every citation with the contract's verify operation (a `main_ops` one; its batch form over `answer.md` if the contract has one, else one call per citation). A citation that fails is dropped, and its claim goes back to an agent or out of the answer.
+2. **Always** verify every citation with the contract's verify operation (a `main_ops` one; its batch form over `answer.md` if the contract has one, else one call per citation). A citation that fails is dropped, and its claim goes back to an agent or out of the answer. Batch forms print only the failures and a tally; ask for the full list only if you need it.
 
 ## 5. Critique (only with `--critique`; at most 3 rounds)
 1. Dispatch a **fresh** critic per round (`subagent_type: wiki:critic`). Give it: the question; the claims with citations (not your plan, notes or reasoning); the pinned SHA; the source's research operations from the contract; the run folder; the checker budget (first round: about one checker per 6 claims, at least 2, at most 10; later rounds: sized to the claims to re-check, often 1–3); the previous round's issue list, if any. It checks every claim against the source, including claims that came from wiki pages.
@@ -65,8 +65,13 @@ For each step:
 7. Pages are written only after accept, revise-prose, or the user's decision.
 
 ## 6. Write pages
-1. **Consolidate; don't multiply pages.** Find the existing pages on the concepts (index, links, titles). Prefer adding or rewriting a section in an existing page over a new page. Create a page only for a concept that has none, following CLAUDE.md's page types and templates.
-2. Each section that rests on the source carries the marker the contract's **Cite** section gives (e.g. `verified @<sha12> (<YYYY-MM-DD>)`), and its claims carry citations in that format, inline and in `sources:`. Replace outdated statements rather than appending contradicting ones; if the source contradicts the wiki, say so in the page and to the user.
+0. **Before writing.**
+   - **Decision:** if the run's `plan.md` or `wiki/log.md` already records a pages decision for this run (e.g. "no pages"), ask the user before overriding it, even if a later request seems to say otherwise.
+   - **Scope:** check the topic against what CLAUDE.md puts in and out of the wiki's scope. If it is out of scope, propose the `outputs/` copy (6.6) instead of pages.
+   - **Currency:** run the contract's drift check on `answer.md` (its batch form if it has one). It compares with the ref as of the last fetch; if that fetch is old, one agent fetches first and you run the check again. Drifted claims go back to an agent before they enter a page.
+1. **Consolidate; don't multiply pages.** Find the existing pages on the concepts (index, links, titles). Prefer adding or rewriting a section in an existing page over a new page. Create a page only for a concept that has none, following CLAUDE.md's page types and templates. Choose the page type for the thing described (a component, a concept, a process), not one made for an external document; leave out template sections that don't fit code (e.g. a source-quality rating).
+2. Each section that rests on the source carries the marker the contract's **Cite** section gives (e.g. `verified @<sha12> (<YYYY-MM-DD>)`), and its claims carry citations in that format inline. **From claims to prose:** the numbered claims become ordinary sentences with their inline citations; the C-numbers stay in the run folder. A `## Scope` re-scope becomes one sentence near the top of the section, and open questions (HUMAN items, unverifiable claims) become a short "Open questions" list. In `sources:`, list each cited file once at the pinned SHA (`<path> @<sha12>`); the exact line ranges stay inline. Replace outdated statements rather than appending contradicting ones; if the source contradicts the wiki, say so in the page and to the user.
+   **Secrets never go in pages,** not even their location. They stay under `## Known secrets` in the run folder, and the user has been told.
 3. Update `updated:`, `wiki/index.md` rows for new pages, and prepend to `wiki/log.md`: `## YYYY-MM-DD | research | <short title>` with the question, the pinned SHA, and the pages created or updated.
 4. Update `last_checked_<key>` in `raw/sync-log.md` to today and add a history row (`| YYYY-MM-DD | <key> | research: <question, shortened> @<sha12> |`).
 5. One commit: `git add` the named paths only; message `Research <key>: <short title>`. Never push.
