@@ -17,7 +17,7 @@ Repo rules (CLAUDE.md): POSIX bash for Linux and Git Bash, no jq or Python; LF e
 
 ## 1. Interview (one question at a time, recommended answer first)
 1. What the source is and which wikis will use it.
-2. Access: an MCP connector (which server, as it appears in tool names `mcp__<server>__*`), a CLI (binary name, install, auth), or files on disk.
+2. Access: an MCP connector (which server, as it appears in tool names `mcp__<server>__*`), a CLI (binary name, install, auth), files on disk, or **tool-neutral** (`access: tools`: the contract names no tools, only the operations it needs; each machine supplies its own reader, and read-only rests on the connection's scope). Prefer tool-neutral when the user wants the type independent of their own tooling and accepts that the guard enforces nothing for it.
 3. Platforms: Linux, Windows (Git Bash), both.
 4. What an item is (a thread, a file, a page), what makes it new (a date, a cursor the API gives), and what an instance must supply (labels, roots, a notebook id...).
 5. How to cite an item so `/wiki:audit` can find it again; pick a `cite_prefix` that no other type uses (`grep -h '^cite_prefix' plugins/wiki/sources/*/SOURCE.md`).
@@ -27,6 +27,7 @@ Repo rules (CLAUDE.md): POSIX bash for Linux and Git Bash, no jq or Python; LF e
 - **MCP:** list the server's tools available in this session (names and descriptions). Don't call write tools.
 - **CLI:** record `<cli> --help` and the help of each subcommand you'll use. Record the version and date. If the CLI can write (upload, delete, share, move), a wrapper script is mandatory.
 - **Files:** the format and where it lives on each platform.
+- **Tool-neutral (`access: tools`):** name the abstract operations the type needs (list, read, download, show scope) and what each must return; look at readers available in this session only to check the operations are realistic, never name one in the contract. Graph-style permissions (scopes) may be named. There is no table of tools to classify; instead Check must report the granted scope and warn about write scopes.
 Classify every operation: **read**, **bookkeeping** (narrow, marks an item as ingested; avoid if a date suffices) or **forbidden** (everything else). Show the table to the user before writing.
 
 ## 3. Fill the contract
@@ -54,6 +55,7 @@ Model them on `plugins/wiki/sources/local-folder/read.sh`:
 - `tests/run-tests.sh`: a section for the type: every refusal (unknown op, extra args, outside roots, sibling prefix, `..`, relative path, wrong instance type, outside git, changed CLI syntax) and every happy path against the fake.
 - Guard fixtures in `tests/fixtures/guard/`: `pass-<type>-wrapper` (a plain call), `block-<type>-wrapper-chained`, and `block-<type>-cli-direct` if it has guard words. If the guard wiki needs an instance of the type, add it to `tests/guard-wiki/.claude/sources/instances/`.
 - **`agent_only` types:** the guard tells the main session from a subagent by the hook's `agent_id`. Add fixtures for both sides of every route: `block-<type>-read-main` / `pass-<type>-read-agent`, the same for Grep, Glob patterns and the wrapper, `pass-<type>-wrapper-main-<op>` for each `main_ops` operation and a block for a non-`main_ops` one. The main-session fixtures carry no `agent_id`, the agent ones do; a missing `agent_id` must count as the main session. See the `*-codebase-*` fixtures.
+- **Tool-neutral (`access: tools`):** no wrapper, fixtures or tool lists (validation requires them empty). Add `sexpect` checks for `catalog` (listed as `tools`) and `settings <type>` (the "names no tools" note, no rules); `onenote` is the worked example.
 - **No wrapper (an MCP type):** the wrapper and guard-fixture bullets above don't apply. Add `sexpect` checks in the `sources.sh` block of `run-tests.sh` for `settings <type>` (a forbidden tool appears) and `catalog` (the type is listed).
 - Every standard contract is validated by the `contract/<type>-valid` loop in `run-tests.sh`; no need to run `src_validate_contract` by hand.
 - Run `bash tests/run-tests.sh`; it must end "0 failed". On Windows (Git Bash) it takes over 10 minutes: run it with `run_in_background`, output to a log in the scratchpad, and wait for the notification. Never start it with `&`, which leaves stray processes behind.

@@ -159,6 +159,16 @@ $errs"
       printf '\nCache rules are narrowed to this wiki and instance (~/.cache/wiki-sources/<wiki>/<key>/); a broader rule already in settings.json, e.g. %s, covers them too.\n' \
         "$(printf '%s\n' "$rules" | awk -F'\t' '$2 != $3 { print $3; exit }')"
     fi
+    # access: tools types name no tools, so they add nothing above; say so.
+    if [ -z "$types" ]; then
+      d=$(src_instance_dir "$root")
+      types=$(for k in $(src_instances "$root"); do src_field "$d/$k.md" type; done | awk '!seen[$0]++')
+    fi
+    for t in $types; do
+      c=$(src_contract "$root" "$t" 2>/dev/null) || continue
+      [ "$(src_field "$c" access)" = tools ] || continue
+      printf '\n%s (access: tools) names no tools, so it adds no rules here. Allow the read tools this machine supplies for it yourself (this wiki'"'"'s settings or your user settings; see its Caveats). Read-only rests on the connection'"'"'s scope, not on these settings.\n' "$t"
+    done
     ;;
   check-settings)
     [ $# -eq 1 ] || die "usage: sources.sh check-settings"

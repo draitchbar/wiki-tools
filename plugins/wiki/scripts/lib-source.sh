@@ -276,7 +276,14 @@ src_validate_contract() {
   t=$(src_field "$f" type)
   dir=${f%/SOURCE.md}
   [ "$t" = "${dir##*/}" ] || _src_ce "type '$t' doesn't match its folder '${dir##*/}'"
-  case "$(src_field "$f" access)" in mcp|script|filesystem|'') ;; *) _src_ce "access must be mcp, script or filesystem" ;; esac
+  case "$(src_field "$f" access)" in mcp|script|filesystem|tools|'') ;; *) _src_ce "access must be mcp, script, filesystem or tools" ;; esac
+  # access: tools names no tools: the machine supplies them and the connection's
+  # scope keeps them read-only, so there is nothing to allow, deny or guard.
+  if [ "$(src_field "$f" access)" = tools ]; then
+    for k in read_tools bookkeeping_tools forbidden_tools guard_words scripts; do
+      [ -z "$(src_list "$f" "$k")" ] || _src_ce "access: tools names no tools, so '$k' must be empty"
+    done
+  fi
   p=$(src_list "$f" platforms)
   [ -n "$p" ] || _src_ce "no platforms listed"
   for x in $p; do case "$x" in linux|windows|macos) ;; *) _src_ce "unknown platform '$x'" ;; esac; done

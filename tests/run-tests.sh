@@ -580,7 +580,7 @@ lsbad dotdot-root     bad-root      "root '/data/../etc' contains '.' or '..'"
 lsbad wrong-key       wrong-key     "key 'other' doesn't match the file name"
 lsbad unknown-type    unknown-type  "unknown source type 'nosuch'"
 lsbad broken-folder   uses-broken   "type 'other' doesn't match its folder 'broken'"
-lsbad broken-access   uses-broken   "access must be mcp, script or filesystem"
+lsbad broken-access   uses-broken   "access must be mcp, script, filesystem or tools"
 lsbad broken-platform uses-broken   "unknown platform 'beos'"
 lsbad broken-state    uses-broken   "state must include last_checked"
 lsbad broken-prefix   uses-broken   "missing 'cite_prefix'"
@@ -618,6 +618,20 @@ lsc bad-mode         'mode: sometimes' 'mode must be ingest or research'
 lsc bad-agent-only   'agent_only: maybe' 'agent_only must be yes or no'
 lsc bad-main-op      'main_ops:\n  - rm -rf' "main_ops item '-rf' must be a plain operation name"
 check "lib-source/mode-default" ingest "$(lsrun 'src_mode "$SRC_PLUGIN/sources/std/SOURCE.md"')"
+# access: tools names no tools: every tool list must be empty.
+mkdir -p "$tmp/at/tl"
+sed 's/^type: std/type: tl/; s/^access: script/access: tools/' "$tmp/ls/plugin/sources/std/SOURCE.md" > "$tmp/at/tl/SOURCE.md"
+touch "$tmp/at/tl/read.sh"
+out=$(lsrun "src_validate_contract '$tmp/at/tl/SOURCE.md'; echo exit=\$?")
+for k in read_tools forbidden_tools guard_words scripts; do
+  case "$out" in *"access: tools names no tools, so '$k' must be empty"*exit=1) r=ok ;; *) r="$out" ;; esac
+  check "lib-source/tools-$k" ok "$r"
+done
+case "$out" in *"'bookkeeping_tools' must be empty"*) r="$out" ;; *) r=ok ;; esac
+check "lib-source/tools-empty-ok" ok "$r"
+awk '/^(read_tools|forbidden_tools|guard_words|scripts):/ { print; skip = 1; next } skip && /^  - / { next } { skip = 0; print }' \
+  "$tmp/ls/plugin/sources/std/SOURCE.md" | sed 's/^type: std/type: tl/; s/^access: script/access: tools/' > "$tmp/at/tl/SOURCE.md"
+check "lib-source/tools-valid" 0 "$(lsrun "src_validate_contract '$tmp/at/tl/SOURCE.md'; echo \$?")"
 
 # sources.sh against a copy of guard-wiki (gmail, scans, teams, local type books).
 cp -r "$here/guard-wiki" "$tmp/sw"
@@ -665,6 +679,14 @@ sexpect settings-narrow-all   '"Edit(~/.cache/wiki-sources/sw/code/**)"' setting
 sexpect settings-narrow-note  'covers them too' settings codebase --key code
 sexpect settings-key-alone    '--key goes with a type' settings --key code
 sexpect settings-key-bad      "invalid instance key" settings codebase --key 'a b'
+sexpect catalog-onenote       '- onenote (standard, tools): OneNote' catalog
+sexpect settings-tools-note   'onenote (access: tools) names no tools, so it adds no rules here.' settings onenote
+check "sources/settings-tools-empty" 0 "$(srun settings onenote | grep -c 'mcp__\|Bash(')"
+check "sources/settings-tools-quiet" 0 "$(srun settings gmail | grep -c 'access: tools')"
+printf -- '---\nkey: notes\ntype: onenote\nsections:\n  - Book > Tab\nstate:\n  - last_checked\n  - cursor\n---\n' > "$tmp/sw/.claude/sources/instances/notes.md"
+sexpect show-tools-instance   'Source notes: valid' show notes
+sexpect settings-tools-all    'onenote (access: tools) names no tools' settings
+rm "$tmp/sw/.claude/sources/instances/notes.md"
 # check-settings: start from what `settings` prints, then plant one fault each.
 sjson=$(srun settings | sed -n '/^{/,/^}/p')
 sck() { # NAME EXIT TEXT [SED]: plant SED in settings.json, run check-settings

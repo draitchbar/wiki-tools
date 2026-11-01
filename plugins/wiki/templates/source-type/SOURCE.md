@@ -1,7 +1,7 @@
 ---
 type: <type-name>
 title: <Human name>
-access: <mcp|script|filesystem>
+access: <mcp|script|filesystem|tools>
 platforms:
   - linux
   - windows
@@ -31,7 +31,11 @@ How to fill this contract
   no quotes needed, no inline lists. Leave a key empty rather than deleting it.
   - type: kebab-case, equal to the folder name.
   - access: mcp (an MCP connector), script (a wrapper script around a CLI or
-    file format), filesystem (local files through a wrapper script).
+    file format), filesystem (local files through a wrapper script), tools
+    (the contract names no tools: it lists the operations it needs and the
+    machine supplies a reader for them; read_tools, bookkeeping_tools,
+    forbidden_tools, guard_words and scripts stay empty, and read-only rests
+    on the connection's scope, which Check should report).
   - platforms: where it works: linux, windows (Git Bash).
   - parameters: one item per instance setting, `name (required|optional): description`.
     A parameter named `roots` holds absolute paths; the guard treats them as
