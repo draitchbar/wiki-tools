@@ -223,8 +223,14 @@ printf -- '---\nkey: two\ntype: codebase\nroots:\n  - %s\n  - %s\n---\n' "$cb/cl
 printf -- '---\nkey: mail\ntype: gmail\nlabels: X\n---\n' > "$cb/cbw/.claude/sources/instances/mail.md"
 cbr="$here/../plugins/wiki/sources/codebase/git.sh"
 cbh="$here/../plugins/wiki/sources/codebase/gh.sh"
-cbn() { (cd "$cb/cbw" && PATH="$fakebin:$PATH" bash "$cbr" "$@" 2>&1); }
-cbx() { (cd "$cb/cbw" && PATH="$fakebin:$PATH" bash "$cbr" "$@" >/dev/null 2>&1); echo $?; }
+# HOME is a test folder: the instance cache (pattern files, last-fetch) and a
+# .gitconfig that sends the https GitHub remote of "hub" to the local bare repo.
+cbhome="$cb/home"
+cbcache="$cbhome/.cache/wiki-sources/cbw"
+mkdir -p "$cbcache/code"
+git config -f "$cbhome/.gitconfig" "url.$cb/remote.git.insteadOf" https://github.com/acme/widgets.git
+cbn() { (cd "$cb/cbw" && HOME="$cbhome" PATH="$fakebin:$PATH" bash "$cbr" "$@" 2>&1); }
+cbx() { (cd "$cb/cbw" && HOME="$cbhome" PATH="$fakebin:$PATH" bash "$cbr" "$@" >/dev/null 2>&1); echo $?; }
 ghn() { (cd "$cb/cbw" && PATH="$fakebin:$PATH" bash "$cbh" "$@" 2>&1); }
 ghx() { (cd "$cb/cbw" && PATH="$fakebin:$PATH" bash "$cbh" "$@" >/dev/null 2>&1); echo $?; }
 has() { case "$1" in *"$2"*) echo yes ;; *) echo "no: $1" ;; esac; }
@@ -284,7 +290,26 @@ check "codebase/refuse-two-roots" 1   "$(cbx two status)"
 check "codebase/refuse-wrong-type" 1  "$(cbx mail status)"
 check "codebase/refuse-no-instance" 1 "$(cbx nosuch status)"
 check "codebase/refuse-outside-git" 1 "$(cd "$tmp" && bash "$cbr" code status >/dev/null 2>&1; echo $?)"
-check "codebase/fetch"            yes "$(has "$(cbn code fetch)" 'fetched origin; origin/main @')"
+check "codebase/status-never-fetched" yes "$(has "$(cbn code status)" 'last fetch: started')"
+check "codebase/fetch"            yes "$(has "$(cbn code fetch)" "fetched origin (using the user's git credentials, started ")"
+check "codebase/fetch-stamp"      yes "$(has "$(cat "$cbcache/code/last-fetch")" ', origin/main @')"
+check "codebase/status-fetched"   yes "$(has "$(cbn code status)" 'last fetch: completed ')"
+touch -d '+1 hour' "$cb/clone/.git/FETCH_HEAD"
+check "codebase/status-fetch-running" yes "$(has "$(cbn code status)" 'has not completed')"
+check "codebase/fetch-gh-user"    yes "$(has "$(cbn hub fetch)" 'using gh account reader')"
+check "codebase/fetch-no-token"   yes "$(sed -i 's/gh_user: reader/gh_user: nobody/' "$cb/cbw/.claude/sources/instances/hub.md"; has "$(cbn hub fetch)" "using the user's git credentials")"
+sed -i 's/gh_user: nobody/gh_user: reader/' "$cb/cbw/.claude/sources/instances/hub.md"
+printf 'FO+|zzz\r\n^L6$\n' > "$cbcache/code/p.txt"
+out=$(cbn code grep ref @p.txt)
+check "codebase/grep-patfile"     yes "$(has "$out" 'app/src/A.java#L3: FOO')"
+check "codebase/grep-patfile-or"  yes "$(has "$out" 'app/src/A.java#L7: L6')"
+check "codebase/grep-patfile-head" yes "$(has "$out" '2 patterns from p.txt: FO+|zzz|^L6$')"
+mkdir -p "$cbcache/code/runs/r1"; printf 'b1\n' > "$cbcache/code/runs/r1/q.txt"
+check "codebase/grep-patfile-sub" yes "$(has "$(cbn code grep ref @runs/r1/q.txt 'lib/*')" 'lib/B2.java#L1: b1')"
+i=0; : > "$cbcache/code/many.txt"; while [ $i -lt 21 ]; do printf 'p%s\n' "$i" >> "$cbcache/code/many.txt"; i=$((i + 1)); done
+: > "$cbcache/code/empty.txt"
+check "codebase/refuse-patfile"   "1 1 1 1 1 1" "$(cbx code grep ref @../x) $(cbx code grep ref @runs/../p.txt) $(cbx code grep ref @/etc/passwd) $(cbx code grep ref @nosuch.txt) $(cbx code grep ref @many.txt) $(cbx code grep ref @empty.txt)"
+check "codebase/refuse-patfile-other-key" 1 "$(cbx sub grep ref @p.txt)"
 check "gh/pr-of"                  yes "$(has "$(ghn hub pr-of "$(printf '%s' "$c1" | cut -c1-7)")" "FAKE gh api -X GET repos/acme/widgets/commits/$c1/pulls --jq")"
 check "gh/pr-of-token"            yes "$(has "$(ghn hub pr-of "$c1")" 'token=tok-reader')"
 check "gh/pr"                     yes "$(has "$(ghn hub pr 12)" 'FAKE gh pr view 12 -R acme/widgets --json')"

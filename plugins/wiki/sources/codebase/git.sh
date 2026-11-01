@@ -15,6 +15,16 @@
 #   bash <plugin>/sources/codebase/git.sh <key> drift    <rev> "<path>" Lx-Ly
 #   bash <plugin>/sources/codebase/git.sh <key> verify   <rev> "<path>" Lx-Ly
 #
+# A grep <regex> of the form @<file> names a pattern file below the
+# instance's cache folder ~/.cache/wiki-sources/<wiki>/<key>/ (e.g.
+# @runs/<run>/p1.txt): one ERE per line, a line matches if any pattern does.
+# It carries regexes the guard refuses on a command line (| $ ` ; & < >).
+#
+# fetch never prompts for credentials. With gh_user set and an https GitHub
+# remote, it authenticates with that gh account's token (passed through the
+# environment, never on a command line). It records its completion in
+# <cache>/last-fetch, which status reads.
+#
 # <rev> is a commit SHA (7 to 40 hex) or a ref name (origin/main, a tag),
 # or "ref" for the instance's ref. Paths are relative to the repository's top
 # folder and must lie in the instance's root (which may be a sub-folder).
@@ -106,6 +116,7 @@ if [ -z "$iref" ]; then
 fi
 remote=${iref%%/*}
 g remote | grep -qxF -- "$remote" || remote=origin
+cache="$HOME/.cache/wiki-sources/$(basename "$root_wiki")/$key"
 
 # 3. Argument checks.
 # rev REV: the full commit SHA of a checked revision.
@@ -178,16 +189,45 @@ case "$op" in
     fi
     fh=$(g rev-parse --git-path FETCH_HEAD)
     case "$fh" in /*|[A-Za-z]:*) ;; *) fh="$top/$fh" ;; esac
-    if [ -f "$fh" ]; then printf 'last fetch: %s\n' "$(date -r "$fh" '+%Y-%m-%d %H:%M')"; else printf 'last fetch: never\n'; fi
+    stamp="$cache/last-fetch"
+    if [ -f "$stamp" ]; then
+      printf 'last fetch: completed %s\n' "$(head -n 1 "$stamp")"
+      if [ -f "$fh" ] && [ "$fh" -nt "$stamp" ]; then
+        printf 'fetch: one started %s and has not completed (still running, or it failed)\n' "$(date -r "$fh" '+%Y-%m-%d %H:%M')"
+      fi
+    elif [ -f "$fh" ]; then
+      printf 'last fetch: started %s (completion not recorded)\n' "$(date -r "$fh" '+%Y-%m-%d %H:%M')"
+    else
+      printf 'last fetch: never\n'
+    fi
     ;;
   resolve)
     sha=$(rev "$1") || exit 1
     printf '%s %s (%s, %s)\n' "$1" "$sha" "$(s12 "$sha")" "$(g log -1 --format=%cs "$sha")"
     ;;
   fetch)
-    g fetch --prune --no-tags --no-recurse-submodules --quiet "$remote" || die "fetch from '$remote' failed."
+    # Never prompt (a prompt hangs a Claude Bash call).
+    export GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never GIT_ASKPASS= SSH_ASKPASS=
+    url=$(g config --get "remote.$remote.url" 2>/dev/null || echo "")   # as configured, before insteadOf
+    user=$(src_field "$inst" gh_user)
+    via="the user's git credentials"
+    case "$url" in
+      https://github.com/*)
+        if [ -n "$user" ] && printf '%s' "$user" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_-]{0,38}$' && command -v gh >/dev/null 2>&1 &&
+           CODEBASE_GH_TOKEN=$(GH_PROMPT_DISABLED=1 gh auth token -u "$user" 2>/dev/null) && [ -n "$CODEBASE_GH_TOKEN" ]; then
+          export CODEBASE_GH_TOKEN
+          via="gh account $user"
+          # An empty helper first drops the configured ones (e.g. a broken
+          # Credential Manager); the token stays in the environment.
+          set -- -c credential.helper= -c 'credential.helper=!f() { test "$1" = get && printf "username=x-access-token\npassword=%s\n" "$CODEBASE_GH_TOKEN"; }; f'
+        fi ;;
+    esac
+    t0=$(date '+%Y-%m-%d %H:%M')
+    g "$@" fetch --prune --no-tags --no-recurse-submodules --quiet "$remote" ||
+      die "fetch from '$remote' failed (using $via; started $t0). git never prompts here: with an https GitHub remote, set gh_user in the instance, or fix the git credentials."
     sha=$(g rev-parse --verify --quiet "$iref^{commit}") || die "fetched, but '$iref' is not found."
-    printf 'fetched %s; %s @ %s (%s)\n' "$remote" "$iref" "$(s12 "$sha")" "$(g log -1 --format=%cs "$sha")"
+    mkdir -p "$cache" && printf '%s, %s @ %s\n' "$(date '+%Y-%m-%d %H:%M')" "$iref" "$(s12 "$sha")" > "$cache/last-fetch"
+    printf 'fetched %s (using %s, started %s); %s @ %s (%s)\n' "$remote" "$via" "$t0" "$iref" "$(s12 "$sha")" "$(g log -1 --format=%cs "$sha")"
     ;;
   grep|igrep)
     sha=$(rev "$1") || exit 1
@@ -196,9 +236,29 @@ case "$op" in
     if [ $# -eq 3 ]; then spec=$(path_ok "$3" glob) || exit 1; else spec=$(here); fi
     flags="-n -I --no-color -E"
     [ "$op" = igrep ] && flags="$flags -i"
-    printf '@%s grep %s in %s\n' "$(s12 "$sha")" "$re" "$spec"
+    case "$re" in
+      @*)
+        pf=${re#@}
+        printf '%s' "$pf" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9._/-]*$' || die "'$re': a pattern file is @<path below $cache/> (letters, digits, . _ - /)."
+        src_has_dots "$pf" && die "'.' and '..' are not allowed in a pattern file path."
+        [ -f "$cache/$pf" ] || die "pattern file '$cache/$pf' not found."
+        set --
+        n=0
+        while IFS= read -r line || [ -n "$line" ]; do
+          line=${line%$'\r'}
+          [ -n "$line" ] || continue
+          [ "${#line}" -le 500 ] || die "pattern file line $((n + 1)) is longer than 500 characters."
+          n=$((n + 1))
+          [ "$n" -le 20 ] || die "a pattern file holds at most 20 patterns."
+          set -- "$@" -e "$line"
+        done < "$cache/$pf"
+        [ "$n" -ge 1 ] || die "pattern file '$cache/$pf' has no patterns."
+        shown="$n patterns from $pf: $(tr -d '\r' < "$cache/$pf" | grep . | paste -sd'|' -)" ;;
+      *) set -- -e "$re"; shown=$re ;;
+    esac
+    printf '@%s grep %s in %s\n' "$(s12 "$sha")" "$shown" "$spec"
     # shellcheck disable=SC2086
-    g grep $flags -e "$re" "$sha" -- "$spec" 2>/dev/null |
+    g grep $flags "$@" "$sha" -- "$spec" 2>/dev/null |
       awk -v cap="$GREP_CAP" -v lcap="$LINE_CAP" '
         { rest = substr($0, index($0, ":") + 1)   # drop "<sha>:"
           i = index(rest, ":"); p = substr(rest, 1, i - 1); rest = substr(rest, i + 1)
