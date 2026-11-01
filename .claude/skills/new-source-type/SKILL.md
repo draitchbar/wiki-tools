@@ -21,6 +21,7 @@ Repo rules (CLAUDE.md): POSIX bash for Linux and Git Bash, no jq or Python; LF e
 3. Platforms: Linux, Windows (Git Bash), both.
 4. What an item is (a thread, a file, a page), what makes it new (a date, a cursor the API gives), and what an instance must supply (labels, roots, a notebook id...).
 5. How to cite an item so `/wiki:audit` can find it again; pick a `cite_prefix` that no other type uses (`grep -h '^cite_prefix' plugins/wiki/sources/*/SOURCE.md`).
+6. How it is used: **ingested** (items copied into wiki pages, `mode: ingest`, the default) or **researched on demand** (too large or too fast-moving to ingest; agents answer questions through `/wiki:research`, `mode: research`). For research: must the main session stay out of it (`agent_only: yes`, so its context doesn't grow), and which operations may it still run itself (`main_ops`, e.g. status and citation checks)? `plugins/wiki/sources/codebase/` is the worked example.
 
 ## 2. Research the access route (read-only)
 - **MCP:** list the server's tools available in this session (names and descriptions). Don't call write tools.
@@ -36,6 +37,7 @@ Copy the template to `plugins/wiki/sources/<type>/SOURCE.md` and fill every fron
 - `scripts` and `read_tools`: one entry per wrapper, `Bash(bash */sources/<type>/<script>.sh *)`. The rule has no clone path, because a wiki's settings are the same on every machine; the guard lets only the plugin's own copy run. In the body, write commands as `bash ${CLAUDE_PLUGIN_ROOT}/sources/<type>/<script>.sh ...`; `sources.sh` fills in the path when it prints the contract.
 - `state`: `last_checked` plus only what the type really needs.
 - Parameters with paths: call them `roots` if the guard should treat them as read-only local folders (only for `access: filesystem`).
+- `mode`, `agent_only`, `main_ops` from interview question 6. `mode: research` needs a `## Research` section. With `agent_only: yes`, list in `main_ops` only the wrapper operations the reasoning agent needs (status, verify, drift); everything else is for subagents.
 
 ## 4. Wrapper scripts (if any)
 Model them on `plugins/wiki/sources/local-folder/read.sh`:
@@ -43,16 +45,20 @@ Model them on `plugins/wiki/sources/local-folder/read.sh`:
 - instance from `src_instance_dir`, type checked, `src_validate_instance` must pass; paths checked with `src_is_abs`, `src_has_dots`, `src_expand`, `src_match_root`;
 - a CLI syntax check against recorded help output (see `check_syntax` in the proton-drive wrapper) so a CLI update can't change what the wrapper runs;
 - never prompt (a prompt hangs a Claude Bash call); downloads to `~/.cache/wiki-sources/<wiki>/<key>/<path below root>`;
-- nothing from the caller passed to the CLI except checked values.
+- nothing from the caller passed to the CLI except checked values;
+- a helper that prints a list prints one item per line (`printf '%s\n' "$a" "$b"`). `printf '%s' "$a" "$b"` glues the items together, and code reading the list (the guard's root matching, say) silently compares against a mangled value.
 
 ## 5. Tests
 - `tests/sources/<type>/`: anything the tests need (a fake CLI that echoes its arguments, as `tests/sources/proton-drive/fake-proton-drive` does).
 - **Tests must never reach the real CLI or account.** Put the fake first on `PATH` for *every* call of the wrapper, refusals included, and abort the run if `command -v <cli>` under that `PATH` isn't the fake (see the Proton block in `run-tests.sh`). A missing fake must fail loudly, not fall through to the user's installed CLI.
 - `tests/run-tests.sh`: a section for the type: every refusal (unknown op, extra args, outside roots, sibling prefix, `..`, relative path, wrong instance type, outside git, changed CLI syntax) and every happy path against the fake.
 - Guard fixtures in `tests/fixtures/guard/`: `pass-<type>-wrapper` (a plain call), `block-<type>-wrapper-chained`, and `block-<type>-cli-direct` if it has guard words. If the guard wiki needs an instance of the type, add it to `tests/guard-wiki/.claude/sources/instances/`.
+- **`agent_only` types:** the guard tells the main session from a subagent by the hook's `agent_id`. Add fixtures for both sides of every route: `block-<type>-read-main` / `pass-<type>-read-agent`, the same for Grep, Glob patterns and the wrapper, `pass-<type>-wrapper-main-<op>` for each `main_ops` operation and a block for a non-`main_ops` one. The main-session fixtures carry no `agent_id`, the agent ones do; a missing `agent_id` must count as the main session. See the `*-codebase-*` fixtures.
 - **No wrapper (an MCP type):** the wrapper and guard-fixture bullets above don't apply. Add `sexpect` checks in the `sources.sh` block of `run-tests.sh` for `settings <type>` (a forbidden tool appears) and `catalog` (the type is listed).
 - Every standard contract is validated by the `contract/<type>-valid` loop in `run-tests.sh`; no need to run `src_validate_contract` by hand.
-- Run `bash tests/run-tests.sh`; it must end "0 failed".
+- Run `bash tests/run-tests.sh`; it must end "0 failed". On Windows (Git Bash) it takes over 10 minutes: run it with `run_in_background`, output to a log in the scratchpad, and wait for the notification. Never start it with `&`, which leaves stray processes behind.
+
+**Editing:** use the Edit tool for multi-line or quote-heavy changes to scripts, tests and Markdown. perl/sed one-liners mangle quotes, `$` and indentation in ways that are easy to miss.
 
 ## 6. Docs
 - README: add the type to the "Sources" list (one line: what it reads, how, platforms, prerequisites such as a CLI login).
