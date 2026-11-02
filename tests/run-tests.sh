@@ -135,17 +135,29 @@ printf -- '---\nkey: mail\ntype: gmail\nlabels: X\n---\n' > "$tmp/pdw/.claude/so
 pdn() { (cd "$tmp/pdw" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" 2>&1); }
 pdnx() { (cd "$tmp/pdw" && HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" "$@" >/dev/null 2>&1); echo $?; }
 plan='/my-files/Projects/alpha/plan 2026'
+# The download folder as read.sh hands it to the CLI: C:/... where cygpath
+# exists (Git Bash), unchanged elsewhere.
+pdlocal() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
 
 check "proton-drive/list"                 "FAKE filesystem list --json /my-files/Archive/2026" "$(pdn drive list /my-files/Archive/2026)"
 check "proton-drive/list-space"           "FAKE filesystem list --json $plan/offers" "$(pdn plans list "$plan/offers")"
 check "proton-drive/size"                 "FAKE filesystem size --json $plan" "$(pdn plans size "$plan")"
 out=$(pdn drive download "/my-files/Archive/2026/contract.pdf" | head -n 1)
-check "proton-drive/download-to-key"      "FAKE filesystem download --json -f remove -d merge /my-files/Archive/2026/contract.pdf $tmp/home/.cache/wiki-sources/pdw/drive/2026" "$out"
+check "proton-drive/download-to-key"      "FAKE filesystem download --json -f remove -d merge /my-files/Archive/2026/contract.pdf $(pdlocal "$tmp/home/.cache/wiki-sources/pdw/drive/2026")" "$out"
 out=$(pdn plans download "$plan/a.pdf" | head -n 1)
-check "proton-drive/download-top-level"   "FAKE filesystem download --json -f remove -d merge $plan/a.pdf $tmp/home/.cache/wiki-sources/pdw/plans" "$out"
+check "proton-drive/download-top-level"   "FAKE filesystem download --json -f remove -d merge $plan/a.pdf $(pdlocal "$tmp/home/.cache/wiki-sources/pdw/plans")" "$out"
 out=$(pdn drive download "/my-files/Projects/manual.pdf")
-check "proton-drive/download-file-root"   "FAKE filesystem download --json -f remove -d merge /my-files/Projects/manual.pdf $tmp/home/.cache/wiki-sources/pdw/drive" "$(printf '%s\n' "$out" | head -n 1)"
+check "proton-drive/download-file-root"   "FAKE filesystem download --json -f remove -d merge /my-files/Projects/manual.pdf $(pdlocal "$tmp/home/.cache/wiki-sources/pdw/drive")" "$(printf '%s\n' "$out" | head -n 1)"
 check "proton-drive/download-file-root-msg" "proton-drive: downloaded to $tmp/home/.cache/wiki-sources/pdw/drive/manual.pdf" "$(printf '%s\n' "$out" | tail -n 1)"
+# Git Bash path conversion is off for every CLI call (it turned /my-files/...
+# into C:/Program Files/Git/my-files/...), and the download folder goes
+# through cygpath instead; a fake cygpath shows that on Linux too.
+out=$(cd "$tmp/pdw" && FAKE_PD_ENV=1 HOME="$tmp/home" PATH="$fakebin:$PATH" bash "$pdr" drive list /my-files/Archive 2>&1 >/dev/null)
+check "proton-drive/no-msys-pathconv"     "FAKE env MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL=*" "$(printf '%s\n' "$out" | sort -u)"
+mkdir -p "$tmp/cygbin" && printf '#!/usr/bin/env bash\n[ "$1" = -m ] && printf "W:%%s\\n" "$2"\n' > "$tmp/cygbin/cygpath" && chmod u+x "$tmp/cygbin/cygpath"
+out=$(cd "$tmp/pdw" && HOME="$tmp/home" PATH="$fakebin:$tmp/cygbin:$PATH" bash "$pdr" drive download /my-files/Archive/a.pdf 2>&1)
+check "proton-drive/download-cygpath"     "FAKE filesystem download --json -f remove -d merge /my-files/Archive/a.pdf W:$tmp/home/.cache/wiki-sources/pdw/drive" "$(printf '%s\n' "$out" | head -n 1)"
+check "proton-drive/download-cygpath-msg" "proton-drive: downloaded to $tmp/home/.cache/wiki-sources/pdw/drive/a.pdf" "$(printf '%s\n' "$out" | tail -n 1)"
 check "proton-drive/refuse-download-folder" 1 "$(pdnx plans download "$plan/offers")"
 check "proton-drive/refuse-download-root" 1 "$(pdnx plans download "$plan")"
 check "proton-drive/refuse-outside"       1 "$(pdnx drive list /my-files/Projects)"

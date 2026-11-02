@@ -3,6 +3,10 @@
 # Prints the help text recorded from cli-drive@0.9.0 and echoes every other
 # call as "FAKE <args>", so tests never touch a real Proton account.
 # FAKE_PD_SYNTAX=changed simulates a CLI whose download syntax changed.
+# FAKE_PD_ENV=1 reports the MSYS path-conversion settings it was run with,
+# on stderr, so a test can check read.sh turns Git Bash's conversion off.
+
+[ "${FAKE_PD_ENV:-}" != 1 ] || printf 'FAKE env MSYS_NO_PATHCONV=%s MSYS2_ARG_CONV_EXCL=%s\n' "${MSYS_NO_PATHCONV:-}" "${MSYS2_ARG_CONV_EXCL:-}" >&2
 
 case "$*" in
   "filesystem --help")

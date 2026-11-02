@@ -92,6 +92,11 @@ if [ "$op" = download ]; then
 fi
 
 export PROTON_DRIVE_LOG_LEVEL=WARNING
+# Git Bash (MSYS) rewrites arguments that start with / into Windows paths when
+# it runs a native .exe, so /my-files/... would reach the CLI as
+# C:/Program Files/Git/my-files/.... Turn that off (no effect on Linux); the
+# one local path, the download folder, is converted by hand below.
+export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
 
 # nodes PARENT: read `list --json` (or `info --json`) output on stdin, one
 # node per line; print "<f|p|d> <modified> <bytes> <PARENT>/<name>" per node.
@@ -191,7 +196,12 @@ $sub"
     # Conflict strategies are always set, because a prompt would hang a
     # non-interactive call: -f remove replaces a stale copy in the cache
     # (local only), -d merge merges a folder into its cached copy.
-    "$CLI" filesystem download --json -f remove -d merge "$remote" "$dest_dir" || exit $?
+    # Path conversion is off, so give a Windows CLI a C:/... folder ourselves.
+    cli_dest=$dest_dir
+    if command -v cygpath >/dev/null 2>&1; then
+      cli_dest=$(cygpath -m "$dest_dir") || die "cannot convert $dest_dir for the CLI"
+    fi
+    "$CLI" filesystem download --json -f remove -d merge "$remote" "$cli_dest" || exit $?
     printf 'proton-drive: downloaded to %s/%s\n' "$dest_dir" "$(basename "$rel")"
     ;;
 esac
