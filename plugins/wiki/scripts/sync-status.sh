@@ -8,6 +8,21 @@
 # marked as manual once the wiki has instances.
 # Read-only.
 
+# A plugin from a local-directory marketplace runs from the wiki-tools working
+# tree, not from a copy pinned to a commit: uncommitted edits there are live
+# in every wiki, and skills (read at session start) can differ from scripts
+# (read at each call). Say so when that tree has uncommitted plugin changes.
+plugin_note() {
+  local p top dirty
+  p=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd) || return 0
+  top=$(git -C "$p" rev-parse --show-toplevel 2>/dev/null) || return 0
+  dirty=$(git -C "$p" status --porcelain -- . 2>/dev/null | head -n 5)
+  [ -n "$dirty" ] || return 0
+  printf 'Note: the wiki plugin runs from the working tree %s (commit %s), which has uncommitted changes in the plugin:\n%s\nSkills were read when this session started, scripts are read at each call, so they may not match. Commit the changes and run /reload-plugins (or restart).\n' \
+    "$top" "$(git -C "$p" rev-parse --short HEAD 2>/dev/null)" "$dirty"
+}
+plugin_note
+
 if [ -n "$CLAUDE_PROJECT_DIR" ] && [ -d "$CLAUDE_PROJECT_DIR" ]; then
   root=$CLAUDE_PROJECT_DIR
 else

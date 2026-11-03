@@ -77,7 +77,7 @@ claude plugin marketplace add ~/src/wiki-tools     # registers the marketplace o
 
 Don't install or enable the plugin at user scope. Each wiki enables it in its own committed `.claude/settings.json` (see `plugins/wiki/templates/project-settings.json`).
 
-Claude Code runs an installed copy of the plugin, pinned to a commit. After pulling changes here, run `claude plugin marketplace update wiki-tools`, then `claude plugin update wiki@wiki-tools --scope project` in each wiki, and restart `claude` there.
+The marketplace is this local folder, so Claude Code runs the plugin straight from this working tree (checked 2026-11-03, Claude Code 2.1.317: skills, hooks and scripts all load from `plugins/wiki/`; the copy in `~/.claude/plugins/cache/` that `plugin update` writes is not used). So **uncommitted edits here are live in every wiki at once**, guard included, and a running wiki session mixes skills read at its start with scripts read at each call. The session-start status in a wiki says so when `plugins/wiki/` has uncommitted changes. After changing or pulling the plugin, restart `claude` in each wiki (or run `/reload-plugins` there); `claude plugin update` isn't needed.
 
 ## Setting up a wiki
 

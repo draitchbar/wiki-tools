@@ -468,6 +468,22 @@ printf 'last_checked_code: 2026-01-01\n' >> "$tmp/ss/raw/sync-log.md"
 ss_out=$(cd "$tmp/ss" && CLAUDE_PROJECT_DIR= bash "$scripts/sync-status.sh" 2>&1)
 case "$ss_out" in *"code"*|*"repo"*) r="$ss_out" ;; *"- scans:"*) r=ok ;; *) r="$ss_out" ;; esac
 check "sync-status/research-skipped" ok "$r"
+# The plugin running from a git working tree: a note only when it has
+# uncommitted plugin changes (the plugin cache is no git repo: no note).
+mkdir -p "$tmp/pt/plugins/wiki/scripts"
+cp "$scripts/sync-status.sh" "$scripts/lib-source.sh" "$tmp/pt/plugins/wiki/scripts/"
+git -C "$tmp/pt" init -q && git -C "$tmp/pt" add -A && git -C "$tmp/pt" -c user.name=t -c user.email=t@t commit -qm init
+ss_out=$(cd "$tmp/ss" && CLAUDE_PROJECT_DIR= bash "$tmp/pt/plugins/wiki/scripts/sync-status.sh" 2>&1)
+case "$ss_out" in *"runs from the working tree"*) r="$ss_out" ;; *"Wiki sync status"*) r=ok ;; *) r="$ss_out" ;; esac
+check "sync-status/plugin-clean" ok "$r"
+printf '\n' >> "$tmp/pt/plugins/wiki/scripts/lib-source.sh"
+ss_out=$(cd "$tmp/ss" && CLAUDE_PROJECT_DIR= bash "$tmp/pt/plugins/wiki/scripts/sync-status.sh" 2>&1)
+case "$ss_out" in *"runs from the working tree"*"lib-source.sh"*"Wiki sync status"*) r=ok ;; *) r="$ss_out" ;; esac
+check "sync-status/plugin-dirty" ok "$r"
+mkdir -p "$tmp/pc/scripts" && cp "$scripts/sync-status.sh" "$scripts/lib-source.sh" "$tmp/pc/scripts/"
+ss_out=$(cd "$tmp/ss" && CLAUDE_PROJECT_DIR= GIT_CEILING_DIRECTORIES="$tmp" bash "$tmp/pc/scripts/sync-status.sh" 2>&1)
+case "$ss_out" in *"runs from the working tree"*) r="$ss_out" ;; *) r=ok ;; esac
+check "sync-status/plugin-cache" ok "$r"
 
 # wiki-check.sh: a freshly initialised wiki passes; each planted fault fails.
 mkwiki() { # DIR
