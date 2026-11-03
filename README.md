@@ -6,7 +6,7 @@ It is two things in one repo:
 
 1. **A local-directory plugin marketplace** with one plugin, `wiki`, containing:
    - source-neutral skills `/wiki:init`, `/wiki:add-source`, `/wiki:ingest`, `/wiki:research`, `/wiki:sync-status`, `/wiki:commit-themes`, `/wiki:lint` and `/wiki:audit`, and the agents `wiki:source-researcher` and `wiki:critic` that `/wiki:research` dispatches;
-   - a standard set of **source types** (`gmail`, `google-drive`, `ms-teams`, `proton-drive`, `local-folder`, `codebase`, `onenote`), each a `SOURCE.md` contract plus an optional read-only wrapper; see [Sources](#sources);
+   - a standard set of **source types** (`gmail`, `google-drive`, `ms-teams`, `jira`, `proton-drive`, `local-folder`, `codebase`, `onenote`), each a `SOURCE.md` contract plus an optional read-only wrapper; see [Sources](#sources);
    - guard hooks that block `git push`, keep every source read-only as its contract says, and protect the guard machinery itself;
    - a SessionStart hook that reports how stale each source in `raw/sync-log.md` is;
    - **the shared wiki schema**, which SessionStart hooks (`schema.sh`, one per file, each under the 10,000-character cap on hook context) load into every session of a wiki, so a wiki's CLAUDE.md doesn't import it:
@@ -38,6 +38,7 @@ plugins/wiki/
     gmail/SOURCE.md               Gmail via the claude.ai connector (MCP)
     google-drive/SOURCE.md        Google Drive folders via the claude.ai connector (MCP)
     ms-teams/{SOURCE.md,snapshot.sh}  Teams channels, chats and SharePoint folders via the claude.ai Microsoft 365 connector (MCP)
+    jira/SOURCE.md                Jira issues selected by named scopes (team, component, epic/initiative, project, JQL) via the claude.ai Atlassian connector (MCP)
     proton-drive/{SOURCE.md,read.sh}  Proton Drive via a read-only CLI wrapper
     local-folder/{SOURCE.md,read.sh}  folders outside the wiki, read-only
     codebase/{SOURCE.md,git.sh,gh.sh}  a git clone researched on demand by subagents (research type, agent_only); PR/issue context via gh
@@ -66,7 +67,7 @@ Clone wherever you like; nothing depends on the path, and no environment variabl
 |---|---|---|
 | Prerequisites | git, bash | Git for Windows (Git Bash); Claude Code runs hooks in Git Bash |
 | OCR | `sudo apt install ocrmypdf` plus the Tesseract language packs your documents need (e.g. `tesseract-ocr-dan`); `/wiki:ingest` passes the languages from the wiki's CLAUDE.md | none; scans are read as page images |
-| Sources | whatever the wikis' source types need, listed in each type's Caveats; e.g. codebase: a git clone of the repository, and `gh auth login` for the account in `gh_user`; Proton Drive: `~/.local/bin/proton-drive` from [proton.me/download/drive/cli](https://proton.me/download/drive/cli/index.html) and `proton-drive auth login` by hand; OneNote: a OneNote reader (CLI, skill or MCP server) signed in with Graph `Notes.Read` or `Notes.Read.All`, its read operations allowed in your settings | the same; Proton's Windows build on PATH, check `proton-drive version` in Git Bash |
+| Sources | whatever the wikis' source types need, listed in each type's Caveats; e.g. codebase: a git clone of the repository, and `gh auth login` for the account in `gh_user`; Proton Drive: `~/.local/bin/proton-drive` from [proton.me/download/drive/cli](https://proton.me/download/drive/cli/index.html) and `proton-drive auth login` by hand; Jira: the claude.ai Atlassian connector connected; OneNote: a OneNote reader (CLI, skill or MCP server) signed in with Graph `Notes.Read` or `Notes.Read.All`, its read operations allowed in your settings | the same; Proton's Windows build on PATH, check `proton-drive version` in Git Bash |
 
 ```bash
 git clone git@github.com:draitchbar/wiki-tools.git ~/src/wiki-tools
@@ -102,7 +103,7 @@ The shared starting template for people and organisations is `plugins/wiki/templ
 The wiki skills know no particular source. They talk to every source through its **contract**.
 
 - **Source type**: a `SOURCE.md` contract (template: `plugins/wiki/templates/source-type/SOURCE.md`). Frontmatter (flat, bash-parseable): access kind, platforms, the parameters an instance must supply, the state it needs, `cite_prefix`, allowed read and bookkeeping tools, forbidden tools, guard words and wrapper scripts. Body: one section per operation, **Check**, **List new**, **Fetch**, **Mark ingested**, **Cite**, **Resolve citation**, plus **Caveats**.
-  - **Standard types** live in `plugins/wiki/sources/<type>/`: `gmail`, `google-drive`, `ms-teams`, `proton-drive`, `local-folder`, `codebase`, `onenote`. `gmail`, `google-drive` and `ms-teams` need their claude.ai connector connected once (Settings → Connectors); it then works on every platform. `ms-teams` also needs the Graph permissions `ChannelMessage.Read.All`, `Channel.ReadBasic.All`, `Chat.Read` and `Files.Read.All` or `Sites.Read.All` granted to the Microsoft 365 connector; `Team.ReadBasic.All` is usually missing and not needed (take a team id from the `groupId=` part of a channel link).
+  - **Standard types** live in `plugins/wiki/sources/<type>/`: `gmail`, `google-drive`, `ms-teams`, `jira`, `proton-drive`, `local-folder`, `codebase`, `onenote`. `gmail`, `google-drive`, `ms-teams` and `jira` need their claude.ai connector connected once (Settings → Connectors); it then works on every platform. `ms-teams` also needs the Graph permissions `ChannelMessage.Read.All`, `Channel.ReadBasic.All`, `Chat.Read` and `Files.Read.All` or `Sites.Read.All` granted to the Microsoft 365 connector; `Team.ReadBasic.All` is usually missing and not needed (take a team id from the `groupId=` part of a channel link). `jira` (claude.ai Atlassian connector, scope `read:jira-work`) ingests the issues matched by an instance's named `scopes` (clauses AND-ed within a scope, scopes OR-ed; a new scope is backfilled) into project pages; comments and remote links only when needed; attachments can't be downloaded through the connector.
   - **Local types** live in a wiki's `.claude/sources/types/<type>/`. They may ship wrapper scripts and have no test harness. A local type can't reuse a standard type's name.
 - **Source instance**: a wiki's use of a type, `.claude/sources/instances/<key>.md` (type, parameters, agreed state fields). The key is the `/wiki:ingest <key>` argument and names the state lines (`last_checked_<key>`, ...) in `raw/sync-log.md`. One wiki may have several instances of one type.
 - **Manual key**: a `last_checked_<key>` line with no instance file (e.g. `web`). Its material enters via `raw/` or as user statements; sync-status and `sources.sh list` show it, `/wiki:ingest` can't read it, and lint accepts citations starting `<key>:`. Add one with `/wiki:add-source manual <key>`.

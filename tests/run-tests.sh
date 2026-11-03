@@ -685,6 +685,11 @@ check "sources/contract-root-filled" filled "$r"
 sexpect settings-gdrive '"mcp__claude_ai_Google_Drive__trash_file"' settings google-drive
 sexpect catalog-gdrive  '- google-drive (standard, mcp): Google Drive' catalog
 sexpect catalog-teams   '- ms-teams (standard, mcp): Microsoft Teams' catalog
+sexpect catalog-jira    '- jira (standard, mcp): Jira' catalog
+sexpect settings-jira-allow '"mcp__claude_ai_Atlassian__getJiraIssue"' settings jira
+sexpect settings-jira-deny  '"mcp__claude_ai_Atlassian__editJiraIssue"' settings jira
+sexpect settings-jira-deny2 '"mcp__claude_ai_Atlassian_MCP__executeWrite"' settings jira
+check "sources/settings-jira-no-cache" 0 "$(srun settings jira | grep -c 'wiki-sources')"
 sexpect list-research   '- code: type codebase (standard), research (/wiki:research code "<question>"; not ingested), valid' list
 sexpect catalog-codebase '- codebase (standard, filesystem): Codebase' catalog
 sexpect settings-teams-deny  '"mcp__claude_ai_Microsoft_365__teams_send_chat_message"' settings ms-teams
