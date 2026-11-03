@@ -56,6 +56,14 @@ An **item** is one Jira issue (an initiative, epic, story, task or bug). Sub-tas
 
 **Pages.** Issues feed the wiki's project pages (and decision or topic pages where an issue records a decision or a technical approach), not one page per issue. Per issue, record its key, title, type, parent, what it is for (from the description), its links, and a dated summary: "as of YYYY-MM-DD: resolved (Done) 2026-10-22" or "open, assigned to the AI team". Never mirror the live status field by field; a re-ingest adds a dated update. Initiatives and epics are natural anchors for a project page's sections.
 
+A shape that worked (ai-wiki, 2026-11-03), to propose in the first ingest's data-model review: a `## Jira` section in the project template, grouped by epic, one dated line per issue with sub-tasks folded in, and a `jira:` frontmatter list holding the initiative and epic keys only:
+```
+## Jira
+### LP-5497 Internal documentation RAG (docu-site), epic
+- LP-5703 Docu-site chat in configuration portal: chat over the docu-site index in the portal; as of 2026-11-03 open (Jira LP-5703, 2026-10-21)
+- LP-5920 Ingest markdown docs into Cosmos DB: …; resolved (Done) 2026-10-19 (Jira LP-5920, 2026-10-19)
+```
+
 ## Scopes
 Each `scopes` item is `name | clause | clause ...`. The name is kebab-case and stays stable (the state remembers it). A clause is `kind: value, value ...`; values in one clause are OR-ed, clauses in one scope are AND-ed, and the scopes are OR-ed together. Kinds and the JQL each one becomes:
 - `project: LP, LIFE` → `project in (LP, LIFE)`

@@ -40,6 +40,7 @@ A source at `never` has not been checked against reality yet. Before ingesting i
 1. **Check the source** as its contract's **Check** section says (for `raw`: list what is in `raw/`). Report what you found. If a parameter is wrong, propose the corrected instance file; the user installs it with `install-source-file.sh` (wiki-conventions **Protected files**; `.claude/sources/` is protected, you can't write it).
 2. **Ask for the starting point**: a start date, or a subset (e.g. one folder, one sender). Suggest one based on the counts. Don't ingest "everything" by default. Record the choice in the sync-log history row.
 3. **Review the data model** (next section) against a sample of the material, then ingest.
+4. **Earlier mentions.** Pages may already name items of this source from other sources (a Jira key in a meeting note, a Drive path in a mail). Grep `wiki/` for the source's identifiers (the forms its **Cite** section uses: issue keys, file paths, thread subjects) and treat each match as an item to check against the new material: update it, or report the conflict with both sources if they disagree.
 
 ## Data-model review
 Run it at the first ingest of each source, and whenever material doesn't fit any page type in CLAUDE.md.
