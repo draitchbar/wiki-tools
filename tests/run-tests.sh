@@ -28,11 +28,29 @@ check() { # NAME EXPECTED ACTUAL
   fi
 }
 
+# WIKI_TEST_TIMING=1: time each section and print the times at the end.
+# EPOCHREALTIME (bash 5) costs no process; its separator may be "." or ",".
+sec_name= sec_start=0 sec_checks=0 sec_lines=
+now_us() {
+  if [ -n "${EPOCHREALTIME:-}" ]; then now=${EPOCHREALTIME//[!0-9]/}
+  else now=$(($(date +%s%N) / 1000)); fi
+}
+section() { # NAME (or "" to close the last one)
+  [ -n "${WIKI_TEST_TIMING:-}" ] || return 0
+  now_us
+  if [ -n "$sec_name" ]; then
+    sec_lines+=$(printf '%-15s %8d ms %4d checks' "$sec_name" $(((now - sec_start) / 1000)) $((total - sec_checks)))$'\n'
+  fi
+  sec_name=$1 sec_start=$now sec_checks=$total
+}
+section setup
+
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 cp -r "$here/guard-wiki" "$tmp/gw"
 hook() { CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u bash "$scripts/$1.sh"; }
 
+section guard-fixtures
 # Fixtures name the plugin folder @PLUGIN@ (as pwd prints it) or
 # @PLUGIN_DRIVE@ (as Claude Code substitutes it on Windows: C:/...; on Linux
 # the same as @PLUGIN@).
@@ -58,6 +76,7 @@ bs_cmd="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"bash $(printf '%s'
 printf '%s' "$bs_cmd" | hook guard >/dev/null 2>&1
 check "guard/pass-lint-backslash-form" 0 "$?"
 
+section guard-broken
 # guard.sh fails closed on source files it can't read, and knows Windows paths.
 fx="$here/fixtures/guard"
 gbroken() { # NAME SETUP-SNIPPET (run in a fresh copy of guard-wiki)
@@ -113,6 +132,7 @@ gwin() { # NAME EXPECTED AGENT-FIELD
 gwin codebase-read-windows-main  2 ''
 gwin codebase-read-windows-agent 0 ',"agent_id":"a1"'
 
+section proton-drive
 # Every Proton test runs with the fake CLI (tests/sources/proton-drive/
 # fake-proton-drive) first on PATH, never the real one. Abort if the fake
 # isn't the proton-drive that PATH finds.
@@ -196,6 +216,7 @@ out=$(cd "$tmp/pdw" && FAKE_PD_FORMAT=changed FAKE_PD_TREE=1 PATH="$fakebin:$PAT
 case "$out" in *"no longer has the shape"*exit=1) r=refused ;; *) r="$out" ;; esac
 check "proton-drive/new-format-changed" refused "$r"
 
+section codebase
 # codebase/git.sh and gh.sh against a throwaway repo with a bare "remote"
 # and a fake gh. Every gh.sh call runs with the fake first on PATH; abort if
 # the fake isn't the gh that PATH finds.
@@ -362,6 +383,7 @@ out=$(cd "$cb/cbw" && FAKE_GH_SYNTAX=changed PATH="$fakebin:$PATH" bash "$cbh" h
 case "$out" in *"syntax changed"*exit=1) r=refused ;; *) r="not refused: $out" ;; esac
 check "gh/refuse-changed-syntax" refused "$r"
 
+section lint
 # lint.sh against the fixture wiki in tests/lint-wiki (one planted problem per check).
 cp -r "$here/lint-wiki" "$tmp/lw"
 git -C "$tmp/lw" init -q
@@ -441,6 +463,7 @@ nowiki=$(cd "$tmp" && git init -q nowiki && cd nowiki && bash "$scripts/lint.sh"
 case "$nowiki" in *"no wiki/ folder"*) r=ok ;; *) r="$nowiki" ;; esac
 check "lint/no-wiki-folder" ok "$r"
 
+section sync-status
 # sync-status.sh: "never" for sources /wiki:init created.
 git -C "$tmp" init -q ss
 mkdir -p "$tmp/ss/raw"
@@ -485,6 +508,7 @@ ss_out=$(cd "$tmp/ss" && CLAUDE_PROJECT_DIR= GIT_CEILING_DIRECTORIES="$tmp" bash
 case "$ss_out" in *"runs from the working tree"*) r="$ss_out" ;; *) r=ok ;; esac
 check "sync-status/plugin-cache" ok "$r"
 
+section wiki-check
 # wiki-check.sh: a freshly initialised wiki passes; each planted fault fails.
 mkwiki() { # DIR
   git -C "$tmp" init -q "$1"
@@ -572,6 +596,7 @@ wc_expect no-raw-line f18 'FAIL raw/sync-log.md has no `last_checked_raw` line'
 nogit=$(cd "$tmp" && mkdir -p plain && cd plain && bash "$scripts/wiki-check.sh" >/dev/null 2>&1; echo $?)
 check "wiki-check/outside-git" 1 "$nogit"
 
+section lib-source
 # lib-source.sh against the fixture plugin and wiki in tests/sources/lib-source.
 ls_dir="$here/sources/lib-source"
 cp -r "$ls_dir" "$tmp/ls"
@@ -667,6 +692,7 @@ check "lib-source/tools-valid" 0 "$(lsrun "src_validate_contract '$tmp/at/tl/SOU
 sed -i 's#^read_tools:#read_tools:\n  - Read(~/.cache/wiki-sources/*/*/**)\n  - Edit(~/.cache/wiki-sources/*/*/**)#' "$tmp/at/tl/SOURCE.md"
 check "lib-source/tools-cache-rules" 0 "$(lsrun "src_validate_contract '$tmp/at/tl/SOURCE.md'; echo \$?")"
 
+section sources
 # sources.sh against a copy of guard-wiki (gmail, scans, teams, local type books).
 cp -r "$here/guard-wiki" "$tmp/sw"
 git -C "$tmp/sw" init -q
@@ -790,6 +816,7 @@ printf -- '---\nkey: bad\ntype: gmail\n---\n' > "$tmp/sw/.claude/sources/instanc
 sed -i 's/^key: bad/key: worse/' "$tmp/sw/.claude/sources/instances/bad.md"
 sexpect show-invalid    "doesn't validate" show bad
 
+section install
 # install-source-file.sh against a throwaway wiki (the user's installer).
 isf="$scripts/install-source-file.sh"
 git -C "$tmp" init -q iw
@@ -908,6 +935,7 @@ out=$(lf scans copy "$tmp/other/one.pdf")
 check "local-folder/copy-file-root"      "local-folder: copied to $tmp/home/.cache/wiki-sources/lfw/scans/one.pdf" "$out"
 check "local-folder/source-untouched"    "old" "$(cat "$tmp/scans/2026/old.pdf")"
 
+section ms-teams
 # ms-teams/snapshot.sh against a throwaway wiki and cache.
 mts="$here/../plugins/wiki/sources/ms-teams/snapshot.sh"
 git -C "$tmp" init -q mtw
@@ -963,6 +991,7 @@ check "ms-teams/empty-walk-removed"  2 "$(printf '%s\n' "$out" | grep -c '^remov
 printf 'garbage\n' > "$mtc/files.tsv"; walk 'file:///b!d/1\tFiles/a.pdf\t10\n'
 check "ms-teams/refuse-bad-snapshot" 1 "$(mtx teams compare)"
 
+section ocr
 # ocr.sh with a fake ocrmypdf that writes its arguments into the sidecar.
 ocrbin="$tmp/ocrbin"
 mkdir -p "$ocrbin"
@@ -983,6 +1012,7 @@ check "ocr/languages"            "0 langs=dan+eng" "$(ocr scan.pdf dan+eng) $(ca
 check "ocr/refuse-bad-languages" 1 "$(ocr scan.pdf 'dan;rm')"
 check "ocr/refuse-extra-args"    1 "$(ocr scan.pdf eng x)"
 
+section plugin-schema
 # No merge-conflict markers anywhere in the plugin (the schema and skills
 # reach every wiki session as they are).
 r=$(grep -rlE '^(<<<<<<< |=======$|>>>>>>> )' "$scripts/.." 2>/dev/null | head -n 3)
@@ -1013,5 +1043,7 @@ for s in "$scripts"/../schema/*.md; do
   check "schema/hook-$s" ok "$r"
 done
 
+section ""
+[ -n "$sec_lines" ] && printf '\n%s' "$sec_lines"
 printf '\n%d checks, %d failed\n' "$total" "$fail"
 [ "$fail" -eq 0 ]
