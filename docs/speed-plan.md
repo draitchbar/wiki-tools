@@ -1,6 +1,6 @@
 # Speed plan: a faster guard and test suite
 
-Status: **step 2b spike in progress** on branch `speed-spike`: built and measured on Linux 2026-11-05; on Windows single calls measured (126 ms against 1.5 s for bash) and the suite green (646 checks) 2026-11-05, a real session still to do. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
+Status: **step 2b spike done, verdict go** (2026-11-05), on branch `speed-spike` until merged. Linux: block-push 59 → 24 ms per call. Windows: 1.5 s → 126 ms per call, suite green (646 checks), and a real udbygning session at 129 ms p90 with the push blocked. Next: merge, then the rest of 2b. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
 
 ## Problem
 `bash tests/run-tests.sh` takes about 40 minutes on Windows (Git Bash), measured 2026-11-05. On Linux, measured 2026-11-04: **112 s for 577 checks**, and one `guard.sh` call (a pass fixture) takes **about 320 ms**. That is slow even on Linux, so the cost is in starting processes, not in the logic: `guard.sh` has about 65 command substitutions or pipes, `lib-source.sh` about 50, and each one forks. Under Git Bash a fork costs several times more, which fits the Windows number.
@@ -272,6 +272,23 @@ Findings:
 - All 29 launcher checks pass under Git Bash (fake interpreters, Store-alias stub, `py` only, broken caches, a space in the plugin path), at about 0.8 s each.
 - The spike adds about 50 s to the suite. The other sections are within a few percent of the run before it, so the two runs are comparable.
 
-### Spike, Windows: to do
-On the laptop, with the wiki-tools clone on branch `speed-spike`:
-1. A real ai-wiki session started with `WIKI_HOOK_TIMING=1 claude`: about 20 Bash calls, one deliberate `git push`, then `~/.claude/plugins/data/wiki-wiki-tools/hook-timing.log` (it shows which plugin folder ran) and `~/.claude/plugins/data/wiki-wiki-tools/python`.
+### Spike, Windows, 2026-11-05: real session
+Run in udbygning, not ai-wiki: ai-wiki isn't cloned on the laptop. udbygning enables `wiki@wiki-tools` from the directory marketplace at `c:\src\wiki-tools`, with no installed copy, so the session ran the clone on `speed-spike`. Every log line names `c:/src/wiki-tools/plugins/wiki/scripts` and the cached `Python313/python.exe`.
+
+Started from PowerShell as `$env:WIKI_HOOK_TIMING=1; claude`. A first attempt wrote the cache but no log: `WIKI_HOOK_TIMING=1 claude` is Git Bash syntax, and the variable never reached the hooks.
+
+Each run: 20 everyday Bash calls (`git status`, `ls`, `echo` and so on), then `git push` and `git -C . push`. The times are Python's run time inside the launcher, from `hook-timing.log`.
+
+| Run | Calls | min | median | p90 | max |
+|---|---|---|---|---|---|
+| Parallel: two messages of 10 Bash calls each | 20 + 2 pushes | 107 ms | ~880 ms | 1169 ms | 1189 ms |
+| One Bash call per message | 20 + 2 pushes | 102 ms | 109 ms | **129 ms** | 134 ms |
+
+Findings:
+- No launcher errors in either run: every pass exited 0, and both push forms exited 2.
+- Both pushes were blocked by the Python hook, and the message reached Claude intact: "wiki guard: git push is not allowed in wiki sessions. Commit locally; the user pushes." udbygning's `settings.json` denies `Bash(git push *)`, but the hook ran anyway, so Claude Code runs PreToolUse hooks before the deny rule.
+- The cache landed in `~/.claude/plugins/data/wiki-wiki-tools/python`, the protected folder, holding the real `python.exe` with a trailing newline.
+- Parallel calls are slow because of contention, not the hook. Each Bash call starts `guard.sh` (~8 s, ~680 process starts), `block-push.sh` and the Python hook together. With ten calls arriving 0.5 s apart on a 4-core laptop, the Python processes wait for CPU: each batch climbs from ~110 ms to ~1.2 s, and the log is roughly sorted by duration. The two pushes, which came as a pair, took 148 and 118 ms. The bash guards cause this, and the port removes them. Check the parallel case again once `guard.py` replaces `guard.sh`.
+- One call at a time, the Python hook takes about 110 ms even while sharing the CPU with that call's `guard.sh` and `block-push.sh`. That matches the 126 ms single-call figure, which includes bash's start.
+
+**Verdict: go.** All four criteria hold: no launcher error, the push blocked with its message intact, the cache in the protected folder, and a p90 of 129 ms one call at a time (limit 200 ms). Next: merge `speed-spike` into `main`, then the rest of 2b, starting with `contract.py`.
