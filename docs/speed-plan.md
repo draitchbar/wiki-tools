@@ -1,16 +1,16 @@
 # Speed plan: a faster guard and test suite
 
-Status: **step 1 done**: Linux measured 2026-11-04, Windows 2026-11-05. Next: step 2a. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
+Status: **step 1 done**: Linux measured 2026-11-04, Windows 2026-11-05. Next: step 2a (test runner) and step 2b (Python guard); bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
 
 ## Problem
-`bash tests/run-tests.sh` takes over 10 minutes on Windows (Git Bash). On Linux, measured 2026-11-04: **112 s for 577 checks**, and one `guard.sh` call (a pass fixture) takes **about 320 ms**. That is slow even on Linux, so the cost is in starting processes, not in the logic: `guard.sh` has about 65 command substitutions or pipes, `lib-source.sh` about 50, and each one forks. Under Git Bash a fork costs several times more, which fits the Windows number.
+`bash tests/run-tests.sh` takes about 40 minutes on Windows (Git Bash), measured 2026-11-05. On Linux, measured 2026-11-04: **112 s for 577 checks**, and one `guard.sh` call (a pass fixture) takes **about 320 ms**. That is slow even on Linux, so the cost is in starting processes, not in the logic: `guard.sh` has about 65 command substitutions or pipes, `lib-source.sh` about 50, and each one forks. Under Git Bash a fork costs several times more, which fits the Windows number.
 
 It isn't only the tests. `guard.sh` runs on every tool call in the wikis, so its speed is felt in every session.
 
 ## Decision so far (2026-11-01)
 A Python requirement is acceptable. The "no Python" rule in CLAUDE.md stands until the port starts. Wrappers that mostly wait on `git`/`gh` stay bash either way.
 
-Added here: try cutting process starts in bash (step 2a) before committing to the port (step 2b). The step 1 numbers decide.
+Added 2026-11-04: try cutting process starts in bash before committing to the port, with the step 1 numbers deciding. Decided 2026-11-05 from those numbers: the guard goes to Python (step 2b), and the bash work is limited to the test runner (step 2a).
 
 ## Step 1: Measure
 Size: half a day.
@@ -20,17 +20,17 @@ Size: half a day.
 3. Count the processes one guard call starts: `strace -f -c -e trace=execve` on Linux. On Windows the timing alone will do.
 4. Record the numbers below under "Measurements". If the guard and contract parsing don't dominate on Windows, rethink before going on.
 
-## Step 2a: Fewer process starts, in bash
-Size: one or two sessions. Stays within the current rules, and the existing fixtures already cover it.
+## Step 2a: A faster test runner
+Size: one session. Stays within the current rules. Can run before or alongside step 2b.
 
-- `guard.sh`, `lib-source.sh`: replace `$(… | sed …)`, `echo | grep` and `cut`/`tr` pipes with parameter expansion, `case` and `[[ =~ ]]`. Read and parse each contract once per call, into variables, instead of once per lookup. Keep the fail-closed paths exactly as they are (the `gbroken`/`gdiag` cases must stay green).
-- `run-tests.sh`: run the fixture loop (131 files) in parallel with `xargs -P` (Git Bash has it), with each worker writing its result to a file and the runner tallying them afterwards so the output order stays the same. Set up each throwaway wiki once per section, not once per check, wherever the checks don't change it.
-- Commit message: say that the guard changed but its behaviour didn't (CLAUDE.md asks for that whenever a guard is touched).
+- `run-tests.sh`: run the fixture loop (131 files) in parallel with `xargs -P` (Git Bash has it). Each worker writes its result to a file, and the runner tallies them afterwards so the output order stays the same. Set up each throwaway wiki once per section, not once per check, wherever the checks don't change it.
+- Tests only: no change to `guard.sh`, `lib-source.sh` or any wrapper.
+- Measure again with `WIKI_TEST_TIMING=1` on both machines and add a row to Measurements.
 
-**Gate:** if the Windows suite is under about 2–3 minutes and a guard call under about 100 ms there, stop: drop step 2b, or postpone it with a trigger.
+Not doing (decided 2026-11-05): trimming `guard.sh` and `lib-source.sh` in bash. On Windows a process start costs 26–47 ms, so a guard under the 100 ms gate could start at most two or three programs. Every lookup would have to be pure bash: parsing contracts with no `sed`, `awk` or `$(…)`. That rewrite would be fragile and still slower than Python's ~105 ms (Measurements, "Python start"). The guard goes straight to step 2b.
 
 ## Step 2b: Port the guard to Python
-Only if step 2a isn't enough.
+The fix for the per-call cost: about 8 s per tool call on Windows today, about 100 ms expected after the port. Starting this step lifts the "no Python" rule in CLAUDE.md for the guard and contract parsing (decided 2026-11-01).
 
 1. **Launcher.** A small bash shim in `plugins/wiki/scripts/` finds an interpreter in the order `python3`, `python`, `py -3`. It skips the Windows Store alias by checking that `--version` actually runs and prints a 3.x version. With no interpreter found it fails closed (exit 2) with a message naming the fix. Fixtures: interpreter missing, Store alias only, `py` only (fakes on PATH, as `tests/sources/` does). Keep the probe off the per-call path: measured on Windows, a bash shim plus a `--version` check costs about 105 ms on top of the guard's ~105 ms (see "Python start" under Measurements). Store the interpreter the probe found, for example at `/wiki:init`, and re-probe only when running it fails, or have `hooks.json` call the interpreter directly.
 2. **Port.** `guard.py` for `guard.sh`, plus a `contract.py` module for the contract parsing in `lib-source.sh`. Standard library only. The bash versions stay during the transition.
@@ -39,6 +39,8 @@ Only if step 2a isn't enough.
 5. **Clean up.** Delete the bash guard and its dual-run code. Replace the "no Python" rule in CLAUDE.md with the new rule (which scripts are Python, the launcher, the minimum version). Update the README. The commit message says the guard was reimplemented.
 
 Not ported: `codebase/*.sh`, proton-drive `read.sh` and the other wrappers that mostly wait on `git`/`gh`/a CLI. Proton's faster `new` (see `proton-drive-plan.md`) is decided at this point, from its step 1 timing.
+
+Later, after the port: `wiki-check` (13.5 s per check on Windows) and `sources.sh` (about 3 s per `show`) don't run on every tool call, so they wait. Then decide whether they use `contract.py` or get trimmed in bash.
 
 ## Step 3 (optional): Run guard fixtures in one process
 After step 2b only. Most guard fixtures run inside one Python process that imports `guard.py`, so a case costs no new process. Keep a handful of end-to-end runs through the real hook entry point (`hooks.json` command, launcher, stdin JSON, exit code). Leave the source-wrapper tests alone: their cost is in `git` and the fakes.
