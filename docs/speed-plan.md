@@ -1,6 +1,6 @@
 # Speed plan: a faster guard and test suite
 
-Status: **step 2b spike done, verdict go** (2026-11-05), on branch `speed-spike` until merged. Linux: block-push 59 → 24 ms per call. Windows: 1.5 s → 126 ms per call, suite green (646 checks), and a real udbygning session at 129 ms p90 with the push blocked. Next: merge, then the rest of 2b. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
+Status: **step 2b spike done, verdict go** (2026-11-05), merged into `main` 2026-11-05. Linux: block-push 59 → 24 ms per call. Windows: 1.5 s → 126 ms per call, suite green (646 checks), and a real udbygning session at 129 ms p90 with the push blocked. Next: the rest of 2b. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
 
 ## Problem
 `bash tests/run-tests.sh` takes about 40 minutes on Windows (Git Bash), measured 2026-11-05. On Linux, measured 2026-11-04: **112 s for 577 checks**, and one `guard.sh` call (a pass fixture) takes **about 320 ms**. That is slow even on Linux, so the cost is in starting processes, not in the logic: `guard.sh` has about 65 command substitutions or pipes, `lib-source.sh` about 50, and each one forks. Under Git Bash a fork costs several times more, which fits the Windows number.
