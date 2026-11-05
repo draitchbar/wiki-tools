@@ -1,6 +1,6 @@
 # Speed plan: a faster guard and test suite
 
-Status: **step 2b spike in progress** on branch `speed-spike`: built and measured on Linux 2026-11-05, Windows still to measure. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
+Status: **step 2b spike in progress** on branch `speed-spike`: built and measured on Linux 2026-11-05; on Windows single calls measured 2026-11-05 (126 ms against 1.5 s for bash), the suite run and a real session still to do. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
 
 ## Problem
 `bash tests/run-tests.sh` takes about 40 minutes on Windows (Git Bash), measured 2026-11-05. On Linux, measured 2026-11-04: **112 s for 577 checks**, and one `guard.sh` call (a pass fixture) takes **about 320 ms**. That is slow even on Linux, so the cost is in starting processes, not in the logic: `guard.sh` has about 65 command substitutions or pipes, `lib-source.sh` about 50, and each one forks. Under Git Bash a fork costs several times more, which fits the Windows number.
@@ -219,8 +219,35 @@ Suite: 646 checks, 0 failed. The block-push fixtures (28, 9 of them new) run aga
 
 Found by the dual run: `git push` (a JSON escape for `git push`) gets past `block-push.sh` because `lib-hookjson.sh` leaves `\uXXXX` undecoded. `block_push.py` blocks it. The guard has the same gap for its words and paths until `guard.py` replaces it. Listed in `tests/fixtures/py-stricter.txt`.
 
+### Spike, Windows, 2026-11-05: single calls
+Same machine as the Windows numbers above. Each call goes through `bash -c "<hooks.json command>"`, as Claude Code runs it, 20 runs each. Every call gave the expected exit code.
+
+| block-push call | `git push` (blocks) | `git commit` (passes) |
+|---|---|---|
+| `bash block-push.sh` (today) | 1544 ms (p90 1700) | 1499 ms (p90 1676) |
+| `. py-launch.sh block_push`, warm cache | 173 ms (p90 189) | 167 ms (p90 197) |
+| same, no `CLAUDE_PLUGIN_DATA` (probes every call) | 506 ms | 489 ms |
+
+For comparison: `bash -c true` 62 ms, `python -I -S -X utf8 -c pass` 69 ms (Python 3.13.5). The cache filled with `C:/Users/mikke/AppData/Local/Programs/Python/Python313/python.exe`, not the Store alias, and the block message arrived intact with exit 2.
+
+The first run above was noisy. Two more rounds, taking the hook apart:
+
+| Part | Round 1 | Round 2 |
+|---|---|---|
+| `bash -c true` | 45 ms | 42 ms |
+| `python -I -S -X utf8 -c pass` | 53 ms | 48 ms |
+| `python -I -S -X utf8 -c 'import json,re,os,sys'` | 82 ms | 80 ms |
+| `python … block_push.py` directly | 92 ms | 81 ms |
+| the hook command, warm cache | 127 ms | 126 ms |
+
+Findings:
+- Sourcing works: bash plus `block_push.py` adds up to the whole hook command, so the launcher costs almost nothing and starts no second bash. No need for the "Rethink" branch.
+- The Python hook costs about 126 ms per call, steady, close to the ~150 ms expected. That is about 12× less than `block-push.sh`, which alone adds 1.5 s to every Bash call today, on top of the guard's 7.8 s.
+- About 30 ms of the Python time is imports (`json`, `re`). A possible saving later, not needed for the gate.
+- Without the cache a call costs about 500 ms, because the probe tries the `python3` Store alias first. That is why `/wiki:init` fills the cache (2b item 6).
+- How to time: the loop in the spike commit message, with the hook command inside `bash -c` (Claude Code's outer bash costs ~45 ms on Windows, against ~1 ms on Linux), one untimed call first to fill the cache, and 20 runs.
+
 ### Spike, Windows: to do
 On the laptop, with the wiki-tools clone on branch `speed-spike`:
 1. `WIKI_TEST_TIMING=1 bash tests/run-tests.sh 2>&1 | tail -22`: all checks green, and the `guard-fixtures` and `py-launch` times.
-2. The single-call loop above, in Git Bash (the commands are in the spike commit message).
-3. A real ai-wiki session started with `WIKI_HOOK_TIMING=1 claude`: about 20 Bash calls, one deliberate `git push`, then `~/.claude/plugins/data/wiki-wiki-tools/hook-timing.log` (it shows which plugin folder ran) and `~/.claude/plugins/data/wiki-wiki-tools/python`.
+2. A real ai-wiki session started with `WIKI_HOOK_TIMING=1 claude`: about 20 Bash calls, one deliberate `git push`, then `~/.claude/plugins/data/wiki-wiki-tools/hook-timing.log` (it shows which plugin folder ran) and `~/.claude/plugins/data/wiki-wiki-tools/python`.
