@@ -32,7 +32,7 @@ Size: one or two sessions. Stays within the current rules, and the existing fixt
 ## Step 2b: Port the guard to Python
 Only if step 2a isn't enough.
 
-1. **Launcher.** A small bash shim in `plugins/wiki/scripts/` finds an interpreter in the order `python3`, `python`, `py -3`. It skips the Windows Store alias by checking that `--version` actually runs and prints a 3.x version. With no interpreter found it fails closed (exit 2) with a message naming the fix. Fixtures: interpreter missing, Store alias only, `py` only (fakes on PATH, as `tests/sources/` does).
+1. **Launcher.** A small bash shim in `plugins/wiki/scripts/` finds an interpreter in the order `python3`, `python`, `py -3`. It skips the Windows Store alias by checking that `--version` actually runs and prints a 3.x version. With no interpreter found it fails closed (exit 2) with a message naming the fix. Fixtures: interpreter missing, Store alias only, `py` only (fakes on PATH, as `tests/sources/` does). Keep the probe off the per-call path: measured on Windows, a bash shim plus a `--version` check costs about 105 ms on top of the guard's ~105 ms (see "Python start" under Measurements). Store the interpreter the probe found, for example at `/wiki:init`, and re-probe only when running it fails, or have `hooks.json` call the interpreter directly.
 2. **Port.** `guard.py` for `guard.sh`, plus a `contract.py` module for the contract parsing in `lib-source.sh`. Standard library only. The bash versions stay during the transition.
 3. **Dual run.** `run-tests.sh` runs every guard fixture and every `gbroken`/`gdiag`/`gwin` case against both versions and fails on any disagreement, counted as its own check. `hooks.json` switches to the Python guard only when both agree on Linux and on Windows.
 4. **`/wiki:init`.** Check that an interpreter is there (via the launcher), with a fix-it message if not.
@@ -112,4 +112,19 @@ Findings:
 - Process starts explain it. Every section is about 21× slower than on Linux, whatever it does, and a guard call's ~680 starts (206 programs at ~26 ms, plus ~270 subshell forks) add up to its 7.8 s. No single script is slow. Forking is slow, everywhere.
 - The guard sections are 42% of the suite (1009 of 2380 s), as on Linux, so step 1's premise holds and step 2a goes ahead. `codebase`, `wiki-check` and `sources` are the next 41%.
 - **A guard call costs about 8 s on Windows, and it runs on every tool call in a wiki session.** This matters more than the test suite.
-- The gate (under 100 ms per guard call) is out of reach for any bash version that still starts programs: at 26–47 ms per start, it allows two or three. Step 2a should still cut the suite a lot. But reaching the gate for the guard means either pure-bash parsing with no `sed`/`awk`/`$(…)` at all, or step 2b. Before step 2a, time a Python start under Git Bash (`python -c pass`) on this machine, so the two can be compared.
+- The gate (under 100 ms per guard call) is out of reach for any bash version that still starts programs: at 26–47 ms per start, it allows two or three. Step 2a should still cut the suite a lot. But reaching the gate for the guard means either pure-bash parsing with no `sed`/`awk`/`$(…)` at all, or step 2b. Python's start time, below, was measured to compare the two.
+
+### Python start, Windows (Git Bash), 2026-11-05
+Same machine, 10 runs each.
+
+| Interpreter | `-c pass` | `-I -S -c pass` | `-c 'import json,re,os,sys,subprocess'` |
+|---|---|---|---|
+| `python3` (`WindowsApps`) | Store alias: prints "Python was not found" and doesn't run | | |
+| `python` 3.13.5 (`AppData\Local\Programs\Python\Python313`) | 64 ms | 51 ms | 105 ms |
+| `py -3` (3.13.5) | 91 ms | 73 ms | 129 ms |
+| `bash -c true`, for comparison | 45 ms | | |
+
+Findings:
+- A Python guard would take about 100 ms per call, where the bash one takes 7.8 s, so step 2b alone reaches the gate. Step 2a can still cut the suite time, but for the per-call guard cost step 2b is the likely route.
+- The Store alias is real here: `python3` is first on PATH and is the stub. `py` works but costs about 25 ms more than `python`.
+- The launcher could cost more than the guard. A bash shim (45 ms) that checks `--version` (another ~60 ms) before running the guard (~105 ms) comes to about 210 ms per call. See step 2b's launcher item.
