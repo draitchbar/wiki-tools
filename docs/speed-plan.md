@@ -1,6 +1,6 @@
 # Speed plan: a faster guard and test suite
 
-Status: **step 2b spike in progress** on branch `speed-spike`: built and measured on Linux 2026-11-05; on Windows single calls measured 2026-11-05 (126 ms against 1.5 s for bash), the suite run and a real session still to do. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
+Status: **step 2b spike in progress** on branch `speed-spike`: built and measured on Linux 2026-11-05; on Windows single calls measured (126 ms against 1.5 s for bash) and the suite green (646 checks) 2026-11-05, a real session still to do. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
 
 ## Problem
 `bash tests/run-tests.sh` takes about 40 minutes on Windows (Git Bash), measured 2026-11-05. On Linux, measured 2026-11-04: **112 s for 577 checks**, and one `guard.sh` call (a pass fixture) takes **about 320 ms**. That is slow even on Linux, so the cost is in starting processes, not in the logic: `guard.sh` has about 65 command substitutions or pipes, `lib-source.sh` about 50, and each one forks. Under Git Bash a fork costs several times more, which fits the Windows number.
@@ -247,7 +247,31 @@ Findings:
 - Without the cache a call costs about 500 ms, because the probe tries the `python3` Store alias first. That is why `/wiki:init` fills the cache (2b item 6).
 - How to time: the loop in the spike commit message, with the hook command inside `bash -c` (Claude Code's outer bash costs ~45 ms on Windows, against ~1 ms on Linux), one untimed call first to fill the cache, and 20 runs.
 
+### Spike, Windows, 2026-11-05: suite
+Same machine, plugged in with sleep turned off. `WIKI_TEST_TIMING=1 bash tests/run-tests.sh` on `speed-spike`.
+Suite: **2430 s (40 min 30 s)**, 646 checks, 0 failed.
+
+| Section | Time | Checks | Before the spike |
+|---|---|---|---|
+| guard-fixtures (includes the block-push dual run) | 862.1 s | 173 | 834.0 s / 133 |
+| py-launch | 23.5 s | 29 | new |
+| guard-broken | 178.8 s | 25 | 174.9 s |
+| codebase | 401.4 s | 93 | 399.5 s |
+| wiki-check | 305.7 s | 23 | 310.3 s |
+| sources | 278.1 s | 78 | 282.5 s |
+| install | 148.8 s | 56 | 148.7 s |
+| proton-drive | 73.1 s | 38 | 72.9 s |
+| lint | 61.3 s | 31 | 58.2 s |
+| lib-source | 53.0 s | 51 | 55.4 s |
+| ms-teams | 32.6 s | 26 | 32.9 s |
+| sync-status | 9.5 s | 10 | 8.5 s |
+| ocr, plugin-schema, setup | 2.5 s | 13 | 1.9 s |
+
+Findings:
+- The block-push dual run agrees on Windows: Python and bash give the same exit code and message for every fixture, except those in `tests/fixtures/py-stricter.txt`. The non-ASCII fixtures pass, so `-X utf8` works with native Windows Python fed from Git Bash.
+- All 29 launcher checks pass under Git Bash (fake interpreters, Store-alias stub, `py` only, broken caches, a space in the plugin path), at about 0.8 s each.
+- The spike adds about 50 s to the suite. The other sections are within a few percent of the run before it, so the two runs are comparable.
+
 ### Spike, Windows: to do
 On the laptop, with the wiki-tools clone on branch `speed-spike`:
-1. `WIKI_TEST_TIMING=1 bash tests/run-tests.sh 2>&1 | tail -22`: all checks green, and the `guard-fixtures` and `py-launch` times.
-2. A real ai-wiki session started with `WIKI_HOOK_TIMING=1 claude`: about 20 Bash calls, one deliberate `git push`, then `~/.claude/plugins/data/wiki-wiki-tools/hook-timing.log` (it shows which plugin folder ran) and `~/.claude/plugins/data/wiki-wiki-tools/python`.
+1. A real ai-wiki session started with `WIKI_HOOK_TIMING=1 claude`: about 20 Bash calls, one deliberate `git push`, then `~/.claude/plugins/data/wiki-wiki-tools/hook-timing.log` (it shows which plugin folder ran) and `~/.claude/plugins/data/wiki-wiki-tools/python`.
