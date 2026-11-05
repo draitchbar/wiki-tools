@@ -1,0 +1,10 @@
+# Fixtures where a Python hook is deliberately stricter than its bash
+# original (see plugins/wiki/scripts/hookjson.py). One per line:
+#   <dir>/<case> stricter   bash lets it through (exit 0), Python blocks
+#   <dir>/<case> message    both block, with different messages
+# run-tests.sh checks each version against this list, and the rest for
+# identical exit codes and messages.
+block-push/block-unicode-escape-push stricter
+block-push/block-truncated-json stricter
+block-push/block-top-level-array stricter
+block-push/block-non-string-command message

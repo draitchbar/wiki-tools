@@ -9,6 +9,9 @@
 # .claude/sources/ has gmail, local-folder, ms-teams and local-type instances)
 # and HOME=/home/u, the home directory the fixtures use.
 # Also runs the proton-drive wrapper's refusal checks against a fake Proton CLI.
+# block-push fixtures also run through block_push.py (via the hooks.json
+# command and py-launch.sh): exit code and message must match bash, except
+# the cases in tests/fixtures/py-stricter.txt. Needs Python 3.9 or later.
 
 here=$(cd "$(dirname "$0")" && pwd)
 scripts="$here/../plugins/wiki/scripts"
@@ -50,12 +53,31 @@ trap 'rm -rf "$tmp"' EXIT
 cp -r "$here/guard-wiki" "$tmp/gw"
 hook() { CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u bash "$scripts/$1.sh"; }
 
+# Python hooks run through the exact command hooks.json gives them (speed
+# plan, step 2b), with a test cache folder as CLAUDE_PLUGIN_DATA.
+plugin=$(cd "$scripts/.." && pwd)
+pycmd() { # NAME: the hooks.json command for a py-launch.sh hook, unescaped
+  sed -n 's/^ *"command": "\(\. .*py-launch\.sh\\" '"$1"'\)",\{0,1\}$/\1/p' "$plugin/hooks/hooks.json" | sed 's/\\"/"/g'
+}
+pyhook() { # NAME [ROOT]: run it as Claude Code would, in $tmp/gw
+  CLAUDE_PLUGIN_ROOT="${2:-$plugin}" CLAUDE_PLUGIN_DATA="${PYDATA-$tmp/pdata}" \
+    CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u bash -c "$(pycmd "$1")"
+}
+# Fixture cases where Python is deliberately stricter (tests/fixtures/py-stricter.txt).
+py_stricter=$(grep -v '^#' "$here/fixtures/py-stricter.txt")
+py_kind() { # DIR/CASE: stricter, message or nothing
+  local l
+  while IFS= read -r l; do
+    case "$l" in "$1 "*) printf '%s' "${l#"$1 "}"; return ;; esac
+  done <<< "$py_stricter"
+}
+
 section guard-fixtures
 # Fixtures name the plugin folder @PLUGIN@ (as pwd prints it) or
 # @PLUGIN_DRIVE@ (as Claude Code substitutes it on Windows: C:/...; on Linux
 # the same as @PLUGIN@).
-plugin=$(cd "$scripts/.." && pwd)
 plugin_drive=$(printf '%s' "$plugin" | sed 's#^/\([a-z]\)/#\U\1:/#')
+check "py-launch/hooks-json-block-push" yes "$([ -n "$(pycmd block_push)" ] && echo yes)"
 for f in "$here"/fixtures/*/*.json; do
   script=$(basename "$(dirname "$f")")
   case=$(basename "$f" .json)
@@ -64,9 +86,119 @@ for f in "$here"/fixtures/*/*.json; do
     block-*) want=2 ;;
     *) printf 'skip  %s (name must start with pass- or block-)\n' "$case"; continue ;;
   esac
-  sed -e "s#@PLUGIN_DRIVE@#$plugin_drive#g" -e "s#@PLUGIN@#$plugin#g" "$f" | hook "$script" >/dev/null 2>&1
-  check "$script/$case" "$want" "$?"
+  input=$(sed -e "s#@PLUGIN_DRIVE@#$plugin_drive#g" -e "s#@PLUGIN@#$plugin#g" "$f")
+  # Python twin, if any: dual run, comparing exit code and message.
+  case "$script" in block-push) py=block_push ;; *) py= ;; esac
+  if [ -z "$py" ]; then
+    printf '%s' "$input" | hook "$script" >/dev/null 2>&1
+    check "$script/$case" "$want" "$?"
+    continue
+  fi
+  bmsg=$(printf '%s' "$input" | hook "$script" 2>&1 >/dev/null); brc=$?
+  pmsg=$(printf '%s' "$input" | pyhook "$py" 2>&1 >/dev/null); prc=$?
+  case "$(py_kind "$script/$case")" in
+    stricter)
+      check "$script/$case (bash, known gap)" 0 "$brc"
+      check "$py/$case" "$want" "$prc" ;;
+    message)
+      check "$script/$case" "$want" "$brc"
+      check "$py/$case" "$want" "$prc" ;;
+    *)
+      check "$script/$case" "$want" "$brc"
+      check "$py/$case (same as bash)" "$brc $bmsg" "$prc $pmsg" ;;
+  esac
 done
+# Every listed case still exists.
+while IFS= read -r l; do
+  [ -n "$l" ] || continue
+  check "py-stricter/${l%% *} exists" yes "$([ -f "$here/fixtures/${l%% *}.json" ] && echo yes)"
+done <<< "$py_stricter"
+
+section py-launch
+# The launcher: interpreter cache, probe, fail-closed exits. Fake
+# interpreters live in $tmp/fk/<name>/; $realpy is the one the probe found.
+push='{"tool_name":"Bash","tool_input":{"command":"git push"}}'
+ls_='{"tool_name":"Bash","tool_input":{"command":"ls"}}'
+rm -rf "$tmp/pdata"
+printf '%s' "$ls_" | pyhook block_push >/dev/null 2>&1
+check "py-launch/probe-and-run" 0 "$?"
+realpy=$(cat "$tmp/pdata/python" 2>/dev/null)
+case "$realpy" in /*/python*|[A-Za-z]:/*/python*) r=ok ;; *) r="cache: '$realpy'" ;; esac
+check "py-launch/cache-written" ok "$r"
+check "py-launch/cache-trailing-newline" 1 "$(grep -c '' "$tmp/pdata/python")"
+fk() { # NAME PROGRAM BODY: a fake interpreter $tmp/fk/NAME/PROGRAM
+  mkdir -p "$tmp/fk/$1"
+  printf '#!/bin/sh\n%s\n' "$3" > "$tmp/fk/$1/$2"
+  chmod +x "$tmp/fk/$1/$2"
+}
+fk store python3 'echo "Python was not found; run without arguments to install from the Microsoft Store." >&2; exit 9009'
+fk pyonly py '[ "$1" = -3 ] && shift; exec "'"$realpy"'" "$@"'
+fk old python3 'echo "old $0"'
+fk exit1 python 'echo "Traceback (most recent call last):" >&2; echo "SyntaxError: invalid syntax" >&2; exit 1'
+fk exit127 python 'exit 127'
+mkdir -p "$tmp/fk/none"
+setcache() { mkdir -p "$tmp/pdata"; printf "$2" "$1" > "$tmp/pdata/python"; }
+pyx() { # INPUT [PATH]: exit code of block_push, PATH optionally replaced
+  if [ -n "${2:-}" ]; then
+    printf '%s' "$1" | CLAUDE_PLUGIN_ROOT="$plugin" CLAUDE_PLUGIN_DATA="$tmp/pdata" PATH="$2" "$BASH" -c "$(pycmd block_push)" >/dev/null 2>&1
+  else
+    printf '%s' "$1" | pyhook block_push >/dev/null 2>&1
+  fi
+  echo $?
+}
+pymsg() { printf '%s' "$1" | CLAUDE_PLUGIN_ROOT="$plugin" CLAUDE_PLUGIN_DATA="$tmp/pdata" PATH="${2:-$PATH}" "$BASH" -c "$(pycmd block_push)" 2>&1 >/dev/null; }
+# A warm cache, used with no python on PATH at all.
+setcache "$realpy" '%s\n'
+check "py-launch/warm-cache-pass" 0 "$(pyx "$ls_" "$tmp/fk/none")"
+check "py-launch/warm-cache-push" 2 "$(pyx "$push" "$tmp/fk/none")"
+setcache "$realpy" '%s'
+check "py-launch/cache-no-newline" 0 "$(pyx "$ls_" "$tmp/fk/none")"
+# Stale, relative or non-python cache entries: ignored, probed again, rewritten.
+setcache "$tmp/gone/python3" '%s\n'
+check "py-launch/stale-cache" 0 "$(pyx "$ls_")"
+check "py-launch/stale-cache-rewritten" "$realpy" "$(cat "$tmp/pdata/python")"
+setcache python3 '%s\n'
+check "py-launch/relative-cache" 0 "$(pyx "$ls_")"
+check "py-launch/relative-cache-rewritten" "$realpy" "$(cat "$tmp/pdata/python")"
+setcache "$(command -v true)" '%s\n'
+check "py-launch/non-python-cache-push" 2 "$(pyx "$push")"
+# A cached interpreter that fails: blocked, whatever the call.
+setcache "$tmp/fk/exit1/python" '%s\n'
+check "py-launch/exit1-pass-blocked" 2 "$(pyx "$ls_")"
+case "$(pymsg "$ls_")" in *"block_push.py failed (exit 1)"*) r=ok ;; *) r=other ;; esac
+check "py-launch/exit1-message" ok "$r"
+setcache "$tmp/fk/exit127/python" '%s\n'
+check "py-launch/exit127-pass-blocked" 2 "$(pyx "$ls_")"
+# Probing: the Store alias, an old Python, `py -3` only, nothing.
+rm -f "$tmp/pdata/python"
+check "py-launch/store-alias-only" 2 "$(pyx "$ls_" "$tmp/fk/store")"
+case "$(pymsg "$ls_" "$tmp/fk/store")" in *"no Python 3.9 or later found"*) r=ok ;; *) r=other ;; esac
+check "py-launch/store-alias-message" ok "$r"
+check "py-launch/old-python-only" 2 "$(pyx "$ls_" "$tmp/fk/old")"
+check "py-launch/py-only-pass" 0 "$(pyx "$ls_" "$tmp/fk/pyonly")"
+rm -f "$tmp/pdata/python"
+check "py-launch/py-only-push" 2 "$(pyx "$push" "$tmp/fk/pyonly")"
+check "py-launch/none" 2 "$(pyx "$ls_" "$tmp/fk/none")"
+# No CLAUDE_PLUGIN_DATA: probes every time, caches nothing.
+r=$(printf '%s' "$ls_" | PYDATA= pyhook block_push >/dev/null 2>&1; echo $?)
+check "py-launch/no-plugin-data" 0 "$r"
+# Empty stdin; a bad or missing script name.
+check "py-launch/empty-stdin" 2 "$(pyx '')"
+r=$(printf '%s' "$ls_" | "$BASH" -c '. "$1/scripts/py-launch.sh" ../block_push' _ "$plugin" >/dev/null 2>&1; echo $?)
+check "py-launch/bad-name" 2 "$r"
+r=$(printf '%s' "$ls_" | "$BASH" -c '. "$1/scripts/py-launch.sh" no_such_hook' _ "$plugin" >/dev/null 2>&1; echo $?)
+check "py-launch/missing-script" 2 "$r"
+# A plugin folder with a space in its path.
+mkdir -p "$tmp/plug in" && cp -r "$plugin" "$tmp/plug in/wiki"
+r=$(printf '%s' "$push" | pyhook block_push "$tmp/plug in/wiki" >/dev/null 2>&1; echo $?)
+check "py-launch/space-in-root-push" 2 "$r"
+r=$(printf '%s' "$ls_" | pyhook block_push "$tmp/plug in/wiki" >/dev/null 2>&1; echo $?)
+check "py-launch/space-in-root-pass" 0 "$r"
+# WIKI_HOOK_TIMING=1 logs one line per call.
+setcache "$realpy" '%s\n'
+printf '%s' "$push" | WIKI_HOOK_TIMING=1 pyhook block_push >/dev/null 2>&1
+case "$(cat "$tmp/pdata/hook-timing.log" 2>/dev/null)" in "block_push "[0-9]*" rc=2 $realpy "*) r=ok ;; *) r=other ;; esac
+check "py-launch/timing-log" ok "$r"
 # The plugin folder written with ~, when it is under HOME.
 tilde_cmd="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"bash ~/$(basename "$plugin")/scripts/lint.sh\"}}"
 printf '%s' "$tilde_cmd" | CLAUDE_PROJECT_DIR="$tmp/gw" HOME=$(dirname "$plugin") bash "$scripts/guard.sh" >/dev/null 2>&1

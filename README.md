@@ -46,6 +46,8 @@ plugins/wiki/
     lib-hookjson.sh               jq-free hook-input parsing (fails closed)
     lib-source.sh                 jq-free parsing of source contracts and instances
     block-push.sh                 blocks git push (Bash, PowerShell)
+    block_push.py, hookjson.py    Python port of block-push and the hook-input parsing (speed plan spike; runs alongside block-push.sh)
+    py-launch.sh                  runs a Python hook: cached interpreter, probe, fails closed
     guard.sh                      source/guard protection (Bash, PowerShell, Write/Edit), rules from the contracts
     sources.sh                    read-only view of a wiki's sources (list, show, catalog, contract, settings, check-settings)
     install-source-file.sh        the user (never Claude) checks and installs one file into .claude/sources/

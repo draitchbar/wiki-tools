@@ -1,6 +1,6 @@
 # Speed plan: a faster guard and test suite
 
-Status: **step 1 done**: Linux measured 2026-11-04, Windows 2026-11-05. Next: step 2a (test runner) and step 2b (Python guard); bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
+Status: **step 2b spike in progress** on branch `speed-spike`: built and measured on Linux 2026-11-05, Windows still to measure. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
 
 ## Problem
 `bash tests/run-tests.sh` takes about 40 minutes on Windows (Git Bash), measured 2026-11-05. On Linux, measured 2026-11-04: **112 s for 577 checks**, and one `guard.sh` call (a pass fixture) takes **about 320 ms**. That is slow even on Linux, so the cost is in starting processes, not in the logic: `guard.sh` has about 65 command substitutions or pipes, `lib-source.sh` about 50, and each one forks. Under Git Bash a fork costs several times more, which fits the Windows number.
@@ -21,7 +21,7 @@ Size: half a day.
 4. Record the numbers below under "Measurements". If the guard and contract parsing don't dominate on Windows, rethink before going on.
 
 ## Step 2a: A faster test runner
-Size: one session. Stays within the current rules. Can run before or alongside step 2b.
+Size: one session. Stays within the current rules. Only if still needed after step 2b (decided 2026-11-05).
 
 - `run-tests.sh`: run the fixture loop (131 files) in parallel with `xargs -P` (Git Bash has it). Each worker writes its result to a file, and the runner tallies them afterwards so the output order stays the same. Set up each throwaway wiki once per section, not once per check, wherever the checks don't change it.
 - Tests only: no change to `guard.sh`, `lib-source.sh` or any wrapper.
@@ -30,17 +30,90 @@ Size: one session. Stays within the current rules. Can run before or alongside s
 Not doing (decided 2026-11-05): trimming `guard.sh` and `lib-source.sh` in bash. On Windows a process start costs 26–47 ms, so a guard under the 100 ms gate could start at most two or three programs. Every lookup would have to be pure bash: parsing contracts with no `sed`, `awk` or `$(…)`. That rewrite would be fragile and still slower than Python's ~105 ms (Measurements, "Python start"). The guard goes straight to step 2b.
 
 ## Step 2b: Port the guard to Python
-The fix for the per-call cost: about 8 s per tool call on Windows today, about 100 ms expected after the port. Starting this step lifts the "no Python" rule in CLAUDE.md for the guard and contract parsing (decided 2026-11-01).
+This fixes the per-call cost: about 8 s per tool call on Windows today, about 150 ms expected after the port (47 ms of bash, which Claude Code starts for every hook anyway, plus about 105 ms of Python). Starting this step lifts the "no Python" rule in CLAUDE.md for the guard, block-push and the contract parsing they share (decided 2026-11-01). CLAUDE.md's rule is updated when the spike starts, not at the end.
 
-1. **Launcher.** A small bash shim in `plugins/wiki/scripts/` finds an interpreter in the order `python3`, `python`, `py -3`. It skips the Windows Store alias by checking that `--version` actually runs and prints a 3.x version. With no interpreter found it fails closed (exit 2) with a message naming the fix. Fixtures: interpreter missing, Store alias only, `py` only (fakes on PATH, as `tests/sources/` does). Keep the probe off the per-call path: measured on Windows, a bash shim plus a `--version` check costs about 105 ms on top of the guard's ~105 ms (see "Python start" under Measurements). Store the interpreter the probe found, for example at `/wiki:init`, and re-probe only when running it fails, or have `hooks.json` call the interpreter directly.
-2. **Port.** `guard.py` for `guard.sh`, plus a `contract.py` module for the contract parsing in `lib-source.sh`. Standard library only. The bash versions stay during the transition.
-3. **Dual run.** `run-tests.sh` runs every guard fixture and every `gbroken`/`gdiag`/`gwin` case against both versions and fails on any disagreement, counted as its own check. `hooks.json` switches to the Python guard only when both agree on Linux and on Windows.
-4. **`/wiki:init`.** Check that an interpreter is there (via the launcher), with a fix-it message if not.
-5. **Clean up.** Delete the bash guard and its dual-run code. Replace the "no Python" rule in CLAUDE.md with the new rule (which scripts are Python, the launcher, the minimum version). Update the README. The commit message says the guard was reimplemented.
+Plan reviewed 2026-11-05 by a review agent; its findings are folded in below.
+
+### Rules for every Python hook
+These keep a Python hook from failing open:
+- **Exit codes.** The launcher runs Python as a child, not with `exec`, and maps any exit code other than 0 or 2 to a message plus `exit 2`. Python exits 1 on a SyntaxError, an ImportError or a fatal error before the script's own `try` can act. Bash exits 126/127 when it can't run the program. Neither may let the call through, whatever `"onFailure": "block"` covers. Under MSYS, `exec` of a native program saves almost nothing anyway, because the bash side waits for the child either way.
+- **Inside the script,** everything sits in a `try`, and any exception exits 2. Use `sys.exit`, never `exit()` (`-S` removes it).
+- **Encoding.** Run as `"$py" -I -S -X utf8 …`. Under `-I`, `PYTHONUTF8` and `PYTHONIOENCODING` are ignored, and on Windows piped stdin would be decoded as cp1252, garbling a path such as `Bøger` so it no longer matches a root. `-X utf8` still applies under `-I`. Messages go to stderr as UTF-8.
+- **Imports.** `-I` drops the script's folder from `sys.path`, so a script that imports a sibling module adds its own folder first: `sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))`. The plugin folder is protected, so this is safe.
+- **JSON, carried over from `lib-hookjson.sh`,** each with a fixture:
+  - a missing or empty `tool_name`, or a top-level value that isn't an object, blocks (`block-malformed`);
+  - a `command`, `file_path`, `content`, `new_string`, `path`, `pattern` or `glob` that isn't a string blocks; it never becomes `str(value)` and never crashes as an allow;
+  - `\n` and `\r` in a value become `;`, and `\t` becomes a space;
+  - `description` is never read;
+  - regexes that look across a command use `re.DOTALL`.
+- **Intended differences from bash,** each with a fixture that only the Python version blocks:
+  - `\uXXXX` escapes are decoded;
+  - every MultiEdit `new_string` is checked (bash's greedy `sed` takes only the last one);
+  - non-ASCII is lowercased.
+
+### Launcher
+`plugins/wiki/scripts/py-launch.sh`, sourced by the hook command (`. "${CLAUDE_PLUGIN_ROOT}/scripts/py-launch.sh" block_push`), so it starts no bash of its own. It:
+- finds its own folder from `${BASH_SOURCE[0]%/*}`, since `$0` is `bash` when sourced;
+- reads the cached interpreter path with `read -r` (a builtin) and uses it only if it is absolute, executable and its file name starts with `python`;
+- otherwise takes the slow path. It runs each candidate (`python3`, `python`, `py -3`) once with `-c 'import sys; print(sys.version_info >= (3, 9)); print(sys.executable)'` and caches the first good `sys.executable`. This one call checks the version, rejects the Store alias (it doesn't run) without a `WindowsApps` path rule, and turns `py -3` into a real path, which also saves `py`'s ~25 ms per call. The cache is written to a temp file plus `mv` (two hooks may probe at once), with a trailing newline;
+- with no interpreter found, prints a message naming the fix and exits 2.
+
+**Cache location:** `${CLAUDE_PLUGIN_DATA}/python` only. A cache that points at a program exiting 0 (for example `/bin/true`) would allow every call, so the cache must be protected. Claude Code (2.1.318) passes `CLAUDE_PLUGIN_DATA` to hooks as `~/.claude/plugins/data/<plugin>-<marketplace>/`, which the guards' existing `.claude/plugins/` entry already protects (checked 2026-11-05). When it is unset (older Claude Code, a manual run), the launcher probes on every call and caches nothing. That is slow but safe, and it needs no new protected path.
+
+### Spike: block-push in Python (first)
+We already know Python's start time. The spike tests what we don't know, on the smallest real hook: the hook plumbing on Windows, the real per-call cost inside a Claude session, and what Windows Python receives. `block-push.sh` is 21 lines plus `lib-hookjson.sh`, runs on every Bash call like the guard, and has 19 fixtures. Everything the spike builds stays.
+
+Work happens on branch `speed-spike`. It stays off `main` until the go decision. Commit messages say that a guard changed, as CLAUDE.md asks.
+
+1. **The launcher** as above, and **`block_push.py`**, following the rules above. Standard library only, imports limited to `json`, `os`, `re` and `sys`. Messages stay word for word the same.
+2. **Dual run** in `run-tests.sh`. Every block-push fixture runs against both versions. Exit code and message must agree, except for the listed intended differences. The tests set the cache folder to a test folder and never touch the user's real cache.
+3. **Launcher fixtures,** with fake interpreters on PATH:
+   - a fresh cache;
+   - a stale cache (interpreter deleted);
+   - a cached interpreter that exists but is broken;
+   - a cache with no trailing newline;
+   - a cache holding a relative path, or a path to a program not named `python*`;
+   - a Store-alias stub only, `py` only, and Python 3.8 only;
+   - none at all;
+   - a fake interpreter that exits 1, exits 127, or prints a traceback (each must give 2);
+   - empty stdin;
+   - a non-ASCII path.
+4. **End to end:** run the exact `command` string from `hooks.json` through `bash -c`, with `CLAUDE_PLUGIN_ROOT` set to a path containing a space. Today's tests call `bash "$scripts/$1.sh"` directly and never test the hook command itself.
+5. **Measure** on both machines and add the results to Measurements:
+   - one call, loop of 10: `block-push.sh` against the launcher plus `block_push.py`, with a warm cache;
+   - the block-push section of the suite, both versions;
+   - the full dual run on Windows (the user's run).
+6. **Real session, on Windows.** On `speed-spike`, `hooks.json` runs the Python block-push **alongside** `block-push.sh`, not instead of it, so bash stays the safety net. While `WIKI_HOOK_TIMING=1` is set (start `claude` with it), the launcher appends a line to `${CLAUDE_PLUGIN_DATA}/hook-timing.log`: the script, the time Python ran in ms, its exit code, the interpreter and the plugin folder it ran from. The plugin folder shows which copy of the plugin is loaded: the clone, or an installed copy that a `git checkout` doesn't change.
+
+**Go** if all of these hold:
+- about 20 real Bash calls run with no launcher error;
+- a deliberate `git push` is blocked by the Python hook, and its message reaches Claude intact (block-push's messages are ASCII; non-ASCII messages, which name paths, are checked in the guard's dual run on Windows);
+- the cache ends up in the expected, protected folder;
+- the Python hook alone costs at most 200 ms at p90 on Windows, from the log.
+
+Then merge the spike and do the rest of 2b. **Rethink** if the plumbing costs much more, for example because sourcing doesn't work there and a second bash starts. Then try calling the interpreter directly from `hooks.json` before porting the guard.
+
+### The rest of 2b, after the spike
+1. **`contract.py`**: the parts of `lib-source.sh` the guard uses (`has_fm`, `field`, `list`, `values`, `contract` with its shadowing error, `instances`, `expand`, `is_abs`, `has_dots`). Until `sources.sh`, `wiki-check`, `lint` and `install` move to it (see "Later"), a parity check keeps the two parsers in step: `contract.py field|list|has-fm FILE KEY` runs against every `SOURCE.md` and instance file in the plugin and the test wikis, and must match the bash functions byte for byte.
+2. **`guard.py`**, a port of `guard.sh` with the same order of checks and the same messages. Carried over exactly:
+   - the Read/Grep/Glob fast path;
+   - the first-broken-file rule and the diagnostic exceptions;
+   - `PLUGIN_FORMS`, `root_forms`, `abs_path`, `script_path`, `allowed_script`, `main_ops` and `contains_any`.
+   Files are read as UTF-8 with `errors="replace"`, CRs stripped. `subprocess` is imported only for the `git rev-parse` fallback.
+3. **Windows paths.** Native Python can't open `/c/Users`, so any `/c/...` path is converted to `c:/...` before the filesystem is touched. `~` expands from `HOME`, else `USERPROFILE`. Git Bash also rewrites POSIX-looking environment variables when it starts a native program: in a real session Python gets `HOME` as `C:\Users\…`, and the fixtures' `HOME=/home/u` arrives as `C:/Program Files/Git/home/u`. Either normalise every form in Python, or set `MSYS2_ENV_CONV_EXCL` in the tests so both versions see the same value. Decide when the dual run first runs on Windows.
+4. **Fold block-push into `guard.py`** (recommended), so a Bash call starts one interpreter, not two, unless the spike shows a second start is cheap enough to keep them apart. The push check runs **first**, before the Read/Grep/Glob, `allowed_script` and `diagnostic_ok` exits, and independent of `BROKEN`. Today `bash <plugin>/scripts/sources.sh show git-push` passes the guard and is blocked only by block-push. All 19 block-push fixtures keep running against `guard.py`.
+5. **Dual run** for every guard fixture, every `gbroken`/`gdiag`/`gwin` case and the tilde/backslash cases: exit codes and messages agree, except the listed differences. Green on Linux, then on Windows (the user's run), with timings added to Measurements.
+6. **`/wiki:init`** checks that the launcher finds an interpreter and fills the cache, with a fix-it message if not.
+7. **Switch `hooks.json`** to the launcher for the guard. The commit message says the guard was reimplemented.
+8. **Clean up after about a week of use in both wikis:** delete `guard.sh`, `block-push.sh`, `lib-hookjson.sh` and the dual run. Finish the CLAUDE.md rule (which scripts are Python, the launcher, the minimum version), and update the README.
+
+Size: about 250 lines in `guard.py`, 120 in `contract.py`, 60 in the launcher and 150 in the tests. Two or three sessions after the spike, plus the Windows runs.
+
+Defaults taken 2026-11-05, open to change: Python 3.9 or later; the dual run compares messages as well as exit codes; a week between switching and deleting.
 
 Not ported: `codebase/*.sh`, proton-drive `read.sh` and the other wrappers that mostly wait on `git`/`gh`/a CLI. Proton's faster `new` (see `proton-drive-plan.md`) is decided at this point, from its step 1 timing.
 
-Later, after the port: `wiki-check` (13.5 s per check on Windows) and `sources.sh` (about 3 s per `show`) don't run on every tool call, so they wait. Then decide whether they use `contract.py` or get trimmed in bash.
+Later, after the port: `wiki-check` (13.5 s per check on Windows) and `sources.sh` (about 3 s per `show`) don't run on every tool call, so they wait. The aim is to move them, with `lint` and `install`, onto `contract.py`, then delete the bash parser in `lib-source.sh` and the parity check with it. Trimming them in bash is the fallback.
 
 ## Step 3 (optional): Run guard fixtures in one process
 After step 2b only. Most guard fixtures run inside one Python process that imports `guard.py`, so a case costs no new process. Keep a handful of end-to-end runs through the real hook entry point (`hooks.json` command, launcher, stdin JSON, exit code). Leave the source-wrapper tests alone: their cost is in `git` and the fakes.
@@ -130,3 +203,24 @@ Findings:
 - A Python guard would take about 100 ms per call, where the bash one takes 7.8 s, so step 2b alone reaches the gate. Step 2a can still cut the suite time, but for the per-call guard cost step 2b is the likely route.
 - The Store alias is real here: `python3` is first on PATH and is the stub. `py` works but costs about 25 ms more than `python`.
 - The launcher could cost more than the guard. A bash shim (45 ms) that checks `--version` (another ~60 ms) before running the guard (~105 ms) comes to about 210 ms per call. See step 2b's launcher item.
+
+### Spike, Linux, 2026-11-05
+Same machine as the Linux numbers above. Each call goes through `bash -c "<hooks.json command>"`, as Claude Code runs it, averaged over 20 runs.
+
+| block-push call | `git push` (blocks) | `git commit` (passes) | Programs run | Forks |
+|---|---|---|---|---|
+| `bash block-push.sh` (today) | 59 ms | 58 ms | 37 | 88 |
+| `. py-launch.sh block_push`, warm cache | 24 ms | 23 ms | 1 (Python) | 1 |
+| same, no `CLAUDE_PLUGIN_DATA` (probes every call) | 32 ms | 33 ms | — | — |
+
+For comparison: `bash -c true` 1 ms, `python3 -I -S -X utf8 -c pass` 13 ms (Python 3.14.4).
+
+Suite: 646 checks, 0 failed. The block-push fixtures (28, 9 of them new) run against both versions, and the 29 `py-launch` checks take 1.2 s.
+
+Found by the dual run: `git push` (a JSON escape for `git push`) gets past `block-push.sh` because `lib-hookjson.sh` leaves `\uXXXX` undecoded. `block_push.py` blocks it. The guard has the same gap for its words and paths until `guard.py` replaces it. Listed in `tests/fixtures/py-stricter.txt`.
+
+### Spike, Windows: to do
+On the laptop, with the wiki-tools clone on branch `speed-spike`:
+1. `WIKI_TEST_TIMING=1 bash tests/run-tests.sh 2>&1 | tail -22`: all checks green, and the `guard-fixtures` and `py-launch` times.
+2. The single-call loop above, in Git Bash (the commands are in the spike commit message).
+3. A real ai-wiki session started with `WIKI_HOOK_TIMING=1 claude`: about 20 Bash calls, one deliberate `git push`, then `~/.claude/plugins/data/wiki-wiki-tools/hook-timing.log` (it shows which plugin folder ran) and `~/.claude/plugins/data/wiki-wiki-tools/python`.
