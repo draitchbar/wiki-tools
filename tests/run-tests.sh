@@ -179,6 +179,13 @@ check "py-launch/py-only-pass" 0 "$(pyx "$ls_" "$tmp/fk/pyonly")"
 rm -f "$tmp/pdata/python"
 check "py-launch/py-only-push" 2 "$(pyx "$push" "$tmp/fk/pyonly")"
 check "py-launch/none" 2 "$(pyx "$ls_" "$tmp/fk/none")"
+# Probe order: python before python3 (on Windows python3 is usually the
+# Store alias, slow to fail). A working python means python3 never runs.
+fk order python 'exec "'"$realpy"'" "$@"'
+fk order python3 ': > "'"$tmp"'/python3-ran"; exit 9009'
+rm -f "$tmp/pdata/python" "$tmp/python3-ran"
+check "py-launch/order-python-first" 0 "$(pyx "$ls_" "$tmp/fk/order")"
+check "py-launch/order-python3-not-run" no "$([ -e "$tmp/python3-ran" ] && echo yes || echo no)"
 # No CLAUDE_PLUGIN_DATA: probes every time, caches nothing.
 r=$(printf '%s' "$ls_" | PYDATA= pyhook block_push >/dev/null 2>&1; echo $?)
 check "py-launch/no-plugin-data" 0 "$r"

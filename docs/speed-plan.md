@@ -55,7 +55,7 @@ These keep a Python hook from failing open:
 `plugins/wiki/scripts/py-launch.sh`, sourced by the hook command (`. "${CLAUDE_PLUGIN_ROOT}/scripts/py-launch.sh" block_push`), so it starts no bash of its own. It:
 - finds its own folder from `${BASH_SOURCE[0]%/*}`, since `$0` is `bash` when sourced;
 - reads the cached interpreter path with `read -r` (a builtin) and uses it only if it is absolute, executable and its file name starts with `python`;
-- otherwise takes the slow path. It runs each candidate (`python3`, `python`, `py -3`) once with `-c 'import sys; print(sys.version_info >= (3, 9)); print(sys.executable)'` and caches the first good `sys.executable`. This one call checks the version, rejects the Store alias (it doesn't run) without a `WindowsApps` path rule, and turns `py -3` into a real path, which also saves `py`'s ~25 ms per call. The cache is written to a temp file plus `mv` (two hooks may probe at once), with a trailing newline;
+- otherwise takes the slow path. It runs each candidate (`python`, `python3`, `py -3`, in that order: on Windows `python3` is usually the Store alias, about 300 ms to fail) once with `-c 'import sys; print(sys.version_info >= (3, 9)); print(sys.executable)'` and caches the first good `sys.executable`. This one call checks the version, rejects the Store alias (it doesn't run) without a `WindowsApps` path rule, and turns `py -3` into a real path, which also saves `py`'s ~25 ms per call. The cache is written to a temp file plus `mv` (two hooks may probe at once), with a trailing newline;
 - with no interpreter found, prints a message naming the fix and exits 2.
 
 **Cache location:** `${CLAUDE_PLUGIN_DATA}/python` only. A cache that points at a program exiting 0 (for example `/bin/true`) would allow every call, so the cache must be protected. Claude Code (2.1.318) passes `CLAUDE_PLUGIN_DATA` to hooks as `~/.claude/plugins/data/<plugin>-<marketplace>/`, which the guards' existing `.claude/plugins/` entry already protects (checked 2026-11-05). When it is unset (older Claude Code, a manual run), the launcher probes on every call and caches nothing. That is slow but safe, and it needs no new protected path.
@@ -217,7 +217,7 @@ For comparison: `bash -c true` 1 ms, `python3 -I -S -X utf8 -c pass` 13 ms (Pyth
 
 Suite: 646 checks, 0 failed. The block-push fixtures (28, 9 of them new) run against both versions, and the 29 `py-launch` checks take 1.2 s.
 
-Found by the dual run: `git push` (a JSON escape for `git push`) gets past `block-push.sh` because `lib-hookjson.sh` leaves `\uXXXX` undecoded. `block_push.py` blocks it. The guard has the same gap for its words and paths until `guard.py` replaces it. Listed in `tests/fixtures/py-stricter.txt`.
+Found by the dual run: `\u0067it push` (a JSON escape for `git push`) gets past `block-push.sh` because `lib-hookjson.sh` leaves `\uXXXX` undecoded. `block_push.py` blocks it. The guard has the same gap for its words and paths until `guard.py` replaces it. Listed in `tests/fixtures/py-stricter.txt`.
 
 ### Spike, Windows, 2026-11-05: single calls
 Same machine as the Windows numbers above. Each call goes through `bash -c "<hooks.json command>"`, as Claude Code runs it, 20 runs each. Every call gave the expected exit code.
@@ -244,7 +244,7 @@ Findings:
 - Sourcing works: bash plus `block_push.py` adds up to the whole hook command, so the launcher costs almost nothing and starts no second bash. No need for the "Rethink" branch.
 - The Python hook costs about 126 ms per call, steady, close to the ~150 ms expected. That is about 12× less than `block-push.sh`, which alone adds 1.5 s to every Bash call today, on top of the guard's 7.8 s.
 - About 30 ms of the Python time is imports (`json`, `re`). A possible saving later, not needed for the gate.
-- Without the cache a call costs about 500 ms, because the probe tries the `python3` Store alias first. That is why `/wiki:init` fills the cache (2b item 6).
+- Without the cache a call cost about 500 ms, because the probe tried the `python3` Store alias first. The probe now tries `python` first (commit after the spike), which should bring an uncached call to about 200 ms (estimate, not measured). `/wiki:init` still fills the cache (2b item 6).
 - How to time: the loop in the spike commit message, with the hook command inside `bash -c` (Claude Code's outer bash costs ~45 ms on Windows, against ~1 ms on Linux), one untimed call first to fill the cache, and 20 runs.
 
 ### Spike, Windows, 2026-11-05: suite
