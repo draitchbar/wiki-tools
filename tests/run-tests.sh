@@ -11,7 +11,8 @@
 # Also runs the proton-drive wrapper's refusal checks against a fake Proton CLI.
 # block-push fixtures also run through block_push.py (via the hooks.json
 # command and py-launch.sh): exit code and message must match bash, except
-# the cases in tests/fixtures/py-stricter.txt. Needs Python 3.9 or later.
+# the cases in tests/fixtures/py-stricter.txt. contract.py is checked against
+# lib-source.sh (contract-parity). Needs Python 3.9 or later.
 
 here=$(cd "$(dirname "$0")" && pwd)
 scripts="$here/../plugins/wiki/scripts"
@@ -830,6 +831,83 @@ awk '/^(read_tools|forbidden_tools|guard_words|scripts):/ { print; skip = 1; nex
 check "lib-source/tools-valid" 0 "$(lsrun "src_validate_contract '$tmp/at/tl/SOURCE.md'; echo \$?")"
 sed -i 's#^read_tools:#read_tools:\n  - Read(~/.cache/wiki-sources/*/*/**)\n  - Edit(~/.cache/wiki-sources/*/*/**)#' "$tmp/at/tl/SOURCE.md"
 check "lib-source/tools-cache-rules" 0 "$(lsrun "src_validate_contract '$tmp/at/tl/SOURCE.md'; echo \$?")"
+
+section contract-parity
+# contract.py (speed plan, step 2b) against lib-source.sh: has-fm and the
+# values of every frontmatter key (and one absent key) must match byte for
+# byte, for every contract and instance file in the plugin and the tests,
+# and for edge cases. Run directly with the interpreter py-launch.sh caches.
+pyrun() { # SCRIPT ARGS...
+  [ -s "$tmp/pyrun/python" ] || printf '{}' | PYDATA="$tmp/pyrun" pyhook block_push >/dev/null 2>&1
+  local py; IFS= read -r py < "$tmp/pyrun/python"
+  "$py" -I -S -X utf8 "$scripts/$1.py" "${@:2}"
+}
+# Pure string functions: keep Git Bash from rewriting /paths and HOME.
+pystr() { MSYS2_ARG_CONV_EXCL='*' MSYS2_ENV_CONV_EXCL=HOME pyrun "$@"; }
+cp_edge="$tmp/cp-edge"
+mkdir -p "$cp_edge"
+printf -- '---\ntype: x\n  - y\n' > "$cp_edge/no-close.md"
+: > "$cp_edge/empty.md"
+printf '\357\273\277---\ntype: x\n---\n' > "$cp_edge/bom.md"
+printf -- '--- \t\ntitle:   padded value \t \nkey:value\ntab:\tx\nempty:\nlist:\n  - a\n\t- tabbed\n  -nospace\n  - \n    - nested\n  -  trailing  \n- notindented\nFoo:\n  - upper\nfoo bar: not a key\n  - under-foo\nother: x\n  - after-scalar\n----\n---\nbody: ignored\n' > "$cp_edge/spaces.md"
+sed 's/$/\r/' "$cp_edge/spaces.md" > "$cp_edge/crlf.md"
+printf -- '---\ntitle: a\rb\nlist:\n  - c\r\r\n---\n' > "$cp_edge/bare-cr.md"
+printf -- '---\ntitle: caf\351\nlist:\n  - \377\376\n  - ok\n---\n' > "$cp_edge/non-utf8.md"
+printf -- '---\ntitle: first\ntitle: second\nlist:\n  - a\nlist:\n  - b\n---\n' > "$cp_edge/dup-keys.md"
+printf -- '---\ntitle: x\n---' > "$cp_edge/no-final-newline.md"
+printf -- '---\ntitle: y' > "$cp_edge/open-no-newline.md"
+printf -- 'title: no fence\n---\n' > "$cp_edge/no-fence.md"
+cp_bash() { # FILE KEY...
+  (. "$scripts/lib-source.sh"; f=$1; shift
+   src_has_fm "$f"; echo "has_fm $?"
+   for k; do echo "-- $k"; src_values "$f" "$k"; done) 2>&1
+}
+for f in "$plugin"/sources/*/SOURCE.md $(find "$here" "$tmp/ls" -path '*/.claude/sources/*' -name '*.md' | LC_ALL=C sort) \
+         "$here"/sources/*/plugin/sources/*/SOURCE.md "$cp_edge"/*.md; do
+  # shellcheck disable=SC2046 # one key per word
+  set -- $( (. "$scripts/lib-source.sh"; src_fm "$f") | sed -n 's/^\([A-Za-z_]\{1,\}\):.*/\1/p' | LC_ALL=C sort -u) nosuch_key
+  b=$(cp_bash "$f" "$@" | od -An -tx1)
+  p=$(pyrun contract parity "$f" "$@" 2>&1 | od -An -tx1)
+  name=${f#"$here/"}; name=${name#"$tmp/"}; name=${name#"$plugin/"}
+  check "contract-parity/$name" same "$([ "$b" = "$p" ] && echo same || printf 'bash %s python %s' "$b" "$p")"
+done
+# Lookups and paths. Python sees Git Bash's /tmp as C:/..., so map it back.
+ptmp=$(pyrun contract expand "$tmp")
+cp_one() { # NAME BASH-SNIPPET CONTRACT.PY-ARGS...
+  local name=$1 b p
+  b=$(lsrun "SRC_PLUGIN='$tmp/ls/plugin'; $2; echo \"rc=\$?\"")
+  shift 2
+  p=$("$@" 2>&1; echo "rc=$?")
+  check "contract-py/$name" "$b" "${p//"$ptmp"/$tmp}"
+}
+cpl="--plugin $tmp/ls/plugin"
+# shellcheck disable=SC2086 # $cpl is two words
+{
+cp_one contract-std     'src_contract "$PWD" std'      pyrun contract $cpl contract "$lsw" std
+cp_one contract-local   'src_contract "$PWD" loc'      pyrun contract $cpl contract "$lsw" loc
+cp_one contract-unknown 'src_contract "$PWD" nosuch'   pyrun contract $cpl contract "$lsw" nosuch
+cp_one contract-badname 'src_contract "$PWD" ../std'   pyrun contract $cpl contract "$lsw" ../std
+cp_one contract-empty   'src_contract "$PWD" ""'       pyrun contract $cpl contract "$lsw" ""
+mkdir -p "$lsw/.claude/sources/types/std"
+cp "$tmp/ls/plugin/sources/std/SOURCE.md" "$lsw/.claude/sources/types/std/"
+cp_one contract-shadow  'src_contract "$PWD" std'      pyrun contract $cpl contract "$lsw" std
+rm -r "$lsw/.claude/sources/types/std"
+mkdir "$lsw/.claude/sources/instances/dir.md"
+touch "$lsw/.claude/sources/instances/.hidden.md" "$lsw/.claude/sources/instances/Upper.md" "$lsw/.claude/sources/instances/notes.txt"
+cp_one instances        'src_instances "$PWD"'         pyrun contract instances "$lsw"
+rmdir "$lsw/.claude/sources/instances/dir.md"
+rm "$lsw/.claude/sources/instances/.hidden.md" "$lsw/.claude/sources/instances/Upper.md" "$lsw/.claude/sources/instances/notes.txt"
+cp_one instances-none   'src_instances "$PWD/nosuch"'  pyrun contract instances "$lsw/nosuch"
+}
+i=0
+for p in '~/two/' '~\two' 'C:\Users\x\' '//a//b//' '/' 'rel/x/' '~' '~/' 'a/./b' '/a/../b' '/a/.b/c' 'c:/x' 'C:x' '..' '.' '' 'x/..'; do
+  i=$((i + 1))
+  for op in expand is_abs has_dots; do
+    b=$(lsrun "HOME=/home/u; src_$op '$p'; echo \" rc=\$?\"")
+    q=$(HOME=/home/u pystr contract "${op//_/-}" "$p" 2>&1; echo " rc=$?")
+    check "contract-py/$op-$i" "$b" "$q"
+  done
+done
 
 section sources
 # sources.sh against a copy of guard-wiki (gmail, scans, teams, local type books).
