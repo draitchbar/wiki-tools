@@ -12,7 +12,9 @@
 # block-push fixtures also run through block_push.py (via the hooks.json
 # command and py-launch.sh): exit code and message must match bash, except
 # the cases in tests/fixtures/py-stricter.txt. contract.py is checked against
-# lib-source.sh (contract-parity). Needs Python 3.9 or later.
+# lib-source.sh (contract-parity). guard.py runs every guard and block-push
+# case and must match block-push.sh then guard.sh (gdual). Needs Python 3.9
+# or later.
 
 here=$(cd "$(dirname "$0")" && pwd)
 scripts="$here/../plugins/wiki/scripts"
@@ -72,6 +74,54 @@ py_kind() { # DIR/CASE: stricter, message or nothing
     case "$l" in "$1 "*) printf '%s' "${l#"$1 "}"; return ;; esac
   done <<< "$py_stricter"
 }
+pycmp() { # NAME WANT KIND BASH-RESULT PY-RESULT ("<exit> <message>")
+  case "$3" in
+    stricter|message|locale) check "$1" "$2" "${5%% *}" ;;
+    *)        check "$1 (same as bash)" "$4" "$5" ;;
+  esac
+}
+# A Python script run directly, with the interpreter py-launch.sh caches.
+pyrun() { # SCRIPT ARGS...
+  [ -s "$tmp/pyrun/python" ] || printf '{}' | PYDATA="$tmp/pyrun" pyhook block_push >/dev/null 2>&1
+  local py; IFS= read -r py < "$tmp/pyrun/python"
+  "$py" -I -S -X utf8 "$scripts/$1.py" "${@:2}"
+}
+# Pure string functions: keep Git Bash from rewriting /paths and HOME.
+pystr() { MSYS2_ARG_CONV_EXCL='*' MSYS2_ENV_CONV_EXCL=HOME pyrun "$@"; }
+# Python sees Git Bash's /tmp and /c/... as C:/...; messages map them back.
+ptmp=$(pyrun contract expand "$tmp") pplugin=$(pyrun contract expand "$plugin")
+pymap() { # Git Bash may hand over either slash style.
+  local m=$1
+  m=${m//"$ptmp"/$tmp}; m=${m//"${ptmp//\//\\}"/$tmp}
+  m=${m//"$pplugin"/$plugin}; printf '%s' "${m//"${pplugin//\//\\}"/$plugin}"
+}
+
+# guard.py is compared with what Claude Code gets from the bash hooks:
+# block-push.sh's block, else guard.sh's result. Callers set
+# CLAUDE_PROJECT_DIR and HOME, and pass results they already have; PYHOME
+# gives Python a different HOME (Windows: the C:\Users\... a real session
+# hands it). The bash hooks run with LC_COLLATE=C, so their globs sort as
+# Python's do: in a real session the locale's order may name a different
+# first broken file or guard word (same decision).
+run_hook() { # SCRIPT INPUT: "<exit> <message>"
+  local m rc
+  m=$(printf '%s' "$2" | LC_COLLATE=C bash "$scripts/$1.sh" 2>&1 >/dev/null); rc=$?
+  printf '%s %s' "$rc" "$m"
+}
+gpy() { # INPUT: "<exit> <message>" of guard.py, through py-launch.sh
+  local m rc
+  m=$(printf '%s' "$1" | HOME=${PYHOME:-$HOME} CLAUDE_PLUGIN_ROOT="$plugin" CLAUDE_PLUGIN_DATA="$tmp/pyrun" MSYS2_ENV_CONV_EXCL=HOME \
+    bash -c '. "$CLAUDE_PLUGIN_ROOT/scripts/py-launch.sh" guard' 2>&1 >/dev/null); rc=$?
+  printf '%s %s' "$rc" "$(pymap "$m")"
+}
+gdual() { # NAME WANT KIND INPUT [GUARD.SH-RESULT [BLOCK-PUSH.SH-RESULT]]
+  local p=${6:-} b
+  # block-push.sh blocks only on a push or on input guard.sh also refuses
+  # with the same message.
+  [ -n "$p" ] || case "$4" in *[pP][uU][sS][hH]*) p=$(run_hook block-push "$4") ;; *) p="0 " ;; esac
+  case "$p" in "2 "*) b=$p ;; *) b=${5:-$(run_hook guard "$4")} ;; esac
+  pycmp "guard_py/$1" "$2" "$3" "$b" "$(gpy "$4")"
+}
 
 section guard-fixtures
 # Fixtures name the plugin folder @PLUGIN@ (as pwd prints it) or
@@ -88,26 +138,22 @@ for f in "$here"/fixtures/*/*.json; do
     *) printf 'skip  %s (name must start with pass- or block-)\n' "$case"; continue ;;
   esac
   input=$(sed -e "s#@PLUGIN_DRIVE@#$plugin_drive#g" -e "s#@PLUGIN@#$plugin#g" "$f")
-  # Python twin, if any: dual run, comparing exit code and message.
-  case "$script" in block-push) py=block_push ;; *) py= ;; esac
-  if [ -z "$py" ]; then
-    printf '%s' "$input" | hook "$script" >/dev/null 2>&1
-    check "$script/$case" "$want" "$?"
-    continue
-  fi
-  bmsg=$(printf '%s' "$input" | hook "$script" 2>&1 >/dev/null); brc=$?
-  pmsg=$(printf '%s' "$input" | pyhook "$py" 2>&1 >/dev/null); prc=$?
-  case "$(py_kind "$script/$case")" in
-    stricter)
-      check "$script/$case (bash, known gap)" 0 "$brc"
-      check "$py/$case" "$want" "$prc" ;;
-    message)
-      check "$script/$case" "$want" "$brc"
-      check "$py/$case" "$want" "$prc" ;;
-    *)
-      check "$script/$case" "$want" "$brc"
-      check "$py/$case (same as bash)" "$brc $bmsg" "$prc $pmsg" ;;
+  # Python twins: dual run, comparing exit code and message. guard.py runs
+  # every fixture, since it carries block-push too.
+  kind=$(py_kind "$script/$case")
+  r=$(CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u run_hook "$script" "$input")
+  case "$kind" in
+    stricter) check "$script/$case (bash, known gap)" 0 "${r%% *}" ;;
+    locale) ;; # bash's result depends on the locale
+    *) check "$script/$case" "$want" "${r%% *}" ;;
   esac
+  if [ "$script" = block-push ]; then
+    pmsg=$(printf '%s' "$input" | pyhook block_push 2>&1 >/dev/null); prc=$?
+    pycmp "block_push/$case" "$want" "$kind" "$r" "$prc $pmsg"
+    CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u gdual "$script/$case" "$want" "$kind" "$input" "" "$r"
+  else
+    CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u gdual "$script/$case" "$want" "$kind" "$input" "$r"
+  fi
 done
 # Every listed case still exists.
 while IFS= read -r l; do
@@ -209,12 +255,14 @@ case "$(cat "$tmp/pdata/hook-timing.log" 2>/dev/null)" in "block_push "[0-9]*" r
 check "py-launch/timing-log" ok "$r"
 # The plugin folder written with ~, when it is under HOME.
 tilde_cmd="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"bash ~/$(basename "$plugin")/scripts/lint.sh\"}}"
-printf '%s' "$tilde_cmd" | CLAUDE_PROJECT_DIR="$tmp/gw" HOME=$(dirname "$plugin") bash "$scripts/guard.sh" >/dev/null 2>&1
-check "guard/pass-lint-tilde-form" 0 "$?"
+r=$(CLAUDE_PROJECT_DIR="$tmp/gw" HOME=$(dirname "$plugin") run_hook guard "$tilde_cmd")
+check "guard/pass-lint-tilde-form" 0 "${r%% *}"
+CLAUDE_PROJECT_DIR="$tmp/gw" HOME=$(dirname "$plugin") gdual pass-lint-tilde-form 0 "" "$tilde_cmd" "$r"
 # The plugin folder with Windows backslashes (JSON-escaped).
 bs_cmd="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"bash $(printf '%s' "$plugin_drive" | sed 's#/#\\\\#g')\\\\scripts\\\\lint.sh\"}}"
-printf '%s' "$bs_cmd" | hook guard >/dev/null 2>&1
-check "guard/pass-lint-backslash-form" 0 "$?"
+r=$(CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u run_hook guard "$bs_cmd")
+check "guard/pass-lint-backslash-form" 0 "${r%% *}"
+CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u gdual pass-lint-backslash-form 0 "" "$bs_cmd" "$r"
 
 section guard-broken
 # guard.sh fails closed on source files it can't read, and knows Windows paths.
@@ -222,21 +270,26 @@ fx="$here/fixtures/guard"
 gbroken() { # NAME SETUP-SNIPPET (run in a fresh copy of guard-wiki)
   rm -rf "$tmp/gb"; cp -r "$here/guard-wiki" "$tmp/gb"
   (cd "$tmp/gb" && eval "$2")
-  CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u bash "$scripts/guard.sh" < "$fx/pass-ordinary-bash.json" >/dev/null 2>&1
-  check "guard/fail-closed-$1" 2 "$?"
+  r=$(CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u run_hook guard "$(cat "$fx/pass-ordinary-bash.json")")
+  check "guard/fail-closed-$1" 2 "${r%% *}"
+  CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u gdual "fail-closed-$1" 2 "" "$(cat "$fx/pass-ordinary-bash.json")" "$r"
 }
 gbroken instance-no-frontmatter 'printf "key: x\n" > .claude/sources/instances/x.md'
 gbroken instance-unknown-type   'printf -- "---\nkey: x\ntype: nosuch\n---\n" > .claude/sources/instances/x.md'
 gbroken local-type-shadows      'mkdir -p .claude/sources/types/gmail && cp .claude/sources/types/bookish/SOURCE.md .claude/sources/types/gmail/'
 gbroken contract-no-frontmatter 'printf "# no fm\n" > .claude/sources/types/bookish/SOURCE.md'
 gbroken filesystem-no-roots     'printf -- "---\nkey: x\ntype: local-folder\n---\n" > .claude/sources/instances/x.md'
+# Two broken files: the message names the first (guard.py checked by the dual run).
+gbroken first-of-two            'printf "key: a\n" > .claude/sources/instances/a-x.md; printf "key: b\n" > .claude/sources/instances/b-x.md'
 # While broken: read-only diagnostics pass, everything else is refused.
 rm -rf "$tmp/gb"; cp -r "$here/guard-wiki" "$tmp/gb"
 printf 'key: x\n' > "$tmp/gb/.claude/sources/instances/x.md"
 gdiag() { # NAME EXPECTED-EXIT TOOL-INPUT-JSON (Bash command or Write)
-  printf '{"session_id":"t","cwd":"/home/u/wikis/mywiki","hook_event_name":"PreToolUse","tool_name":"%s","tool_input":%s,"tool_use_id":"x"}' "$3" "$4" |
-    CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u bash "$scripts/guard.sh" >/dev/null 2>&1
-  check "guard/broken-$1" "$2" "$?"
+  local in
+  in=$(printf '{"session_id":"t","cwd":"/home/u/wikis/mywiki","hook_event_name":"PreToolUse","tool_name":"%s","tool_input":%s,"tool_use_id":"x"}' "$3" "$4")
+  r=$(CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u run_hook guard "$in")
+  check "guard/broken-$1" "$2" "${r%% *}"
+  CLAUDE_PROJECT_DIR="$tmp/gb" HOME=/home/u gdual "broken-$1" "$2" "" "$in" "$r"
 }
 gdiag git-status        0 Bash '{"command":"git status"}'
 gdiag git-diff-sources  0 Bash '{"command":"git diff .claude/sources/instances/x.md"}'
@@ -259,18 +312,90 @@ msg=$(printf '{"session_id":"t","cwd":"/x","hook_event_name":"PreToolUse","tool_
 case "$msg" in *'its first line is "key: x"'*'Read still works'*) r=ok ;; *) r="$msg" ;; esac
 check "guard/broken-message" ok "$r"
 win='{"session_id":"t","cwd":"C:\\Users\\u\\wikis\\mywiki","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"C:\\Users\\u\\Pictures\\Receipts\\a.txt","content":"x"},"tool_use_id":"x"}'
-printf '%s' "$win" | CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/c/Users/u bash "$scripts/guard.sh" >/dev/null 2>&1
-check "guard/windows-drive-root" 2 "$?"
+r=$(CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/c/Users/u run_hook guard "$win")
+check "guard/windows-drive-root" 2 "${r%% *}"
+CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/c/Users/u gdual windows-drive-root 2 "" "$win" "$r"
 # An agent_only root written with ~, read by the main session as C:\...
 rm -rf "$tmp/gc"; cp -r "$here/guard-wiki" "$tmp/gc"
 sed -i 's#  - /home/u/src/components#  - ~/src/components#' "$tmp/gc/.claude/sources/instances/code.md"
 gwin() { # NAME EXPECTED AGENT-FIELD
-  printf '{"session_id":"t","cwd":"C:\\\\Users\\\\u\\\\wikis\\\\mywiki","hook_event_name":"PreToolUse"%s,"tool_name":"Read","tool_input":{"file_path":"C:\\\\Users\\\\u\\\\src\\\\components\\\\app\\\\A.java"},"tool_use_id":"x"}' "$3" |
-    CLAUDE_PROJECT_DIR="$tmp/gc" HOME=/c/Users/u bash "$scripts/guard.sh" >/dev/null 2>&1
-  check "guard/$1" "$2" "$?"
+  local in
+  in=$(printf '{"session_id":"t","cwd":"C:\\\\Users\\\\u\\\\wikis\\\\mywiki","hook_event_name":"PreToolUse"%s,"tool_name":"Read","tool_input":{"file_path":"C:\\\\Users\\\\u\\\\src\\\\components\\\\app\\\\A.java"},"tool_use_id":"x"}' "$3")
+  r=$(CLAUDE_PROJECT_DIR="$tmp/gc" HOME=/c/Users/u run_hook guard "$in")
+  check "guard/$1" "$2" "${r%% *}"
+  CLAUDE_PROJECT_DIR="$tmp/gc" HOME=/c/Users/u gdual "$1" "$2" "" "$in" "$r"
 }
 gwin codebase-read-windows-main  2 ''
 gwin codebase-read-windows-agent 0 ',"agent_id":"a1"'
+# ".." at the drive root stays there, as in guard.sh: C:\..\Users is C:/Users.
+in=$(printf '{"session_id":"t","cwd":"C:\\\\Users\\\\u\\\\wikis\\\\mywiki","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"C:\\\\..\\\\Users\\\\u\\\\src\\\\components\\\\A.java"},"tool_use_id":"x"}')
+r=$(CLAUDE_PROJECT_DIR="$tmp/gc" HOME=/c/Users/u run_hook guard "$in")
+check "guard/codebase-read-windows-dotdot" 2 "${r%% *}"
+CLAUDE_PROJECT_DIR="$tmp/gc" HOME=/c/Users/u gdual codebase-read-windows-dotdot 2 "" "$in" "$r"
+# Windows: a real session hands Python HOME as C:\Users\u, not /c/Users/u.
+CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/c/Users/u PYHOME='C:\Users\u' gdual windows-drive-root-native-home 2 "" "$win"
+in=$(printf '{"session_id":"t","cwd":"C:\\\\Users\\\\u\\\\wikis\\\\mywiki","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"C:\\\\Users\\\\u\\\\src\\\\components\\\\app\\\\A.java"},"tool_use_id":"x"}')
+CLAUDE_PROJECT_DIR="$tmp/gc" HOME=/c/Users/u PYHOME='C:\Users\u' gdual codebase-read-windows-native-home 2 "" "$in"
+
+# Cases from the review of guard.py, each in a fresh copy of guard-wiki at
+# $GK (default $tmp/gk). KIND as in py-stricter.txt, plus "locale": bash's
+# result depends on the locale (sed's [[:space:]] takes U+2003 only in a
+# UTF-8 one), so only guard.py is checked.
+gcase() { # NAME WANT KIND SETUP-SNIPPET INPUT-JSON (@PLUGIN@ = the plugin folder)
+  local gk=${GK:-$tmp/gk} in r
+  rm -rf "$gk"; mkdir -p "$(dirname "$gk")"; cp -r "$here/guard-wiki" "$gk"
+  (cd "$gk" && eval "$4")
+  in=$(printf '%s' "$5" | sed "s#@PLUGIN@#$plugin#g")
+  r=$(CLAUDE_PROJECT_DIR="$gk" HOME=/home/u run_hook guard "$in")
+  case "$3" in
+    stricter) check "guard/$1 (bash, known gap)" 0 "${r%% *}" ;;
+    locale) ;;
+    *) check "guard/$1" "$2" "${r%% *}" ;;
+  esac
+  CLAUDE_PROJECT_DIR="$gk" HOME=/home/u gdual "$1" "$2" "$3" "$in" "$r"
+}
+gbash() { printf '{"session_id":"t","cwd":"/home/u/wikis/mywiki","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"%s"},"tool_use_id":"x"}' "$1"; }
+em=$(printf '\342\200\203')
+inst() { # KEY TYPE ROOTS-LINE...: write an instance file
+  local k=$1 t=$2; shift 2
+  { printf -- '---\nkey: %s\ntype: %s\n' "$k" "$t"; printf '%s\n' "$@"; printf 'state:\n  - last_checked\n---\n'; } > ".claude/sources/instances/$k.md"
+}
+# Unicode whitespace around a contract value: stripped, as sed does in a UTF-8 locale.
+gcase unicode-space-root 2 locale "inst uni local-folder 'roots: /home/u/Uni$em'" "$(gbash 'cat /home/u/Uni/x')"
+gcase unicode-space-agent-only 2 locale "mkdir -p .claude/sources/types/cb && sed 's/^type: codebase/type: cb/; s/^agent_only: yes/agent_only: yes$em/' '$plugin/sources/codebase/SOURCE.md' > .claude/sources/types/cb/SOURCE.md && inst cb cb roots: '  - /home/u/cbsrc'" \
+  '{"session_id":"t","cwd":"/home/u/wikis/mywiki","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"/home/u/cbsrc/A.java"},"tool_use_id":"x"}'
+# Unicode whitespace in a command: guard.py takes ASCII whitespace only.
+gcase unicode-space-command 2 locale "" "$(gbash "bash$em@PLUGIN@/scripts/lint.sh")"
+# Lowercasing is ASCII only in both, so messages keep non-ASCII letters and
+# the Kelvin sign is not a k.
+gcase non-ascii-root 2 "" "inst ae local-folder roots: '  - /home/u/Æble'" "$(gbash 'cat /home/u/Æble/x')"
+kelvin=$(printf '\342\204\252')
+gcase kelvin-sign 0 "" "" "$(gbash "cat x/hoo${kelvin}s.json")"
+# JSON null is an absent field.
+gcase null-path 0 "" "" '{"session_id":"t","cwd":"/home/u/wikis/mywiki","hook_event_name":"PreToolUse","tool_name":"Grep","tool_input":{"pattern":"x","path":null,"glob":null},"tool_use_id":"x"}'
+gcase null-agent-id 2 "" "" '{"session_id":"t","cwd":"/home/u/wikis/mywiki","hook_event_name":"PreToolUse","tool_name":"Read","agent_id":null,"tool_input":{"file_path":"/home/u/src/components/A.java"},"tool_use_id":"x"}'
+# Two broken local types: the first in byte order is named.
+gcase first-of-two-types 2 "" 'for t in a-x ab; do mkdir -p .claude/sources/types/$t; printf "# x\n" > .claude/sources/types/$t/SOURCE.md; done' "$(gbash ls)"
+# Instance file names that aren't keys: bash splits them into words.
+gcase instance-key-space 2 stricter 'cp .claude/sources/instances/gmail.md ".claude/sources/instances/gmail scans.md"' "$(gbash ls)"
+gcase instance-key-copy 2 message 'cp .claude/sources/instances/scans.md ".claude/sources/instances/scans - Copy.md"' "$(gbash ls)"
+# A main-session wrapper call whose key or operation isn't a plain word.
+gcase main-op-quoted 2 stricter "" "$(gbash 'bash @PLUGIN@/sources/codebase/git.sh code\" \"status grep x')"
+gcase main-op-backslash 2 stricter "" "$(gbash 'bash @PLUGIN@/sources/codebase/git.sh code\\ status grep x')"
+# A wiki path with a space: bash splits the agent_only instance paths.
+GK="$tmp/sp ace/gw" gcase wiki-path-space-read 2 stricter "" \
+  '{"session_id":"t","cwd":"/home/u/wikis/mywiki","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"/home/u/src/components/A.java"},"tool_use_id":"x"}'
+# A source folder that can't be listed (not testable as root or on Windows).
+rm -rf "$tmp/gu"; cp -r "$here/guard-wiki" "$tmp/gu"; chmod 000 "$tmp/gu/.claude/sources/instances"
+if ls "$tmp/gu/.claude/sources/instances" >/dev/null 2>&1; then
+  printf 'skip  guard/unreadable-instances (the folder stays readable here)\n'
+else
+  in=$(gbash 'cat /home/u/Scans/x')
+  r=$(CLAUDE_PROJECT_DIR="$tmp/gu" HOME=/home/u run_hook guard "$in")
+  check "guard/unreadable-instances (bash, known gap)" 0 "${r%% *}"
+  CLAUDE_PROJECT_DIR="$tmp/gu" HOME=/home/u gdual unreadable-instances 2 stricter "$in" "$r"
+fi
+chmod 755 "$tmp/gu/.claude/sources/instances"
 
 section proton-drive
 # Every Proton test runs with the fake CLI (tests/sources/proton-drive/
@@ -836,14 +961,7 @@ section contract-parity
 # contract.py (speed plan, step 2b) against lib-source.sh: has-fm and the
 # values of every frontmatter key (and one absent key) must match byte for
 # byte, for every contract and instance file in the plugin and the tests,
-# and for edge cases. Run directly with the interpreter py-launch.sh caches.
-pyrun() { # SCRIPT ARGS...
-  [ -s "$tmp/pyrun/python" ] || printf '{}' | PYDATA="$tmp/pyrun" pyhook block_push >/dev/null 2>&1
-  local py; IFS= read -r py < "$tmp/pyrun/python"
-  "$py" -I -S -X utf8 "$scripts/$1.py" "${@:2}"
-}
-# Pure string functions: keep Git Bash from rewriting /paths and HOME.
-pystr() { MSYS2_ARG_CONV_EXCL='*' MSYS2_ENV_CONV_EXCL=HOME pyrun "$@"; }
+# and for edge cases. Run directly with pyrun (see setup).
 cp_edge="$tmp/cp-edge"
 mkdir -p "$cp_edge"
 printf -- '---\ntype: x\n  - y\n' > "$cp_edge/no-close.md"
@@ -871,8 +989,7 @@ for f in "$plugin"/sources/*/SOURCE.md $(find "$here" "$tmp/ls" -path '*/.claude
   name=${f#"$here/"}; name=${name#"$tmp/"}; name=${name#"$plugin/"}
   check "contract-parity/$name" same "$([ "$b" = "$p" ] && echo same || printf 'bash %s python %s' "$b" "$p")"
 done
-# Lookups and paths. Python sees Git Bash's /tmp as C:/..., so map it back.
-ptmp=$(pyrun contract expand "$tmp")
+# Lookups and paths.
 cp_one() { # NAME BASH-SNIPPET CONTRACT.PY-ARGS...
   local name=$1 b p
   b=$(lsrun "SRC_PLUGIN='$tmp/ls/plugin'; $2; echo \"rc=\$?\"")

@@ -15,6 +15,10 @@ tests/fixtures/py-stricter.txt):
 - \\uXXXX escapes are decoded (bash left them as text);
 - every MultiEdit new_string is read (bash read only the last one);
 - a field that isn't a string makes the input unusable (bash read it as "").
+  JSON null counts as absent, as in bash: an optional field may be null.
+
+norm() lowercases ASCII letters only, as `tr '[:upper:]' '[:lower:]'` does
+in Git Bash and Linux bash, so both versions match the same text.
 """
 
 import json
@@ -31,6 +35,11 @@ def _clean(s):
     return s.replace("\r", ";").replace("\n", ";").replace("\t", " ")
 
 
+def _opt(v):
+    """An absent or null field is ""."""
+    return "" if v is None else v
+
+
 def parse(raw):
     try:
         data = json.loads(raw.decode("utf-8", errors="replace"))
@@ -41,28 +50,32 @@ def parse(raw):
     tool = data.get("tool_name")
     if not isinstance(tool, str) or not tool:
         return None
-    ti = data.get("tool_input", {})
+    ti = data.get("tool_input")
+    if ti is None:
+        ti = {}
     if not isinstance(ti, dict):
         return None
     vals = {}
     for k in _INPUT_KEYS:
-        v = ti.get(k, "")
+        v = _opt(ti.get(k))
         if not isinstance(v, str):
             return None
         vals[k] = _clean(v)
     new_strings = [vals["new_string"]]
-    edits = ti.get("edits", [])
+    edits = ti.get("edits")
+    if edits is None:
+        edits = []
     if not isinstance(edits, list):
         return None
     for e in edits:
         if not isinstance(e, dict):
             return None
-        v = e.get("new_string", "")
+        v = _opt(e.get("new_string"))
         if not isinstance(v, str):
             return None
         new_strings.append(_clean(v))
     for k in ("cwd", "agent_id"):
-        v = data.get(k, "")
+        v = _opt(data.get(k))
         if not isinstance(v, str):
             return None
         vals[k] = _clean(v)
@@ -79,6 +92,14 @@ def parse(raw):
     return h
 
 
+_ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+
+def lower(s):
+    """ASCII letters lowercased, as tr '[:upper:]' '[:lower:]'."""
+    return s.translate(_ASCII_LOWER)
+
+
 def norm(s):
-    """Lowercase, backslashes to slashes, for path matching (as norm in bash)."""
-    return s.replace("\\", "/").lower()
+    """Lowercase (ASCII), backslashes to slashes, for path matching (as norm in bash)."""
+    return lower(s.replace("\\", "/"))

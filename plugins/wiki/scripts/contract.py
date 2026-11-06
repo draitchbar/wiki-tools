@@ -10,7 +10,12 @@ The frontmatter of SOURCE.md and instance files is flat `key: value` lines
 and `- item` lists, between a first line `---` and the next `---`. Files
 are read as UTF-8 with surrogateescape, so any byte survives a round trip,
 and one CR is stripped from each line end, as the awk in lib-source.sh does.
-"Whitespace" is ASCII whitespace, as in POSIX [[:space:]] in the C locale.
+Whitespace around values and before list items is any Unicode whitespace:
+the hooks run in the user's locale, where sed (and gawk in Git Bash) match
+e.g. U+2003 with [[:space:]], so a root written "/home/u/Scans<U+2003>" is
+still /home/u/Scans. Python's set is a little larger than glibc's (it has
+U+00A0), which only makes the guard stricter. The `---` fences take ASCII
+whitespace only, as mawk does.
 
 Imported by the Python hooks. Also a small command line for the tests:
 
@@ -31,15 +36,13 @@ import os
 import re
 import sys
 
-# POSIX [[:space:]] in the C locale (a line never holds "\n").
-WS = " \t\n\v\f\r"
 
 PLUGIN = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace("\\", "/")
 
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*", re.ASCII)
 _FENCE = re.compile(r"---[ \t\n\v\f\r]*")
 _KEY_LINE = re.compile(r"[A-Za-z_]+:", re.ASCII)
-_ITEM = re.compile(r"[ \t\n\v\f\r]+-[ \t\n\v\f\r]*")
+_ITEM = re.compile(r"\s+-\s*")
 _FIELD_KEY = re.compile(r"[a-z_]+", re.ASCII)
 _DRIVE = re.compile(r"[A-Za-z]:[/\\]")
 
@@ -98,7 +101,7 @@ def field(path, key, default=""):
     pre = key + ":"
     for ln in fm(path):
         if ln.startswith(pre):
-            return ln[len(pre):].lstrip(WS).rstrip(WS)
+            return ln[len(pre):].strip()
     return default
 
 
@@ -114,7 +117,7 @@ def list_(path, key):
         if cur == key:
             m = _ITEM.match(ln)
             if m:
-                s = ln[m.end():].rstrip(WS)
+                s = ln[m.end():].rstrip()
                 if s:
                     out.append(s)
     return out

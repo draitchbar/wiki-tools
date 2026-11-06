@@ -48,6 +48,7 @@ plugins/wiki/
     block-push.sh                 blocks git push (Bash, PowerShell)
     block_push.py, hookjson.py    Python port of block-push and the hook-input parsing (speed plan spike; runs alongside block-push.sh)
     contract.py                   Python port of the lib-source.sh functions the guard uses (speed plan step 2b)
+    guard.py                      Python port of guard.sh with block-push folded in; tested, not yet in hooks.json
     py-launch.sh                  runs a Python hook: cached interpreter, probe, fails closed
     guard.sh                      source/guard protection (Bash, PowerShell, Write/Edit), rules from the contracts
     sources.sh                    read-only view of a wiki's sources (list, show, catalog, contract, settings, check-settings)

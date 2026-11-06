@@ -2,6 +2,9 @@
 # original (see plugins/wiki/scripts/hookjson.py). One per line:
 #   <dir>/<case> stricter   bash lets it through (exit 0), Python blocks
 #   <dir>/<case> message    both block, with different messages
+#   <dir>/<case> locale     bash's result depends on the locale; only
+#                           Python's is checked
+# guard.py's other deliberate differences are cases in run-tests.sh (gcase).
 # run-tests.sh checks each version against this list, and the rest for
 # identical exit codes and messages.
 block-push/block-unicode-escape-push stricter
