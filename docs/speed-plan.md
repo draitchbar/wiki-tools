@@ -1,6 +1,6 @@
 # Speed plan: a faster guard and test suite
 
-Status: **step 2b spike done, verdict go** (2026-11-05), merged into `main` 2026-11-05. Linux: block-push 59 → 24 ms per call. Windows: 1.5 s → 126 ms per call, suite green (646 checks), and a real udbygning session at 129 ms p90 with the push blocked. Rest of 2b in progress on `speed-spike`: `contract.py` (item 1) and `guard.py` with block-push folded in (items 2–5) built 2026-11-06, green on Linux (a Bash call 394 → 29 ms); next the Windows suite run, then `/wiki:init` and the switch. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
+Status: **step 2b spike done, verdict go** (2026-11-05), merged into `main` 2026-11-05. Linux: block-push 59 → 24 ms per call. Windows: 1.5 s → 126 ms per call, suite green (646 checks), and a real udbygning session at 129 ms p90 with the push blocked. Rest of 2b in progress on `speed-spike`: `contract.py` (item 1) and `guard.py` with block-push folded in (items 2–5) built 2026-11-06, green on Linux (a Bash call 394 → 29 ms). On Windows 2026-11-06 a Bash call drops from ~7 s to ~140 ms, and the suite has 54 failures from two test-harness bugs (Python's script path, and `HOME` conversion); next fix those and rerun, then `/wiki:init` and the switch. Step 1 done (Linux 2026-11-04, Windows 2026-11-05). Step 2a only if still needed after 2b; bash trimming of the guard dropped 2026-11-05. Replaces the "Speed and Python" note in CLAUDE.md's Open plans.
 
 ## Problem
 `bash tests/run-tests.sh` takes about 40 minutes on Windows (Git Bash), measured 2026-11-05. On Linux, measured 2026-11-04: **112 s for 577 checks**, and one `guard.sh` call (a pass fixture) takes **about 320 ms**. That is slow even on Linux, so the cost is in starting processes, not in the logic: `guard.sh` has about 65 command substitutions or pipes, `lib-source.sh` about 50, and each one forks. Under Git Bash a fork costs several times more, which fits the Windows number.
@@ -100,7 +100,7 @@ Then merge the spike and do the rest of 2b. **Rethink** if the plumbing costs mu
    - the first-broken-file rule and the diagnostic exceptions;
    - `PLUGIN_FORMS`, `root_forms`, `abs_path`, `script_path`, `allowed_script`, `main_ops` and `contains_any`.
    Files are read through `contract.py` (UTF-8 with `surrogateescape`, one CR stripped per line end). `subprocess` is imported only for the `git rev-parse` fallback.
-3. **Windows paths.** Native Python can't open `/c/Users`, so any `/c/...` path is converted to `c:/...` before the filesystem is touched. `~` expands from `HOME`, else `USERPROFILE`. Git Bash also rewrites POSIX-looking environment variables when it starts a native program: in a real session Python gets `HOME` as `C:\Users\…`, and the fixtures' `HOME=/home/u` arrives as `C:/Program Files/Git/home/u`. Either normalise every form in Python, or set `MSYS2_ENV_CONV_EXCL` in the tests so both versions see the same value. Decide when the dual run first runs on Windows. **Decided 2026-11-06, to confirm on Windows:** both. `guard.py` matches every path in both spellings, as `guard.sh` does (`drive_form`/`slash_form`), and turns a `/c/...` path into `c:/...` before opening it (`native`); the tests set `MSYS2_ENV_CONV_EXCL=HOME` for the Python runs, so `HOME=/home/u` reaches both versions unchanged. In messages, Python's spelling of `$tmp` and the plugin folder is mapped back to Git Bash's before comparing (`pymap`).
+3. **Windows paths.** Native Python can't open `/c/Users`, so any `/c/...` path is converted to `c:/...` before the filesystem is touched. `~` expands from `HOME`, else `USERPROFILE`. Git Bash also rewrites POSIX-looking environment variables when it starts a native program: in a real session Python gets `HOME` as `C:\Users\…`, and the fixtures' `HOME=/home/u` arrives as `C:/Program Files/Git/home/u`. Either normalise every form in Python, or set `MSYS2_ENV_CONV_EXCL` in the tests so both versions see the same value. Decide when the dual run first runs on Windows. **Decided 2026-11-06, to confirm on Windows:** both. `guard.py` matches every path in both spellings, as `guard.sh` does (`drive_form`/`slash_form`), and turns a `/c/...` path into `c:/...` before opening it (`native`); the tests set `MSYS2_ENV_CONV_EXCL=HOME` for the Python runs, so `HOME=/home/u` reaches both versions unchanged. In messages, Python's spelling of `$tmp` and the plugin folder is mapped back to Git Bash's before comparing (`pymap`). **Windows, 2026-11-06: half confirmed.** The matching works, and the `*-native-home` cases pass. But Git Bash converts `HOME` for a native program even when `MSYS2_ENV_CONV_EXCL` names it, so `HOME=/home/u` reaches Python as `C:\Program Files\Git\home\u`, and the three `~` fixtures fail (Measurements, "guard.py, Windows"). Still to decide: a test home that converts cleanly, or these fixtures as Windows-only differences. In a real session `HOME` is under `/c/Users/`, which is handled. A home or root under another Git Bash mount (`/home`, `/tmp`, `/usr`) would not match on Windows.
 4. **Fold block-push into `guard.py`** (recommended), so a Bash call starts one interpreter, not two, unless the spike shows a second start is cheap enough to keep them apart. The push check runs **first**, before the Read/Grep/Glob, `allowed_script` and `diagnostic_ok` exits, and independent of `BROKEN`. Today `bash <plugin>/scripts/sources.sh show git-push` passes the guard and is blocked only by block-push. All 28 block-push fixtures keep running against `guard.py`. **Done 2026-11-06:** the push check runs in `main()` before any other; `block_push.py` stays until the switch, as the twin of `block-push.sh`.
 5. **Dual run** for every guard fixture, every `gbroken`/`gdiag`/`gwin` case and the tilde/backslash cases: exit codes and messages agree, except the listed differences. Green on Linux, then on Windows (the user's run), with timings added to Measurements. **Linux done 2026-11-06:** see Measurements, "guard.py, Linux".
 6. **`/wiki:init`** checks that the launcher finds an interpreter and fills the cache, with a fix-it message if not.
@@ -311,7 +311,7 @@ Per call (20 runs each, the guard-wiki copy, warm cache):
 | pass-read-wiki-page | 140 ms | | 27 ms |
 | pass-standard-source-script | 324 ms | 57 ms | 27 ms |
 
-A Bash call drops from about 394 ms (both bash hooks) to 29 ms. Windows to measure: the suite (with `WIKI_TEST_TIMING=1`), and the same per-call loop.
+A Bash call drops from about 394 ms (both bash hooks) to 29 ms. Windows: see "guard.py, Windows".
 
 ### guard.py review, 2026-11-06
 A review agent compared `guard.py` with `guard.sh` and `block-push.sh` line by line and ran about 40 crafted inputs through both. It found no realistic input where Python allows what bash blocks. The edge cases it found, and what was done (each has a `gcase` in `run-tests.sh`):
@@ -327,3 +327,44 @@ A review agent compared `guard.py` with `guard.sh` and `block-push.sh` line by l
 - **Windows HOME**: a real session hands Python `HOME` as `C:\Users\u`. Two dual-run cases now give Python that form while bash gets `/c/Users/u` (`*-native-home`). `pymap` also maps backslash spellings of the temp and plugin folders.
 - Not changed: JSON `\b` and `\f` escapes (bash keeps them as text, Python decodes them; no realistic needle is affected), and `main_session_op`'s longest-match rule (unreachable, see above).
 - Test and doc fixes: a duplicate `pyrun`/`pystr`, "19 block-push fixtures" (28), and the `errors="replace"` line in item 2.
+
+### guard.py, Windows, 2026-11-06
+Same laptop as the Windows numbers above, plugged in with sleep turned off. `WIKI_TEST_TIMING=1 bash tests/run-tests.sh` on `speed-spike` at `9263834`.
+Suite: **2738 s (45 min 38 s)**, 950 checks, **54 failed**, 1 skipped (`unreadable-instances`: the folder stays readable on Windows).
+
+| Section | Time | Checks | Spike run (2026-11-05) |
+|---|---|---|---|
+| guard-fixtures (with the guard.py and block-push dual run) | 907.7 s | 315 | 862.1 s / 173 |
+| guard-broken (gbroken, gdiag, gwin, gcase, dual run) | 289.0 s | 78 | 178.8 s / 25 |
+| contract-parity (with the contract-py path checks) | 67.8 s | 105 | new |
+| py-launch | 23.9 s | 33 | 23.5 s / 29 |
+| codebase | 429.3 s | 93 | 401.4 s |
+| sources | 312.7 s | 78 | 278.1 s |
+| wiki-check | 315.5 s | 23 | 305.7 s |
+| install | 154.5 s | 56 | 148.8 s |
+| proton-drive | 74.5 s | 38 | 73.1 s |
+| lib-source | 56.4 s | 51 | 53.0 s |
+| lint | 56.2 s | 31 | 61.3 s |
+| ms-teams | 39.2 s | 26 | 32.6 s |
+| sync-status | 8.6 s | 10 | 9.5 s |
+| ocr, plugin-schema, setup | 2.9 s | 13 | 2.5 s |
+
+The 54 failures are two bugs in how the tests start Python under Git Bash. Neither is a case a real session meets:
+- **51 × `contract-py/expand|is_abs|has_dots-N`.** `pystr` sets `MSYS2_ARG_CONV_EXCL='*'`, which also leaves the script's own path unconverted: Python is handed `/c/src/wiki-tools/plugins/wiki/scripts/contract.py`, reads it as `C:\c\src\...`, and exits 2 before any function runs. Fix: pass the script path in Windows form, or exclude only the test arguments.
+- **3 × `guard_py` tilde fixtures** (`block-bash-expanded-tilde-root`, `block-codebase-grep-tilde`, `block-edit-into-tilde-root`): `guard.py` allows where bash blocks. Git Bash always converts `HOME` for a native program and ignores `MSYS2_ENV_CONV_EXCL` for it: with `HOME=/home/u`, Python gets `C:\Program Files\Git\home\u` whether `MSYS2_ENV_CONV_EXCL` is `HOME`, `*` or unset (Git for Windows' MSYS runtime 3.5.7; the exclusion does work for other variables, e.g. `FOO=/home/u`). So `~/Pictures/Receipts` no longer matches `/home/u/Pictures/Receipts` in the command. Item 3's test approach doesn't hold for `HOME`; see the note there.
+
+Passing on Windows: the rest of the dual run (exit code and message, including the `*-native-home` cases that use a real session's `HOME` form), `contract-parity` byte for byte, `py-launch`, and every bash section.
+
+Per call: 20 runs for `guard.py` and `block-push.sh`, 5 for `guard.sh`. Each call goes through `bash -c` on a guard-wiki copy committed into its own git repo, with a warm cache and `HOME=/home/u`.
+
+| Fixture | `guard.sh` | `block-push.sh` | `guard.py` (both, via the launcher) |
+|---|---|---|---|
+| pass-ordinary-bash | 6796 ms | 1188 ms | 139 ms (p90 144) |
+| pass-edit-wiki-page | 7262 ms | | 193 ms (p90 204) |
+| pass-read-wiki-page | 3927 ms | | 163 ms (p90 173) |
+| pass-standard-source-script | 8151 ms | 1245 ms | 142 ms (p90 150) |
+
+Findings:
+- A Bash call drops from about 7 s (`guard.sh`, with `block-push.sh` beside it) to about 140 ms; Write/Edit, the slowest, from about 7.3 s to 193 ms.
+- `pass-standard-source-script` exited 2 in this loop for **both** `guard.sh` and `guard.py`, so the loop's setup differs from the suite's for that fixture; both agree, and it passes in the suite. Only its times count here.
+- Next: fix the two test bugs, rerun the suite on Windows, then `/wiki:init` (item 6) and the switch (item 7).
