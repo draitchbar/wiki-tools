@@ -244,7 +244,7 @@ Findings:
 - Sourcing works: bash plus `block_push.py` adds up to the whole hook command, so the launcher costs almost nothing and starts no second bash. No need for the "Rethink" branch.
 - The Python hook costs about 126 ms per call, steady, close to the ~150 ms expected. That is about 12× less than `block-push.sh`, which alone adds 1.5 s to every Bash call today, on top of the guard's 7.8 s.
 - About 30 ms of the Python time is imports (`json`, `re`). A possible saving later, not needed for the gate.
-- Without the cache a call cost about 500 ms, because the probe tried the `python3` Store alias first. The probe now tries `python` first (commit after the spike), which should bring an uncached call to about 200 ms (estimate, not measured). `/wiki:init` still fills the cache (2b item 6).
+- Without the cache a call cost about 500 ms, because the probe tried the `python3` Store alias first. The probe now tries `python` first (`4c6cdd9`). Measured 2026-11-06 with the same loop on `main` at `e0afb91`: an uncached call costs **200 ms** (p90 212), against 134 ms warm. The probe now costs about 65 ms, where it cost about 330 ms before. This run's machine was quieter (`bash -c true` 42 ms, `python -c pass` 50 ms, `block-push.sh` 1.3 s), so compare within a run rather than across runs. `/wiki:init` still fills the cache (2b item 6).
 - How to time: the loop in the spike commit message, with the hook command inside `bash -c` (Claude Code's outer bash costs ~45 ms on Windows, against ~1 ms on Linux), one untimed call first to fill the cache, and 20 runs.
 
 ### Spike, Windows, 2026-11-05: suite
