@@ -63,8 +63,8 @@ plugin=$(cd "$scripts/.." && pwd)
 # block-push.sh, deleted in item 8) runs through the same command.
 pycmd() { # NAME: the hooks.json guard command, unescaped, running NAME.py
   local c
-  c=$(sed -n 's/^ *"command": "\(\. .*py-launch\.sh\\" guard\)",\{0,1\}$/\1/p' "$plugin/hooks/hooks.json" | sed 's/\\"/"/g')
-  [ -n "$c" ] && printf '%s' "${c% guard} $1"
+  c=$(sed -n 's/^ *"command": "\(.*py-launch\.sh\\" guard.*\)",\{0,1\}$/\1/p' "$plugin/hooks/hooks.json" | sed 's/\\"/"/g')
+  [ -n "$c" ] && printf '%s' "${c//py-launch.sh\" guard/py-launch.sh\" $1}"
 }
 pyhook() { # NAME [ROOT]: run it as Claude Code would, in $tmp/gw
   CLAUDE_PLUGIN_ROOT="${2:-$plugin}" CLAUDE_PLUGIN_DATA="${PYDATA-$tmp/pdata}" \
@@ -157,6 +157,23 @@ check "py-launch/hooks-json-matcher" 'Bash|PowerShell|Write|Edit|MultiEdit|Read|
 check "py-launch/hooks-json-guard-once" 1 "$(grep -c 'py-launch' "$plugin/hooks/hooks.json" | tr -d ' ')"
 check "py-launch/hooks-json-no-bash-guard" none \
   "$(grep -qE 'guard\.sh|block-push\.sh|block_push' "$plugin/hooks/hooks.json" && echo found || echo none)"
+# Claude Code runs hook commands with sh, which on Linux is often dash: its
+# "." ignores arguments, so the command sources the launcher only under bash
+# and otherwise runs it with bash (found 2026-11-07 in a real session on
+# Linux: every Bash call refused with "bad script name ''"). Both shells, as
+# Claude Code would run it.
+shpush='{"tool_name":"Bash","tool_input":{"command":"git push"},"cwd":"/tmp"}'
+shpass='{"tool_name":"Bash","tool_input":{"command":"ls"},"cwd":"/tmp"}'
+for sh in sh bash dash; do
+  command -v "$sh" >/dev/null || { printf 'skip  py-launch/hooks-json-under-%s (no %s)\n' "$sh" "$sh"; continue; }
+  r=$(printf '%s' "$shpush" | CLAUDE_PLUGIN_ROOT="$plugin" CLAUDE_PLUGIN_DATA="$tmp/pdata" \
+    CLAUDE_PROJECT_DIR="$tmp/gw" "$sh" -c "$(pycmd guard)" 2>&1 >/dev/null; echo " rc=$?")
+  case "$r" in "wiki guard: git push is not allowed"*" rc=2") r=ok ;; esac
+  check "py-launch/hooks-json-under-$sh-push" ok "$r"
+  r=$(printf '%s' "$shpass" | CLAUDE_PLUGIN_ROOT="$plugin" CLAUDE_PLUGIN_DATA="$tmp/pdata" \
+    CLAUDE_PROJECT_DIR="$tmp/gw" "$sh" -c "$(pycmd guard)" 2>&1; echo "rc=$?")
+  check "py-launch/hooks-json-under-$sh-pass" "rc=0" "$r"
+done
 for f in "$here"/fixtures/*/*.json; do
   script=$(basename "$(dirname "$f")")
   case=$(basename "$f" .json)

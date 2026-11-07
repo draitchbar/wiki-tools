@@ -1,7 +1,11 @@
 # py-launch.sh: run one of this plugin's Python hooks, failing closed.
-# Sourced by the hook command, so no bash starts besides Claude Code's own:
+# Claude Code runs a hook command with sh. Where sh is bash (Git Bash on
+# Windows), the command sources this file, so no second bash starts; where
+# it isn't (dash on Debian/Ubuntu, whose "." ignores arguments), it runs it
+# with bash, which costs ~2 ms on Linux:
 #
-#   . "${CLAUDE_PLUGIN_ROOT}/scripts/py-launch.sh" <name>
+#   if [ -n "$BASH_VERSION" ]; then . "${CLAUDE_PLUGIN_ROOT}/scripts/py-launch.sh" <name>;
+#   else exec bash "${CLAUDE_PLUGIN_ROOT}/scripts/py-launch.sh" <name>; fi
 #
 # runs <this folder>/<name>.py on the hook's stdin and exits with its code.
 # Any exit other than 0 (allow) or 2 (block) becomes a block: Python exits

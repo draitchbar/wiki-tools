@@ -8,7 +8,7 @@
             "type": "command",
             "shell": "bash",
             "onFailure": "block",
-            "command": ". \"${CLAUDE_PLUGIN_ROOT}/scripts/py-launch.sh\" guard"
+            "command": "if [ -n \"$BASH_VERSION\" ]; then . \"${CLAUDE_PLUGIN_ROOT}/scripts/py-launch.sh\" guard; else exec bash \"${CLAUDE_PLUGIN_ROOT}/scripts/py-launch.sh\" guard; fi"
           }
         ]
       }
