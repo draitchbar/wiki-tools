@@ -59,8 +59,12 @@ hook() { CLAUDE_PROJECT_DIR="$tmp/gw" HOME=/home/u bash "$scripts/$1.sh"; }
 # Python hooks run through the exact command hooks.json gives them (speed
 # plan, step 2b), with a test cache folder as CLAUDE_PLUGIN_DATA.
 plugin=$(cd "$scripts/.." && pwd)
-pycmd() { # NAME: the hooks.json command for a py-launch.sh hook, unescaped
-  sed -n 's/^ *"command": "\(\. .*py-launch\.sh\\" '"$1"'\)",\{0,1\}$/\1/p' "$plugin/hooks/hooks.json" | sed 's/\\"/"/g'
+# hooks.json runs only the guard; block_push.py (the spike's twin of
+# block-push.sh, deleted in item 8) runs through the same command.
+pycmd() { # NAME: the hooks.json guard command, unescaped, running NAME.py
+  local c
+  c=$(sed -n 's/^ *"command": "\(\. .*py-launch\.sh\\" guard\)",\{0,1\}$/\1/p' "$plugin/hooks/hooks.json" | sed 's/\\"/"/g')
+  [ -n "$c" ] && printf '%s' "${c% guard} $1"
 }
 pyhook() { # NAME [ROOT]: run it as Claude Code would, in $tmp/gw
   CLAUDE_PLUGIN_ROOT="${2:-$plugin}" CLAUDE_PLUGIN_DATA="${PYDATA-$tmp/pdata}" \
@@ -122,12 +126,13 @@ run_hook() { # SCRIPT INPUT: "<exit> <message>"
   m=$(printf '%s' "$2" | LC_COLLATE=C bash "$scripts/$1.sh" 2>&1 >/dev/null); rc=$?
   printf '%s %s' "$rc" "$m"
 }
-gpy() { # INPUT: "<exit> <message>" of guard.py, through py-launch.sh
+gcmd=$(pycmd guard) # the live hooks.json command
+gpy() { # INPUT: "<exit> <message>" of guard.py, as hooks.json runs it
   local m rc
   local run=("${pyhome[@]}" USERPROFILE="$HOME")
   [ -z "${PYHOME:-}" ] || run=(env HOME="$PYHOME") # a C:\... home, which Git Bash leaves alone
   m=$(printf '%s' "$1" | CLAUDE_PLUGIN_ROOT="$plugin" CLAUDE_PLUGIN_DATA="$tmp/pyrun" \
-    "${run[@]}" bash -c '. "$CLAUDE_PLUGIN_ROOT/scripts/py-launch.sh" guard' 2>&1 >/dev/null); rc=$?
+    "${run[@]}" bash -c "$gcmd" 2>&1 >/dev/null); rc=$?
   printf '%s %s' "$rc" "$(pymap "$m")"
 }
 gdual() { # NAME WANT KIND INPUT [GUARD.SH-RESULT [BLOCK-PUSH.SH-RESULT]]
@@ -144,7 +149,14 @@ section guard-fixtures
 # @PLUGIN_DRIVE@ (as Claude Code substitutes it on Windows: C:/...; on Linux
 # the same as @PLUGIN@).
 plugin_drive=$(printf '%s' "$plugin" | sed 's#^/\([a-z]\)/#\U\1:/#')
-check "py-launch/hooks-json-block-push" yes "$([ -n "$(pycmd block_push)" ] && echo yes)"
+# The switch (speed plan 2b, item 7): one PreToolUse hook, guard.py, for
+# every tool the bash guards covered, and no bash guard left.
+check "py-launch/hooks-json-guard" yes "$([ -n "$(pycmd guard)" ] && echo yes)"
+check "py-launch/hooks-json-matcher" 'Bash|PowerShell|Write|Edit|MultiEdit|Read|Grep|Glob' \
+  "$(sed -n 's/^ *"matcher": "\(.*Bash.*\)",\{0,1\}$/\1/p' "$plugin/hooks/hooks.json")"
+check "py-launch/hooks-json-guard-once" 1 "$(grep -c 'py-launch' "$plugin/hooks/hooks.json" | tr -d ' ')"
+check "py-launch/hooks-json-no-bash-guard" none \
+  "$(grep -qE 'guard\.sh|block-push\.sh|block_push' "$plugin/hooks/hooks.json" && echo found || echo none)"
 for f in "$here"/fixtures/*/*.json; do
   script=$(basename "$(dirname "$f")")
   case=$(basename "$f" .json)

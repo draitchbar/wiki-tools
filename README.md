@@ -43,14 +43,13 @@ plugins/wiki/
     local-folder/{SOURCE.md,read.sh}  folders outside the wiki, read-only
     codebase/{SOURCE.md,git.sh,gh.sh}  a git clone researched on demand by subagents (research type, agent_only); PR/issue context via gh
   scripts/
-    lib-hookjson.sh               jq-free hook-input parsing (fails closed)
-    lib-source.sh                 jq-free parsing of source contracts and instances
-    block-push.sh                 blocks git push (Bash, PowerShell)
-    block_push.py, hookjson.py    Python port of block-push and the hook-input parsing (speed plan spike; runs alongside block-push.sh)
-    contract.py                   Python port of the lib-source.sh functions the guard uses (speed plan step 2b)
-    guard.py                      Python port of guard.sh with block-push folded in; tested, not yet in hooks.json
+    guard.py                      the PreToolUse hook: source/guard protection and no git push (Bash, PowerShell, Write/Edit/MultiEdit, Read/Grep/Glob), rules from the contracts
+    hookjson.py                   hook-input parsing for guard.py (fails closed)
+    contract.py                   parsing of source contracts and instances for guard.py (the Python side of lib-source.sh)
     py-launch.sh                  runs a Python hook: cached interpreter, probe, fails closed
-    guard.sh                      source/guard protection (Bash, PowerShell, Write/Edit), rules from the contracts
+    py_version.py                 prints the interpreter the launcher finds (wiki-check)
+    lib-source.sh                 jq-free parsing of source contracts and instances (sources.sh, lint, wiki-check, install)
+    guard.sh, block-push.sh, lib-hookjson.sh, block_push.py  the bash guards guard.py replaced, and the spike's twin; no longer in hooks.json, kept for the dual run until the speed plan's cleanup (2b item 8)
     sources.sh                    read-only view of a wiki's sources (list, show, catalog, contract, settings, check-settings)
     install-source-file.sh        the user (never Claude) checks and installs one file into .claude/sources/
     decode-download.sh            base64 download (e.g. Google Drive) into the source cache
@@ -268,7 +267,7 @@ Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for the wrapper (
 ## Guard design and known limits
 
 - **Guardrail, not a security boundary.** The guards match command text. They reliably stop accidental or straightforward misuse, but a deliberately obfuscated command could get through. Anything you run by hand is unaffected. If a Proton change slips through, use Proton's Trash and version history.
-- **Rules come from the contracts.** On every call, `guard.sh` reads all standard and local source contracts and the wiki's instances, and collects each type's `guard_words` and `scripts` and every filesystem instance's `roots`.
+- **Rules come from the contracts.** On every call, the guard (`guard.py`) reads all standard and local source contracts and the wiki's instances, and collects each type's `guard_words` and `scripts` and every filesystem instance's `roots`.
 - **Shells: Bash everywhere, PowerShell allowed on Windows.** The wiki's scripts run only through the Bash tool (Git Bash on Windows). Claude may use the PowerShell tool for anything else; it gets the same command checks as Bash, without the script exceptions, and `git push` is blocked in both.
 - **Blocked in wiki sessions (Bash and PowerShell):** commands containing the plugin's folder (wherever it is installed, written as `/c/…`, `C:/…`, `C:\…` or `~/…`) or any `plugins/wiki/scripts|hooks|sources` path, `.claude/sources`, `.claude/settings`, `.claude/plugins/`, `hooks.json`, `claude plugin`, `disableAllHooks`, any contract's guard word (e.g. `proton-drive`), or a filesystem instance's root (e.g. `~/Documents/Scans`, also matched as `$HOME/…` and `$env:USERPROFILE/…`).
   - **Exceptions (Bash only):** a plain `bash <plugin>/scripts/<ocr|sync-status|lint|wiki-check|sources>.sh <args>`, or a plain call of a wrapper a contract lists under `scripts` (`<plugin>/sources/<type>/<script>.sh`, or `.claude/sources/types/<type>/<script>.sh` in this wiki), with no `; & | < > $` or backticks and no `..`. `<plugin>` is the folder the guard itself runs from; the path may be in double quotes.
