@@ -123,6 +123,10 @@ Then merge the spike and do the rest of 2b. **Rethink** if the plumbing costs mu
    - which of `/wiki:ingest`, `/wiki:sync-status` and `/wiki:research` ran.
    Clean up when both scans show the workflows ran, every refusal was expected, and there were no launcher errors.
 
+   **Progress:**
+   - **Windows workflows: done 2026-11-07** (udbygning, `main` at `fe3d67b` loaded from the clone). Transcript scan of the session (`3a1d9577…`): `/wiki:sync-status`, then `/wiki:ingest` of onenote, gdrive and proton, with real wrapper calls through the guard (`sources.sh show onenote|gdrive|proton`, proton-drive `read.sh proton new …`) and the OneNote reader skill. Every refusal was expected: the hook test's deliberate probes (`git push`, `.claude/sources` by `cat` and by Write, the plugin's `hooks.json`) and 11 refusals of the OneNote reader under `.claude/plugins/cache/`, before the plugin moved to a local clone (README, "Known false positives"). No launcher errors in any udbygning session. Not visible in a transcript: whether the sync-status injections and the `read.sh` wrapper rule ran without a permission prompt.
+   - Still to do: the Linux workflows (after switching its OneNote plugin to a local clone), the `agent_only` probes in ai-wiki, and the Linux transcript scan.
+
 Size: about 250 lines in `guard.py`, 120 in `contract.py`, 60 in the launcher and 150 in the tests. Two or three sessions after the spike, plus the Windows runs.
 
 Defaults taken 2026-11-05, open to change: Python 3.9 or later; the dual run compares messages as well as exit codes; a week between switching and deleting (replaced 2026-11-07 by item 8's checklist).
