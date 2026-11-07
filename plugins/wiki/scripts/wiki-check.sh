@@ -11,7 +11,7 @@
 # Exit 0 when every check passes, 1 when any check fails.
 #
 # Environment (for tests): WIKI_CHECK_TEMPLATE overrides the settings
-# template path.
+# template path; CLAUDE_CONFIG_DIR (as in Claude Code) moves ~/.claude.
 
 set -u
 
@@ -180,6 +180,22 @@ fi
 dirty=$(git -C "$root" status --porcelain -- CLAUDE.md .gitignore raw/sync-log.md wiki/index.md wiki/log.md templates 2>/dev/null)
 if [ -z "$dirty" ]; then pass "setup files are committed"
 else fail "uncommitted setup files: $(printf '%s' "$dirty" | awk '{print $2}' | paste -sd' ' -)" "review and commit them"; fi
+
+# 9. Python for the guard hooks: the launcher must find Python 3.9 or later.
+# Run with no CLAUDE_PLUGIN_DATA, so it probes and caches nothing; the first
+# guard call caches the interpreter in the plugin's data folder, which the
+# guard keeps Claude out of.
+py=$(CLAUDE_PLUGIN_DATA='' bash -c '. "$1/py-launch.sh" py_version' _ "$here" </dev/null 2>&1)
+case "$py" in
+  "Python "*)
+    pass "the guard hooks find $py"
+    cache="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/data/wiki-wiki-tools/python"
+    if [ -f "$cache" ]; then info "the guard hooks have cached \`$(head -n 1 "$cache" | tr -d '\r')\`"
+    else info "no interpreter cached yet; the first guard call caches it (about 0.2 s, once)"; fi ;;
+  *)
+    fail "the guard hooks find no usable Python ($(printf '%s' "$py" | head -n 1 | sed 's/^wiki guard: //; s/; refusing (fail closed)\.$//'))" \
+      "install Python 3.9 or later (Windows: from python.org, and turn off the python3 App execution alias in Settings), then restart \`claude\`. Until then the guard refuses every Bash, Write and Edit call" ;;
+esac
 
 printf '## Wiki check: %s\n\nFailures: %d.\n%s\n' "$(basename "$root")" "$fails" "$out"
 [ "$fails" -eq 0 ]

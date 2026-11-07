@@ -58,7 +58,8 @@ plugins/wiki/
     sync-status.sh                staleness report from raw/sync-log.md
     ocr.sh                        ocrmypdf wrapper (Linux)
     lint.sh                       deterministic wiki checks for /wiki:lint (read-only)
-    wiki-check.sh                 setup check for /wiki:init check mode (read-only)
+    wiki-check.sh                 setup check for /wiki:init check mode (read-only); also checks the guard hooks find Python
+    py_version.py                 prints the interpreter py-launch.sh finds (for wiki-check.sh)
 tests/                            guard fixtures and fixture wikis, per-source tests, run-tests.sh
 docs/                             design notes and reviews
 ```
@@ -69,7 +70,7 @@ Clone wherever you like; nothing depends on the path, and no environment variabl
 
 | | Linux | Windows |
 |---|---|---|
-| Prerequisites | git, bash | Git for Windows (Git Bash); Claude Code runs hooks in Git Bash |
+| Prerequisites | git, bash, Python 3.9 or later (`python3`; standard library only) | Git for Windows (Git Bash), Claude Code runs hooks in Git Bash; Python 3.9 or later from python.org, with the `python3` App execution alias turned off in Settings |
 | OCR | `sudo apt install ocrmypdf` plus the Tesseract language packs your documents need (e.g. `tesseract-ocr-dan`); `/wiki:ingest` passes the languages from the wiki's CLAUDE.md | none; scans are read as page images |
 | Sources | whatever the wikis' source types need, listed in each type's Caveats; e.g. codebase: a git clone of the repository, and `gh auth login` for the account in `gh_user`; Proton Drive: `~/.local/bin/proton-drive` from [proton.me/download/drive/cli](https://proton.me/download/drive/cli/index.html) and `proton-drive auth login` by hand; Jira: the claude.ai Atlassian connector connected; OneNote: a OneNote reader (CLI, skill or MCP server) signed in with Graph `Notes.Read` or `Notes.Read.All`, its read operations allowed in your settings | the same; Proton's Windows build on PATH, check `proton-drive version` in Git Bash |
 

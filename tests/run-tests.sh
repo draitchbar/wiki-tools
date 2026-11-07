@@ -820,6 +820,20 @@ wc_expect() { # NAME DIR TEXT
 mkwiki good
 check "wiki-check/good-wiki-passes" 0 "$(wc_exit good)"
 wc_expect good-summary good 'Failures: 0.'
+# Python for the guard hooks: found, cached or not, and missing.
+wc_expect python-found good 'PASS the guard hooks find Python 3.'
+mkdir -p "$tmp/cfg/plugins/data/wiki-wiki-tools"
+printf '/opt/py/python3\n' > "$tmp/cfg/plugins/data/wiki-wiki-tools/python"
+out=$(cd "$tmp/good" && CLAUDE_CONFIG_DIR="$tmp/cfg" bash "$scripts/wiki-check.sh" 2>&1)
+case "$out" in *'INFO the guard hooks have cached `/opt/py/python3`'*) r=found ;; *) r="missing in: $out" ;; esac
+check "wiki-check/python-cached" found "$r"
+out=$(cd "$tmp/good" && CLAUDE_CONFIG_DIR="$tmp/cfg-none" bash "$scripts/wiki-check.sh" 2>&1)
+case "$out" in *'INFO no interpreter cached yet'*) r=found ;; *) r="missing in: $out" ;; esac
+check "wiki-check/python-not-cached" found "$r"
+for n in python python3 py; do fk nopython "$n" 'exit 1'; done
+out=$(cd "$tmp/good" && PATH="$tmp/fk/nopython:$PATH" bash "$scripts/wiki-check.sh" 2>&1); rc=$?
+case "$rc $out" in "1 "*'FAIL the guard hooks find no usable Python (no Python 3.9 or later found (tried python, python3, py -3)'*'Fix: install Python 3.9 or later'*) r=found ;; *) r="$rc $out" ;; esac
+check "wiki-check/python-missing" found "$r"
 
 mkwiki f1; printf '@~/src/wiki-tools/schema/wiki-layout.md\n' >> "$tmp/f1/CLAUDE.md"
 wc_expect old-import f1 "FAIL CLAUDE.md still imports the schema by path: @~/src/wiki-tools/schema/wiki-layout.md"
