@@ -282,6 +282,7 @@ Recorded 16.10.2026 on Linux (linux/x64-baseline build). Notes for the wrapper (
   - `git add .claude/settings.json` or `git add .claude/sources` in a wiki is blocked. Commit `.claude/` files yourself.
   - `cat .claude/settings.json` via Bash is blocked. Claude's Read tool still works.
   - A Bash command that mentions a path that merely starts with a root (`~/Scans-old` for root `~/Scans`) is blocked.
+  - A reader that comes from a plugin installed with `claude plugin install` runs from `~/.claude/plugins/cache/…`, and every command naming `.claude/plugins/` is blocked, so a wiki can't use it (found 2026-11-07 with the `onenote` plugin from `aitchbar-ai-tools`). Load such a plugin from a local clone instead: add its marketplace as a directory (`claude plugin marketplace add <clone>`) and enable the plugin in `enabledPlugins` (`"<plugin>@<marketplace>": true` in `~/.claude/settings.json`) without `claude plugin install`, which copies it into the cache. Claude Code then runs it from the clone, as it does `wiki` from this repo (observed behaviour, not documented). Check in a session that the skill's folder is the clone. A guard exception for declared read-only plugin commands is parked in `docs/tier2-plan.md`.
 - **Sources outside the wikis:** calls from other directories are unguarded, by design.
 
 ## Known issues
