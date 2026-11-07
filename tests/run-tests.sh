@@ -84,12 +84,25 @@ pycmp() { # NAME WANT KIND BASH-RESULT PY-RESULT ("<exit> <message>")
 pyrun() { # SCRIPT ARGS...
   [ -s "$tmp/pyrun/python" ] || printf '{}' | PYDATA="$tmp/pyrun" pyhook block_push >/dev/null 2>&1
   local py; IFS= read -r py < "$tmp/pyrun/python"
-  "$py" -I -S -X utf8 "$scripts/$1.py" "${@:2}"
+  if [ -n "${PYNOHOME:-}" ]; then
+    env -u HOME "$py" -I -S -X utf8 "${pyscripts:-$scripts}/$1.py" "${@:2}"
+  else
+    "$py" -I -S -X utf8 "${pyscripts:-$scripts}/$1.py" "${@:2}"
+  fi
 }
-# Pure string functions: keep Git Bash from rewriting /paths and HOME.
-pystr() { MSYS2_ARG_CONV_EXCL='*' MSYS2_ENV_CONV_EXCL=HOME pyrun "$@"; }
+# Git Bash converts HOME for a native program even when MSYS2_ENV_CONV_EXCL
+# names it (HOME=/home/u arrives as C:\Program Files\Git\home\u). So Python
+# gets the test home as USERPROFILE, which it falls back to (contract._home)
+# and which the exclusion does protect; PYNOHOME drops HOME. (env -u, not
+# unset: unset in a function only drops a HOME=... prefix and shows the
+# real one again.)
+pyhome=(env -u HOME MSYS2_ENV_CONV_EXCL=USERPROFILE)
+# Pure string functions: keep Git Bash from rewriting /paths and the home.
+pystr() { MSYS2_ARG_CONV_EXCL='*' USERPROFILE="$HOME" MSYS2_ENV_CONV_EXCL=USERPROFILE PYNOHOME=1 pyrun "$@"; }
 # Python sees Git Bash's /tmp and /c/... as C:/...; messages map them back.
-ptmp=$(pyrun contract expand "$tmp") pplugin=$(pyrun contract expand "$plugin")
+# pyscripts: the scripts folder as Python spells it, so pystr's
+# MSYS2_ARG_CONV_EXCL='*' doesn't hand Python a /c/... script path.
+ptmp=$(pyrun contract expand "$tmp") pplugin=$(pyrun contract expand "$plugin") pyscripts=$(pyrun contract expand "$scripts")
 pymap() { # Git Bash may hand over either slash style.
   local m=$1
   m=${m//"$ptmp"/$tmp}; m=${m//"${ptmp//\//\\}"/$tmp}
@@ -98,9 +111,10 @@ pymap() { # Git Bash may hand over either slash style.
 
 # guard.py is compared with what Claude Code gets from the bash hooks:
 # block-push.sh's block, else guard.sh's result. Callers set
-# CLAUDE_PROJECT_DIR and HOME, and pass results they already have; PYHOME
-# gives Python a different HOME (Windows: the C:\Users\... a real session
-# hands it). The bash hooks run with LC_COLLATE=C, so their globs sort as
+# CLAUDE_PROJECT_DIR and HOME, and pass results they already have. Python
+# gets that home as USERPROFILE (pyhome); PYHOME instead gives it HOME
+# in another form (Windows: the C:\Users\... a real session hands it, which
+# Git Bash leaves alone). The bash hooks run with LC_COLLATE=C, so their globs sort as
 # Python's do: in a real session the locale's order may name a different
 # first broken file or guard word (same decision).
 run_hook() { # SCRIPT INPUT: "<exit> <message>"
@@ -110,8 +124,10 @@ run_hook() { # SCRIPT INPUT: "<exit> <message>"
 }
 gpy() { # INPUT: "<exit> <message>" of guard.py, through py-launch.sh
   local m rc
-  m=$(printf '%s' "$1" | HOME=${PYHOME:-$HOME} CLAUDE_PLUGIN_ROOT="$plugin" CLAUDE_PLUGIN_DATA="$tmp/pyrun" MSYS2_ENV_CONV_EXCL=HOME \
-    bash -c '. "$CLAUDE_PLUGIN_ROOT/scripts/py-launch.sh" guard' 2>&1 >/dev/null); rc=$?
+  local run=("${pyhome[@]}" USERPROFILE="$HOME")
+  [ -z "${PYHOME:-}" ] || run=(env HOME="$PYHOME") # a C:\... home, which Git Bash leaves alone
+  m=$(printf '%s' "$1" | CLAUDE_PLUGIN_ROOT="$plugin" CLAUDE_PLUGIN_DATA="$tmp/pyrun" \
+    "${run[@]}" bash -c '. "$CLAUDE_PLUGIN_ROOT/scripts/py-launch.sh" guard' 2>&1 >/dev/null); rc=$?
   printf '%s %s' "$rc" "$(pymap "$m")"
 }
 gdual() { # NAME WANT KIND INPUT [GUARD.SH-RESULT [BLOCK-PUSH.SH-RESULT]]
@@ -1025,6 +1041,12 @@ for p in '~/two/' '~\two' 'C:\Users\x\' '//a//b//' '/' 'rel/x/' '~' '~/' 'a/./b'
     check "contract-py/$op-$i" "$b" "$q"
   done
 done
+# The home: HOME wins; without it, USERPROFILE (backslashes turned).
+# Windows-form values, which Git Bash passes to Python unchanged.
+check "contract-py/home-prefers-HOME" "C:/h/a" \
+  "$(HOME='C:\h' USERPROFILE='C:\p' MSYS2_ARG_CONV_EXCL='*' pyrun contract expand '~/a')"
+check "contract-py/home-falls-back-to-USERPROFILE" "C:/p/a" \
+  "$(PYNOHOME=1 USERPROFILE='C:\p' MSYS2_ARG_CONV_EXCL='*' pyrun contract expand '~/a')"
 
 section sources
 # sources.sh against a copy of guard-wiki (gmail, scans, teams, local type books).

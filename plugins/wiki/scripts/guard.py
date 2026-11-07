@@ -152,7 +152,7 @@ class Guard:
         self.plugin = C.PLUGIN
         p = norm(self.plugin)
         forms = [p, drive_form(p) or "", slash_form(p) or ""]
-        home = norm(os.environ.get("HOME", ""))
+        home = norm(C._home())
         if home:
             homes = [home, drive_form(home) or "", slash_form(home) or ""]
             tilde = []
