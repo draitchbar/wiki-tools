@@ -1,6 +1,6 @@
 # Roadmap: the wiki plugin
 
-The single place for plans: what is in progress, what is planned, and what is parked, each with the trigger that would make it worth picking up. The decisions behind what is built are in `docs/adr.md`. Small fixes and follow-ups are GitHub issues.
+The index of plans: what is in progress, what is planned, and what is parked, each with the trigger that would make it worth picking up. An item may be one line; a plan worked out in detail lives in its own file in `docs/plans/`, linked from the item, and is deleted when the work is done. The decisions behind what is built are in `docs/adr.md`. Small fixes and follow-ups are GitHub issues.
 
 ## In progress
 - **Public release of wiki-tools** (intent settled 2026-11-15, plan reviewed the same day). The git history holds personal data (the owner's name and emails, a third party's name and email, addresses, hostnames), so the public repo is a new one, started from one commit of the cleaned files; the current repo becomes a private archive. When phase 7 is done, this entry becomes a decision in `docs/adr.md`, written without naming the archive.
@@ -33,6 +33,7 @@ The single place for plans: what is in progress, what is planned, and what is pa
 - **Clone-anywhere layout** (`docs/adr.md`, 1): check on Windows (Git Bash), and plugin loading in a fresh clone of a wiki without a project-scope install (`docs/setup.md`, "Open checks").
 
 ## Planned, not started
+- **Copilot CLI as a second development agent** (plan reviewed 2026-11-15): the repo can be developed with GitHub Copilot CLI as well as Claude Code, under the same rules, each rule and skill written once. Plan: `docs/plans/copilot-cli.md`.
 - **Wiki tooling** (grill the open choices before building). Order: C first (cheap, improves every audit), then A → B, then D.
   - **C, fidelity checks in `/wiki:audit` and `/wiki:lint`:** every number, date and name on a page must appear in the cited source (grep the whole source; two quotes from one supplier mixed up on a page were this kind); claim tags `^[inferred]` / `^[ambiguous]` beside non-sourced statements, which lint counts and lists. Extends the "User statement (YYYY-MM-DD)" rule in `schema/wiki-conventions.md`. ~1 h. Open: tag syntax; warn or error on untagged unsourced claims.
   - **A, personal subagents** `candidate-researcher` and `evaluator` in `~/.claude/agents/`: "find N candidates, then evaluate them" made repeatable (a house-renovation wiki: carpenters, annex suppliers; a car-leasing wiki: `research/*.md`). The researcher has web tools and writes only to `outputs/`; the evaluator is read-only with a criteria rubric and `memory: user`. ~1 h. Open: the rubric; where the researcher may write; personal agents rather than plugin agents (agents in plugins ignore their own hooks).

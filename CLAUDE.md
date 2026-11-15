@@ -17,4 +17,4 @@ This repo is maintained in a Claude session opened here, where the `wiki` plugin
 - Lint must be clean before committing: `ruff check .` (`ruff.toml`) and `shellcheck -S warning` on every `*.sh` (`.shellcheckrc`).
 
 ## Plans
-`docs/roadmap.md` is the single place for plans: what is in progress, planned and parked (with triggers). `docs/adr.md` records the decisions behind what is built; a new decision goes there when its work is done. Small fixes go to GitHub issues.
+`docs/roadmap.md` lists every plan: what is in progress, planned and parked (with triggers); an item may be one line. A plan worked out in detail gets its own file, `docs/plans/<slug>.md`, linked from its roadmap item, and is deleted when the work is done. `docs/adr.md` records the decisions behind what is built; a new decision goes there when its work is done. Small fixes go to GitHub issues.

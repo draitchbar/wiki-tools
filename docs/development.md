@@ -1,6 +1,6 @@
 # Development
 
-Changing wiki-tools itself. The decisions behind the code are in `docs/adr.md`; plans are in `docs/roadmap.md`; the files are listed in `docs/layout.md`.
+Changing wiki-tools itself. The decisions behind the code are in `docs/adr.md`; plans are indexed in `docs/roadmap.md`, detailed ones in `docs/plans/`; the files are listed in `docs/layout.md`.
 
 ## Workflow
 

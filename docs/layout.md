@@ -53,4 +53,5 @@ scripts/pii-check.sh, pii_check.py  repo tooling, not the plugin: the personal-d
 .github/workflows/                ci.yml (lint, tests), pii.yml (personal-data check), claude-review.yml
 tests/                            run-tests.sh (runs pytest), conftest.py and test_*.py, fixtures and fixture wikis, fakes
 docs/                             these pages, the ADR, the roadmap, a security review
+docs/plans/                       one file per detailed plan, indexed in the roadmap
 ```
