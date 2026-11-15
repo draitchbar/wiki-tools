@@ -85,3 +85,17 @@ Windows paths get no special treatment: every test uses `tmp_path` with forward 
 **Why.** Every script must run under Linux bash and Git Bash on Windows, and most Windows problems only show on Windows.
 
 **Consequences.** Real use in a wiki on each machine is still checked by hand for changes that affect sessions.
+
+## 9. Public from a fresh history, with a personal-data check
+**Decision.** The public repo `draitchbar/wiki-tools` started from one commit of the cleaned files, not from the earlier history, which holds personal data (names, emails, addresses, hostnames) and stays private. Everything in the repo, commits included, is free of personal data: no real names, emails, places, hostnames, employer details, third parties or real wiki names, and commits carry only noreply emails and no `Claude-Session:` trailers. The rules are in `docs/development.md` ("Personal data") and `CONTRIBUTING.md`. MIT licence. Anyone can read, fork and install; issues and pull requests are for collaborators, who push branches to the repo, not to forks.
+
+The check runs in three layers:
+- `scripts/pii-check.sh` (stdlib Python behind `py-run.sh`): committed general patterns plus a private denylist (a local file, the secret `PII_DENYLIST` in CI), matched with folded case, Danish letter spellings, separators and encodings. A hit names its place and the entry's number, never the term.
+- A committed pre-push hook (`.githooks/pre-push`), switched on per clone with `git config core.hooksPath .githooks`.
+- CI: `pii.yml` on every PR event (a required check) and on push to `main`; an advisory section in `claude-review.yml` for what patterns miss.
+
+The `main` ruleset requires a PR, the checks lint, tests on Linux and Windows, and pii; it allows squash merges only and blocks force pushes and deletion, with no bypass. Secret scanning and push protection are on.
+
+**Why.** Rewriting history and flipping visibility leaves old commits reachable on GitHub, and a push to a public repo can't be taken back: pull request refs survive deleted branches and force pushes, and forks and clones keep everything. So the check runs before the push where it can, and CI catches the rest.
+
+**Consequences.** Collaborators are trusted: the PII job and the review run with the secrets on a PR's own workflow code, so the owner reviews every change to `.github/workflows/` and the check. Edits in the GitHub web UI skip the hook. Issues and comments aren't scanned. A clone made before the release must never push here; every machine re-cloned.
