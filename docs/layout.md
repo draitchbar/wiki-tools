@@ -7,7 +7,8 @@ What lives where in this repository. Everything the wikis need is under `plugins
 ```
 .claude-plugin/marketplace.json   marketplace "wiki-tools"
 LICENSE, CONTRIBUTING.md          MIT; how collaborators work (by invitation)
-.claude/skills/new-source-type/   repo-local skill: add or promote a standard source type
+AGENTS.md, CLAUDE.md              rules for coding agents; CLAUDE.md only imports AGENTS.md, which imports CONTRIBUTING.md
+.claude/skills/new-source-type/   repo-local skill (Claude Code and Copilot CLI): add or promote a standard source type
 plugins/wiki/
   schema/                         shared wiki schema, loaded at session start by schema.sh
   templates/project-settings.json core of a wiki's .claude/settings.json (source rules come from the types)

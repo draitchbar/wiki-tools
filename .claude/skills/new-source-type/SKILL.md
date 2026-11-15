@@ -1,15 +1,17 @@
 ---
 name: new-source-type
-description: Add a standard source type to the wiki plugin (plugins/wiki/sources/<type>/), or promote a wiki-local type into the standard set. Interviews, researches the connector or CLI, fills the SOURCE.md contract, writes wrapper scripts, tests and guard fixtures, and ends with a green test run. Only for a wiki-tools session.
+description: Add a standard source type to the wiki plugin (plugins/wiki/sources/<type>/), or promote a wiki-local type into the standard set. Arguments, `<type>` or `promote <wiki path> <type>`. Interviews, researches the connector or CLI, fills the SOURCE.md contract, writes wrapper scripts, tests and guard fixtures, and ends with a green test run. Only for a wiki-tools session, and only when the user runs /new-source-type.
 argument-hint: "<type> | promote <wiki path> <type>"
 disable-model-invocation: true
 ---
 
 # New source type: $ARGUMENTS
 
+Run only when the user typed `/new-source-type`; if you loaded this skill yourself, stop and ask whether to start it.
+
 A source type is a contract, `plugins/wiki/sources/<type>/SOURCE.md`, that tells the source-neutral wiki skills how to reach one kind of source **read-only**. The template is `plugins/wiki/templates/source-type/SOURCE.md`; the library that parses contracts is `plugins/wiki/scripts/lib-source.sh`; the guard (`plugins/wiki/scripts/guard.py`, which reads contracts through `contract.py`) reads every contract at hook time. Read all three before writing anything, and read `plugins/wiki/sources/local-folder/` as the worked example of a script type.
 
-Repo rules (CLAUDE.md): POSIX bash for Linux and Git Bash, no jq or Python; LF endings; every script change has fixtures and a green `bash tests/run-tests.sh`; never weaken the guard without saying so in the commit message.
+Repo rules: `AGENTS.md`. In short: POSIX bash for Linux and Git Bash, no jq, Python only where `AGENTS.md` allows it; LF endings; every script change has tests or fixtures and a green `bash tests/run-tests.sh`; never weaken the guard without saying so in the commit message.
 
 ## 0. Mode
 - `promote <wiki path> <type>`: copy `<wiki>/.claude/sources/types/<type>/` to `plugins/wiki/sources/<type>/`, then run steps 3 to 7 on the copy (rewrite script paths from `.claude/sources/types/<type>/`: in `read_tools` to `*/sources/<type>/`, in the body to `${CLAUDE_PLUGIN_ROOT}/sources/<type>/`; source `lib-source.sh` relative to the script). At the end, tell the user to delete the local copy in the wiki (the guard blocks Claude there), and that the type name must stay the same so instances keep working.
@@ -24,7 +26,7 @@ Repo rules (CLAUDE.md): POSIX bash for Linux and Git Bash, no jq or Python; LF e
 6. How it is used: **ingested** (items copied into wiki pages, `mode: ingest`, the default) or **researched on demand** (too large or too fast-moving to ingest; agents answer questions through `/wiki:research`, `mode: research`). For research: must the main session stay out of it (`agent_only: yes`, so its context doesn't grow), and which operations may it still run itself (`main_ops`, e.g. status and citation checks)? `plugins/wiki/sources/codebase/` is the worked example.
 
 ## 2. Research the access route (read-only)
-- **MCP:** list the server's tools available in this session (names and descriptions). Don't call write tools. A connector's write tools may be hidden from this session (disabled in its settings) while the server still has them: take their names from the server's documentation and forbid them anyway. Then, with real read calls:
+- **MCP:** list the server's tools (names and descriptions) in a session that has the connector. The contract names them as Claude Code does, `mcp__<server>__<tool>`, since the wikis run in Claude Code; in Copilot CLI (`/mcp`), or without the connector, take the names from the server's documentation and have the owner check them in a Claude Code session. Don't call write tools. A connector's write tools may be hidden from this session (disabled in its settings) while the server still has them: take their names from the server's documentation and forbid them anyway. Then, with real read calls:
   - **Measure response sizes.** Run the listing call with a realistic page and see whether the result spills to a file; pin `fields`, page size and the like in **List new** to what stays small, and move everything else to **Fetch**.
   - **Look for side effects on reads** (a "recently viewed" or "mark read" flag) and pin them off in the contract.
   - **Don't trust count modes.** Compare a count with the number a listing returns, for each kind of filter the type allows; if they differ, count by listing.
@@ -48,22 +50,22 @@ Model them on `plugins/wiki/sources/local-folder/read.sh`:
 - usage `read.sh <key> <op> <arg>`; exactly the expected number of arguments; an allowlist of operations checked **before** anything touches the CLI;
 - instance from `src_instance_dir`, type checked, `src_validate_instance` must pass; paths checked with `src_is_abs`, `src_has_dots`, `src_expand`, `src_match_root`;
 - a CLI syntax check against recorded help output (see `check_syntax` in `plugins/wiki/sources/codebase/gh.sh`) so a CLI update can't change what the wrapper runs;
-- never prompt (a prompt hangs a Claude Bash call); downloads to `~/.cache/wiki-sources/<wiki>/<key>/<path below root>`;
+- never prompt (a prompt hangs an agent's shell call); downloads to `~/.cache/wiki-sources/<wiki>/<key>/<path below root>`;
 - nothing from the caller passed to the CLI except checked values;
 - a helper that prints a list prints one item per line (`printf '%s\n' "$a" "$b"`). `printf '%s' "$a" "$b"` glues the items together, and code reading the list (the guard's root matching, say) silently compares against a mangled value.
 
 ## 5. Tests
 - `tests/sources/<type>/`: anything the tests need (a fake CLI that echoes its arguments, as `tests/sources/codebase/fake-gh` does).
-- **Tests must never reach the real CLI or account.** Put the fake first on `PATH` for *every* call of the wrapper, refusals included, and abort the run if `command -v <cli>` under that `PATH` isn't the fake (see the start of the `codebase` section in `run-tests.sh`). A missing fake must fail loudly, not fall through to the user's installed CLI.
-- `tests/run-tests.sh`: a section for the type: every refusal (unknown op, extra args, outside roots, sibling prefix, `..`, relative path, wrong instance type, outside git, changed CLI syntax) and every happy path against the fake.
+- **Tests must never reach the real CLI or account.** Put the fake first on `PATH` for *every* call of the wrapper, refusals included, and fail if `command -v <cli>` under that `PATH` isn't the fake (see `tests/test_codebase.py` and its `fake-gh`). A missing fake must fail loudly, not fall through to the user's installed CLI.
+- A test module `tests/test_<type>.py` (pytest; helpers in `tests/conftest.py`, `docs/adr.md`, 7), modelled on `tests/test_codebase.py`: every refusal (unknown op, extra args, outside roots, sibling prefix, `..`, relative path, wrong instance type, outside git, changed CLI syntax) and every happy path against the fake. Each test carries a check name `<type>/<case>`.
 - Guard fixtures in `tests/fixtures/guard/`: `pass-<type>-wrapper` (a plain call), `block-<type>-wrapper-chained`, and `block-<type>-cli-direct` if it has guard words. If the guard wiki needs an instance of the type, add it to `tests/guard-wiki/.claude/sources/instances/`.
 - **`agent_only` types:** the guard tells the main session from a subagent by the hook's `agent_id`. Add fixtures for both sides of every route: `block-<type>-read-main` / `pass-<type>-read-agent`, the same for Grep, Glob patterns and the wrapper, `pass-<type>-wrapper-main-<op>` for each `main_ops` operation and a block for a non-`main_ops` one. The main-session fixtures carry no `agent_id`, the agent ones do; a missing `agent_id` must count as the main session. See the `*-codebase-*` fixtures.
-- **Tool-neutral (`access: tools`):** no wrapper, fixtures or tool lists (validation requires them empty; `read_tools` may hold only Read/Edit rules on the source cache). Add `sexpect` checks for `catalog` (listed as `tools`) and `settings <type>` (the "names no tools" note, no tool rules, narrowed cache rules); `onenote` is the worked example.
-- **No wrapper (an MCP type):** the wrapper and guard-fixture bullets above don't apply. Add `sexpect` checks in the `sources.sh` block of `run-tests.sh` for `settings <type>` (a forbidden tool appears) and `catalog` (the type is listed).
-- Every standard contract is validated by the `contract/<type>-valid` loop in `run-tests.sh`; no need to run `src_validate_contract` by hand.
-- Run `bash tests/run-tests.sh`; it must end "0 failed". On Windows (Git Bash) it takes over 10 minutes: run it with `run_in_background`, output to a log in the scratchpad, and wait for the notification. Never start it with `&`, which leaves stray processes behind.
+- **Tool-neutral (`access: tools`):** no wrapper, fixtures or tool lists (validation requires them empty; `read_tools` may hold only Read/Edit rules on the source cache). Add rows to `tests/test_sources.py` for `catalog` (listed as `tools`) and `settings <type>` (the "names no tools" note, no tool rules, narrowed cache rules); `onenote` is the worked example.
+- **No wrapper (an MCP type):** the wrapper and guard-fixture bullets above don't apply. Add rows to `tests/test_sources.py` for `settings <type>` (a forbidden tool appears) and `catalog` (the type is listed).
+- Every standard contract is validated by the `contract/<type>-valid` checks in `tests/test_sources.py`; no need to validate it by hand.
+- Run `bash tests/run-tests.sh` (and `--e2e` if you added a `.sh` file); it must pass. On Windows (Git Bash) the full run takes several minutes: run it in the background if your agent can, and wait for it to finish. Never start it with `&`, which leaves stray processes behind.
 
-**Editing:** use the Edit tool for multi-line or quote-heavy changes to scripts, tests and Markdown. perl/sed one-liners mangle quotes, `$` and indentation in ways that are easy to miss.
+**Editing:** use your agent's file-edit tool for multi-line or quote-heavy changes to scripts, tests and Markdown. perl/sed one-liners mangle quotes, `$` and indentation in ways that are easy to miss.
 
 ## 6. Docs
 - `docs/sources.md`: add the type to the standard types list, and README.md's one-line list of source types (one line: what it reads, how, platforms, prerequisites such as a CLI login).
