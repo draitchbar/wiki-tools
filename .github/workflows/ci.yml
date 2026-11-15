@@ -1,0 +1,56 @@
+# Tests and lint on every PR and on main. Required checks for main's ruleset:
+# "lint", "test (ubuntu-latest)" and "test (windows-latest)".
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install ruff shellcheck-py
+      - name: ruff (Python)
+        run: ruff check --output-format=github .
+      - name: shellcheck (bash)
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck -S warning
+      - name: LF line endings only
+        run: |
+          if git ls-files -z | xargs -0 grep -lI $'\r' --; then
+            echo "::error::CRLF line endings in the files above"; exit 1
+          fi
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]   # windows: Git Bash
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install pytest
+      - run: git config --global user.name ci && git config --global user.email ci@example.invalid
+      - name: tests
+        run: bash tests/run-tests.sh
+      - name: tests (--e2e)
+        run: bash tests/run-tests.sh --e2e

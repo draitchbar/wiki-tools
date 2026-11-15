@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Stand-in for the gh CLI, used by run-tests.sh via PATH.
+# Prints the help lines gh.sh checks (recorded from gh 2.103.2), a token for
+# the accounts "reader" and "other", and echoes every other call as
+# "FAKE gh <args> token=<GH_TOKEN>", so tests never touch GitHub.
+# FAKE_GH_SYNTAX=changed simulates a gh whose pr view syntax changed.
+
+case "$*" in
+  "auth token --help")
+    printf 'USAGE\n  gh auth token [flags]\n\nFLAGS\n  -h, --hostname string   The hostname\n  -u, --user string       The account to output the token for\n' ;;
+  "api --help")
+    printf 'USAGE\n  gh api <endpoint> [flags]\n\nFLAGS\n  -q, --jq string                Query\n  -X, --method string            The HTTP method for the request (default "GET")\n' ;;
+  "pr view --help")
+    if [ "${FAKE_GH_SYNTAX:-}" = changed ]; then
+      printf 'USAGE\n  gh pr view <number> [flags]\n'
+    else
+      printf 'USAGE\n  gh pr view [<number> | <url> | <branch>] [flags]\n\nFLAGS\n      --json fields\n'
+    fi ;;
+  "pr diff --help")
+    printf 'USAGE\n  gh pr diff [<number> | <url> | <branch>] [flags]\n\nFLAGS\n      --color string\n' ;;
+  "pr list --help")
+    printf 'USAGE\n  gh pr list [flags]\n\nFLAGS\n  -S, --search query\n  -s, --state string\n' ;;
+  "issue view --help")
+    printf 'USAGE\n  gh issue view {<number> | <url>} [flags]\n\nFLAGS\n      --json fields\n' ;;
+  "issue list --help")
+    printf 'USAGE\n  gh issue list [flags]\n\nFLAGS\n  -S, --search query\n  -s, --state string\n' ;;
+  "auth token -u reader") echo tok-reader ;;
+  "auth token -u other") echo tok-other ;;
+  "auth token -u "*) echo "no oauth token found for github.com account" >&2; exit 1 ;;
+  *) echo "FAKE gh $* token=${GH_TOKEN:-}" ;;
+esac

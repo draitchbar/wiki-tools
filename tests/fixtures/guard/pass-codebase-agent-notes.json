@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"default","hook_event_name":"PreToolUse","agent_id":"a1","agent_type":"wiki:source-researcher","tool_name":"Write","tool_input":{"file_path":"/home/u/.cache/wiki-sources/mywiki/code/runs/2026-10-31-x/agent-1-1.md","content":"notes"},"tool_use_id":"x"}

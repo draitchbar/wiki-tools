@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(pdftotext *)",
+      "Read(~/.cache/wiki-sources/**)"
+    ],
+    "deny": [
+      "Bash(git push *)"
+    ]
+  },
+  "enabledPlugins": {
+    "wiki@wiki-tools": true
+  }
+}

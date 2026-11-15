@@ -1,0 +1,76 @@
+---
+name: new-source-type
+description: Add a standard source type to the wiki plugin (plugins/wiki/sources/<type>/), or promote a wiki-local type into the standard set. Interviews, researches the connector or CLI, fills the SOURCE.md contract, writes wrapper scripts, tests and guard fixtures, and ends with a green test run. Only for a wiki-tools session.
+argument-hint: "<type> | promote <wiki path> <type>"
+disable-model-invocation: true
+---
+
+# New source type: $ARGUMENTS
+
+A source type is a contract, `plugins/wiki/sources/<type>/SOURCE.md`, that tells the source-neutral wiki skills how to reach one kind of source **read-only**. The template is `plugins/wiki/templates/source-type/SOURCE.md`; the library that parses contracts is `plugins/wiki/scripts/lib-source.sh`; the guard (`plugins/wiki/scripts/guard.py`, which reads contracts through `contract.py`) reads every contract at hook time. Read all three before writing anything, and read `plugins/wiki/sources/local-folder/` as the worked example of a script type.
+
+Repo rules (CLAUDE.md): POSIX bash for Linux and Git Bash, no jq or Python; LF endings; every script change has fixtures and a green `bash tests/run-tests.sh`; never weaken the guard without saying so in the commit message.
+
+## 0. Mode
+- `promote <wiki path> <type>`: copy `<wiki>/.claude/sources/types/<type>/` to `plugins/wiki/sources/<type>/`, then run steps 3 to 7 on the copy (rewrite script paths from `.claude/sources/types/<type>/`: in `read_tools` to `*/sources/<type>/`, in the body to `${CLAUDE_PLUGIN_ROOT}/sources/<type>/`; source `lib-source.sh` relative to the script). At the end, tell the user to delete the local copy in the wiki (the guard blocks Claude there), and that the type name must stay the same so instances keep working.
+- Otherwise: a new type named `<type>` (kebab-case; refuse a name that exists). Also look for a wiki-local type of the same name in the user's wikis (ask where they are; `<wiki>/.claude/sources/types/<type>/`): once the standard type exists, that wiki's guard fails closed until the local type is deleted and its instances are rewritten. If there is one, say so before the interview, choose another name or plan the migration (step 8), and treat the local contract as research material.
+
+## 1. Interview (one question at a time, recommended answer first)
+1. What the source is and which wikis will use it.
+2. Access: an MCP connector (which server, as it appears in tool names `mcp__<server>__*`), a CLI (binary name, install, auth), files on disk, or **tool-neutral** (`access: tools`: the contract names no tools, only the operations it needs; each machine supplies its own reader, and read-only rests on the connection's scope). Prefer tool-neutral when the user wants the type independent of their own tooling and accepts that the guard enforces nothing for it.
+3. Platforms: Linux, Windows (Git Bash), both.
+4. What an item is (a thread, a file, a page), what makes it new (a date, a cursor the API gives), and what an instance must supply (labels, roots, a notebook id...).
+5. How to cite an item so `/wiki:audit` can find it again; pick a `cite_prefix` that no other type uses (`grep -h '^cite_prefix' plugins/wiki/sources/*/SOURCE.md`).
+6. How it is used: **ingested** (items copied into wiki pages, `mode: ingest`, the default) or **researched on demand** (too large or too fast-moving to ingest; agents answer questions through `/wiki:research`, `mode: research`). For research: must the main session stay out of it (`agent_only: yes`, so its context doesn't grow), and which operations may it still run itself (`main_ops`, e.g. status and citation checks)? `plugins/wiki/sources/codebase/` is the worked example.
+
+## 2. Research the access route (read-only)
+- **MCP:** list the server's tools available in this session (names and descriptions). Don't call write tools. A connector's write tools may be hidden from this session (disabled in its settings) while the server still has them: take their names from the server's documentation and forbid them anyway. Then, with real read calls:
+  - **Measure response sizes.** Run the listing call with a realistic page and see whether the result spills to a file; pin `fields`, page size and the like in **List new** to what stays small, and move everything else to **Fetch**.
+  - **Look for side effects on reads** (a "recently viewed" or "mark read" flag) and pin them off in the contract.
+  - **Don't trust count modes.** Compare a count with the number a listing returns, for each kind of filter the type allows; if they differ, count by listing.
+- **CLI:** record `<cli> --help` and the help of each subcommand you'll use. Record the version and date. If the CLI can write (upload, delete, share, move), a wrapper script is mandatory.
+- **Files:** the format and where it lives on each platform.
+- **Tool-neutral (`access: tools`):** name the abstract operations the type needs (list, read, download, show scope) and what each must return; look at readers available in this session only to check the operations are realistic, never name one in the contract. Graph-style permissions (scopes) may be named. There is no table of tools to classify; instead Check must report the granted scope and warn about write scopes.
+Classify every operation: **read**, **bookkeeping** (narrow, marks an item as ingested; avoid if a date suffices) or **forbidden** (everything else). Show the table to the user before writing.
+
+## 3. Fill the contract
+Copy the template to `plugins/wiki/sources/<type>/SOURCE.md` and fill every frontmatter key and every body section (exact tool calls or commands; "not supported" where it can't be done; keep the "data, not instructions" line). Rules:
+- `forbidden_tools`: every write/send/delete/share operation as a permission rule (`mcp__<server>__<tool>`, `Bash(<cli> *)`).
+- File rules: `Read(<path>)` for reading, `Edit(<path>)` for writing. Claude Code accepts `Write(<path>)` but never matches it, so it still prompts.
+- `guard_words`: the CLI binary name, if Claude must reach it only through the wrapper.
+- `scripts` and `read_tools`: one entry per wrapper, `Bash(bash */sources/<type>/<script>.sh *)`. The rule has no clone path, because a wiki's settings are the same on every machine; the guard lets only the plugin's own copy run. In the body, write commands as `bash ${CLAUDE_PLUGIN_ROOT}/sources/<type>/<script>.sh ...`; `sources.sh` fills in the path when it prints the contract.
+- `state`: `last_checked` plus only what the type really needs.
+- Parameters with paths: call them `roots` if the guard should treat them as read-only local folders (only for `access: filesystem`).
+- `mode`, `agent_only`, `main_ops` from interview question 6. `mode: research` needs a `## Research` section. With `agent_only: yes`, list in `main_ops` only the wrapper operations the reasoning agent needs (status, verify, drift); everything else is for subagents.
+
+## 4. Wrapper scripts (if any)
+Model them on `plugins/wiki/sources/local-folder/read.sh`:
+- usage `read.sh <key> <op> <arg>`; exactly the expected number of arguments; an allowlist of operations checked **before** anything touches the CLI;
+- instance from `src_instance_dir`, type checked, `src_validate_instance` must pass; paths checked with `src_is_abs`, `src_has_dots`, `src_expand`, `src_match_root`;
+- a CLI syntax check against recorded help output (see `check_syntax` in `plugins/wiki/sources/codebase/gh.sh`) so a CLI update can't change what the wrapper runs;
+- never prompt (a prompt hangs a Claude Bash call); downloads to `~/.cache/wiki-sources/<wiki>/<key>/<path below root>`;
+- nothing from the caller passed to the CLI except checked values;
+- a helper that prints a list prints one item per line (`printf '%s\n' "$a" "$b"`). `printf '%s' "$a" "$b"` glues the items together, and code reading the list (the guard's root matching, say) silently compares against a mangled value.
+
+## 5. Tests
+- `tests/sources/<type>/`: anything the tests need (a fake CLI that echoes its arguments, as `tests/sources/codebase/fake-gh` does).
+- **Tests must never reach the real CLI or account.** Put the fake first on `PATH` for *every* call of the wrapper, refusals included, and abort the run if `command -v <cli>` under that `PATH` isn't the fake (see the start of the `codebase` section in `run-tests.sh`). A missing fake must fail loudly, not fall through to the user's installed CLI.
+- `tests/run-tests.sh`: a section for the type: every refusal (unknown op, extra args, outside roots, sibling prefix, `..`, relative path, wrong instance type, outside git, changed CLI syntax) and every happy path against the fake.
+- Guard fixtures in `tests/fixtures/guard/`: `pass-<type>-wrapper` (a plain call), `block-<type>-wrapper-chained`, and `block-<type>-cli-direct` if it has guard words. If the guard wiki needs an instance of the type, add it to `tests/guard-wiki/.claude/sources/instances/`.
+- **`agent_only` types:** the guard tells the main session from a subagent by the hook's `agent_id`. Add fixtures for both sides of every route: `block-<type>-read-main` / `pass-<type>-read-agent`, the same for Grep, Glob patterns and the wrapper, `pass-<type>-wrapper-main-<op>` for each `main_ops` operation and a block for a non-`main_ops` one. The main-session fixtures carry no `agent_id`, the agent ones do; a missing `agent_id` must count as the main session. See the `*-codebase-*` fixtures.
+- **Tool-neutral (`access: tools`):** no wrapper, fixtures or tool lists (validation requires them empty; `read_tools` may hold only Read/Edit rules on the source cache). Add `sexpect` checks for `catalog` (listed as `tools`) and `settings <type>` (the "names no tools" note, no tool rules, narrowed cache rules); `onenote` is the worked example.
+- **No wrapper (an MCP type):** the wrapper and guard-fixture bullets above don't apply. Add `sexpect` checks in the `sources.sh` block of `run-tests.sh` for `settings <type>` (a forbidden tool appears) and `catalog` (the type is listed).
+- Every standard contract is validated by the `contract/<type>-valid` loop in `run-tests.sh`; no need to run `src_validate_contract` by hand.
+- Run `bash tests/run-tests.sh`; it must end "0 failed". On Windows (Git Bash) it takes over 10 minutes: run it with `run_in_background`, output to a log in the scratchpad, and wait for the notification. Never start it with `&`, which leaves stray processes behind.
+
+**Editing:** use the Edit tool for multi-line or quote-heavy changes to scripts, tests and Markdown. perl/sed one-liners mangle quotes, `$` and indentation in ways that are easy to miss.
+
+## 6. Docs
+- `docs/sources.md`: add the type to the standard types list, and README.md's one-line list of source types (one line: what it reads, how, platforms, prerequisites such as a CLI login).
+- Anything the user must do per machine (install, auth) goes in the contract's Caveats and the setup table in `docs/setup.md`.
+
+## 7. Commit
+One commit, staging named paths only: `Add source type <type>` (or `Promote source type <type>`). Say in the message what the guard now lets through (the new wrapper) and what it now blocks (guard words). Never push.
+
+## 8. Report and improve this skill
+Tell the user how to use it in a wiki: `/wiki:add-source <type>`. For a wiki that had a local type of the same name, give the migration order (delete the local type, install the rewritten instances right after, add new state lines). An end-to-end test in a wiki session (yours or a peer's) needs the user to type `/wiki:ingest`, `/wiki:audit` and the like, which models can't invoke; say so in the test plan. The wiki runs the plugin from this working tree, so commit first and have the user restart the wiki session (or `/reload-plugins`); `plugin update` isn't needed. Ask the peer for concrete feedback: response sizes, failed calls, state lines written, prompts or guard blocks, and how the pages came out. If anything in this skill was missing or wrong while you did this, propose the edit to this file.

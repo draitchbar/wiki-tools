@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"default","hook_event_name":"PreToolUse","agent_id":"a1","agent_type":"wiki:source-researcher","tool_name":"Read","tool_input":{"file_path":"/home/u/src/components/app/A.java"},"tool_use_id":"x"}

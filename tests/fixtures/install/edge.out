@@ -1,0 +1,398 @@
+== no-git
+rc=1
+-- out
+-- err
+install-source-file: not inside a git repo; run it from the wiki.
+== no-claude-md
+rc=1
+-- out
+-- err
+install-source-file: @TMP@/ie-nocm has no CLAUDE.md; run it from the wiki.
+== dot-prefix
+rc=0
+-- out
+
+New file .claude/sources/instances/gmail.md:
+  ---
+  key: gmail
+  type: gmail
+  labels: X
+  ---
+
+Install it? [y/N] y
+Installed .claude/sources/instances/gmail.md.
+
+.claude/settings.json still lacks rules these sources need. Add them by hand:
+  under "permissions" -> "allow":
+      "mcp__claude_ai_Gmail__search_threads",
+      "mcp__claude_ai_Gmail__get_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__list_labels",
+      "mcp__claude_ai_Gmail__create_label",
+      "mcp__claude_ai_Gmail__label_thread",
+  under "permissions" -> "deny":
+      "mcp__claude_ai_Gmail__send_message",
+      "mcp__claude_ai_Gmail__reply",
+      "mcp__claude_ai_Gmail__forward",
+      "mcp__claude_ai_Gmail__create_draft",
+      "mcp__claude_ai_Gmail__update_draft",
+      "mcp__claude_ai_Gmail__delete_draft",
+      "mcp__claude_ai_Gmail__trash_message",
+      "mcp__claude_ai_Gmail__trash_thread",
+      "mcp__claude_ai_Gmail__untrash_message",
+      "mcp__claude_ai_Gmail__untrash_thread",
+      "mcp__claude_ai_Gmail__mark_message_spam",
+      "mcp__claude_ai_Gmail__mark_thread_spam",
+      "mcp__claude_ai_Gmail__unmark_message_spam",
+      "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__claude_ai_Gmail__delete_label",
+      "mcp__claude_ai_Gmail__update_label",
+      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__unlabel_message",
+      "mcp__claude_ai_Gmail__unlabel_thread",
+
+When all files are in, commit them yourself, e.g.
+  git add -- .claude/sources/instances/gmail.md && git commit -m "Add source files"
+-- err
+== claude-prefix
+rc=0
+-- out
+
+Changes to .claude/sources/instances/gmail.md:
+--- current
++++ pasted
+@@ -3,3 +3,4 @@
+ type: gmail
+ labels: X
+ ---
++x
+
+Install it? [y/N] y
+Installed .claude/sources/instances/gmail.md.
+
+.claude/settings.json still lacks rules these sources need. Add them by hand:
+  under "permissions" -> "allow":
+      "mcp__claude_ai_Gmail__search_threads",
+      "mcp__claude_ai_Gmail__get_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__list_labels",
+      "mcp__claude_ai_Gmail__create_label",
+      "mcp__claude_ai_Gmail__label_thread",
+  under "permissions" -> "deny":
+      "mcp__claude_ai_Gmail__send_message",
+      "mcp__claude_ai_Gmail__reply",
+      "mcp__claude_ai_Gmail__forward",
+      "mcp__claude_ai_Gmail__create_draft",
+      "mcp__claude_ai_Gmail__update_draft",
+      "mcp__claude_ai_Gmail__delete_draft",
+      "mcp__claude_ai_Gmail__trash_message",
+      "mcp__claude_ai_Gmail__trash_thread",
+      "mcp__claude_ai_Gmail__untrash_message",
+      "mcp__claude_ai_Gmail__untrash_thread",
+      "mcp__claude_ai_Gmail__mark_message_spam",
+      "mcp__claude_ai_Gmail__mark_thread_spam",
+      "mcp__claude_ai_Gmail__unmark_message_spam",
+      "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__claude_ai_Gmail__delete_label",
+      "mcp__claude_ai_Gmail__update_label",
+      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__unlabel_message",
+      "mcp__claude_ai_Gmail__unlabel_thread",
+
+When all files are in, commit them yourself, e.g.
+  git add -- .claude/sources/instances/gmail.md && git commit -m "Add source files"
+-- err
+== nested-type
+rc=1
+-- out
+-- err
+install-source-file: file name 'b/c.sh' must be a plain name in types/a/ (no subfolders).
+== empty-type
+rc=1
+-- out
+-- err
+install-source-file: type name '' must be kebab-case.
+== bare-instances
+rc=1
+-- out
+-- err
+install-source-file: instance key '' must be kebab-case (a-z, 0-9, -).
+== upper-key
+rc=1
+-- out
+-- err
+install-source-file: instance key 'Gmail' must be kebab-case (a-z, 0-9, -).
+== only-cr
+rc=1
+-- out
+-- err
+install-source-file: nothing pasted; nothing installed.
+== no-final-newline
+rc=1
+-- out
+
+Changes to .claude/sources/instances/gmail.md:
+--- current
++++ pasted
+@@ -1,6 +1,5 @@
+ ---
+ key: gmail
+ type: gmail
+-labels: X
++labels: Y
+ ---
+-x
+
+Install it? [y/N] n
+Not installed.
+-- err
+== utf8-first-line
+rc=1
+-- out
+-- err
+install-source-file: not installed; fix these and run it again:
+  - no frontmatter: the file must start with a line '---' and close the block with another '---' (first line pasted: "æøåæøåæøåæøåæøåæøåæøåæøåæøåæøåæøåæøåæøåæøåæøåæøåæøåæøåæøåæøå")
+  - .claude/sources/instances/x.md: no frontmatter block
+== bad-json
+rc=0
+-- out
+
+Changes to .claude/sources/instances/gmail.md:
+--- current
++++ pasted
+@@ -3,4 +3,4 @@
+ type: gmail
+ labels: X
+ ---
+-x
++y
+
+Install it? [y/N] y
+Installed .claude/sources/instances/gmail.md.
+
+.claude/settings.json still lacks rules these sources need. Add them by hand:
+  under "permissions" -> "allow":
+      "mcp__claude_ai_Gmail__search_threads",
+      "mcp__claude_ai_Gmail__get_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__list_labels",
+      "mcp__claude_ai_Gmail__create_label",
+      "mcp__claude_ai_Gmail__label_thread",
+  under "permissions" -> "deny":
+      "mcp__claude_ai_Gmail__send_message",
+      "mcp__claude_ai_Gmail__reply",
+      "mcp__claude_ai_Gmail__forward",
+      "mcp__claude_ai_Gmail__create_draft",
+      "mcp__claude_ai_Gmail__update_draft",
+      "mcp__claude_ai_Gmail__delete_draft",
+      "mcp__claude_ai_Gmail__trash_message",
+      "mcp__claude_ai_Gmail__trash_thread",
+      "mcp__claude_ai_Gmail__untrash_message",
+      "mcp__claude_ai_Gmail__untrash_thread",
+      "mcp__claude_ai_Gmail__mark_message_spam",
+      "mcp__claude_ai_Gmail__mark_thread_spam",
+      "mcp__claude_ai_Gmail__unmark_message_spam",
+      "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__claude_ai_Gmail__delete_label",
+      "mcp__claude_ai_Gmail__update_label",
+      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__unlabel_message",
+      "mcp__claude_ai_Gmail__unlabel_thread",
+
+When all files are in, commit them yourself, e.g.
+  git add -- .claude/sources/instances/gmail.md && git commit -m "Add source files"
+-- err
+== codebase-all-rules
+rc=0
+-- out
+
+New file .claude/sources/instances/code.md:
+  ---
+  key: code
+  type: codebase
+  roots:
+    - /x
+  ---
+
+Install it? [y/N] y
+Installed .claude/sources/instances/code.md.
+
+.claude/settings.json still lacks rules these sources need. Add them by hand:
+  under "permissions" -> "allow":
+      "Bash(bash */sources/codebase/git.sh *)",
+      "Bash(bash */sources/codebase/gh.sh *)",
+      "Read(~/.cache/wiki-sources/iew/code/**)",
+      "Edit(~/.cache/wiki-sources/iew/code/**)",
+      "mcp__claude_ai_Gmail__search_threads",
+      "mcp__claude_ai_Gmail__get_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__list_labels",
+      "mcp__claude_ai_Gmail__create_label",
+      "mcp__claude_ai_Gmail__label_thread",
+  under "permissions" -> "deny":
+      "Bash(gh pr create *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr close *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh pr review *)",
+      "Bash(gh pr edit *)",
+      "Bash(gh pr checkout *)",
+      "Bash(gh issue create *)",
+      "Bash(gh issue comment *)",
+      "Bash(gh issue edit *)",
+      "Bash(gh issue close *)",
+      "Bash(gh repo *)",
+      "Bash(gh api *)",
+      "Bash(gh auth *)",
+      "mcp__claude_ai_Gmail__send_message",
+      "mcp__claude_ai_Gmail__reply",
+      "mcp__claude_ai_Gmail__forward",
+      "mcp__claude_ai_Gmail__create_draft",
+      "mcp__claude_ai_Gmail__update_draft",
+      "mcp__claude_ai_Gmail__delete_draft",
+      "mcp__claude_ai_Gmail__trash_message",
+      "mcp__claude_ai_Gmail__trash_thread",
+      "mcp__claude_ai_Gmail__untrash_message",
+      "mcp__claude_ai_Gmail__untrash_thread",
+      "mcp__claude_ai_Gmail__mark_message_spam",
+      "mcp__claude_ai_Gmail__mark_thread_spam",
+      "mcp__claude_ai_Gmail__unmark_message_spam",
+      "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__claude_ai_Gmail__delete_label",
+      "mcp__claude_ai_Gmail__update_label",
+      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__unlabel_message",
+      "mcp__claude_ai_Gmail__unlabel_thread",
+
+When all files are in, commit them yourself, e.g.
+  git add -- .claude/sources/instances/code.md && git commit -m "Add source files"
+-- err
+== local-contract
+rc=0
+-- out
+Note:
+  - .claude/sources/types/bookish/SOURCE.md: script 'fetch.sh' is listed but missing (install it next)
+
+New file .claude/sources/types/bookish/SOURCE.md:
+  ---
+  type: bookish
+  title: Bookish (local test type)
+  access: script
+  platforms:
+    - linux
+    - macos
+    - windows
+  parameters:
+    - shelf (required): shelf name
+  state:
+    - last_checked: date
+  cite_prefix: Bookish
+  read_tools:
+    - Bash(bash .claude/sources/types/bookish/fetch.sh *)
+  bookkeeping_tools:
+  forbidden_tools:
+    - Bash(bookish-cli *)
+  guard_words:
+    - bookish-cli
+  scripts:
+    - fetch.sh
+  ---
+  
+  # Source type: Bookish
+  
+  ## Check
+  ## List new
+  ## Fetch
+  ## Mark ingested
+  ## Cite
+  ## Resolve citation
+  ## Caveats
+
+Install it? [y/N] y
+Installed .claude/sources/types/bookish/SOURCE.md.
+
+.claude/settings.json still lacks rules these sources need. Add them by hand:
+  under "permissions" -> "allow":
+      "Bash(bash */sources/codebase/git.sh *)",
+      "Bash(bash */sources/codebase/gh.sh *)",
+      "Read(~/.cache/wiki-sources/iew/code/**)",
+      "Edit(~/.cache/wiki-sources/iew/code/**)",
+      "mcp__claude_ai_Gmail__search_threads",
+      "mcp__claude_ai_Gmail__get_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__list_labels",
+      "mcp__claude_ai_Gmail__create_label",
+      "mcp__claude_ai_Gmail__label_thread",
+  under "permissions" -> "deny":
+      "Bash(gh pr create *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr close *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh pr review *)",
+      "Bash(gh pr edit *)",
+      "Bash(gh pr checkout *)",
+      "Bash(gh issue create *)",
+      "Bash(gh issue comment *)",
+      "Bash(gh issue edit *)",
+      "Bash(gh issue close *)",
+      "Bash(gh repo *)",
+      "Bash(gh api *)",
+      "Bash(gh auth *)",
+      "mcp__claude_ai_Gmail__send_message",
+      "mcp__claude_ai_Gmail__reply",
+      "mcp__claude_ai_Gmail__forward",
+      "mcp__claude_ai_Gmail__create_draft",
+      "mcp__claude_ai_Gmail__update_draft",
+      "mcp__claude_ai_Gmail__delete_draft",
+      "mcp__claude_ai_Gmail__trash_message",
+      "mcp__claude_ai_Gmail__trash_thread",
+      "mcp__claude_ai_Gmail__untrash_message",
+      "mcp__claude_ai_Gmail__untrash_thread",
+      "mcp__claude_ai_Gmail__mark_message_spam",
+      "mcp__claude_ai_Gmail__mark_thread_spam",
+      "mcp__claude_ai_Gmail__unmark_message_spam",
+      "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__claude_ai_Gmail__delete_label",
+      "mcp__claude_ai_Gmail__update_label",
+      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__unlabel_message",
+      "mcp__claude_ai_Gmail__unlabel_thread",
+
+When all files are in, commit them yourself, e.g.
+  git add -- .claude/sources/types/bookish/SOURCE.md && git commit -m "Add source files"
+-- err
+== local-contract-again
+rc=0
+-- out
+Note:
+  - .claude/sources/types/bookish/SOURCE.md: script 'fetch.sh' is listed but missing (install it next)
+install-source-file: .claude/sources/types/bookish/SOURCE.md is already exactly this; nothing to do.
+-- err
+== local-bad-instance
+rc=1
+-- out
+-- err
+install-source-file: not installed; fix these and run it again:
+  - .claude/sources/instances/bk.md: parameter 'shelf' holds a placeholder ('TODO'); put in the real value
+== no-rules-missing
+rc=0
+-- out
+
+Changes to .claude/sources/instances/gmail.md:
+--- current
++++ pasted
+@@ -3,4 +3,4 @@
+ type: gmail
+ labels: X
+ ---
+-y
++z
+
+Install it? [y/N] y
+Installed .claude/sources/instances/gmail.md.
+
+.claude/settings.json has every rule these sources need.
+
+When all files are in, commit them yourself, e.g.
+  git add -- .claude/sources/instances/gmail.md && git commit -m "Add source files"
+-- err

@@ -1,0 +1,154 @@
+== src_settings_rules @TMP@/edge-json/1.json
+rc=1
+-- out
+ERROR	unexpected end of file (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/2.json
+rc=1
+-- out
+ERROR	expected a quoted key (line 2)
+-- err
+== src_settings_rules @TMP@/edge-json/3.json
+rc=1
+-- out
+ERROR	comma before } (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/4.json
+rc=1
+-- out
+ERROR	comma before ] (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/5.json
+rc=1
+-- out
+ERROR	expected , or ] (a missing comma?) (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/6.json
+rc=0
+-- out
+allow	a"b
+allow	c\d
+allow	e/f
+allow	g\nh
+deny	x
+ask	y
+-- err
+== src_settings_rules @TMP@/edge-json/7.json
+rc=1
+-- out
+ERROR	line break inside a string (line 2)
+-- err
+== src_settings_rules @TMP@/edge-json/8.json
+rc=1
+-- out
+ERROR	text after the end (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/9.json
+rc=1
+-- out
+ERROR	unexpected "t" (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/10.json
+rc=0
+-- out
+-- err
+== src_settings_rules @TMP@/edge-json/11.json
+rc=1
+-- out
+ERROR	expected : after "a" (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/12.json
+rc=1
+-- out
+ERROR	expected a quoted key (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/13.json
+rc=1
+-- out
+ERROR	unexpected end of file (line 2)
+-- err
+== src_settings_rules @TMP@/edge-json/14.json
+rc=1
+-- out
+ERROR	line break inside a string (line 2)
+-- err
+== src_settings_rules @TMP@/edge-json/15.json
+rc=0
+-- out
+-- err
+== src_settings_rules @TMP@/edge-json/16.json
+rc=0
+-- out
+allow	nested
+-- err
+== src_settings_rules @TMP@/edge-json/17.json
+rc=0
+-- out
+-- err
+== src_settings_rules @TMP@/edge-json/18.json
+rc=0
+-- out
+deny	inner
+-- err
+== src_settings_rules @TMP@/edge-json/19.json
+rc=0
+-- out
+-- err
+== src_settings_rules @TMP@/edge-json/20.json
+rc=0
+-- out
+-- err
+== src_settings_rules @TMP@/edge-json/21.json
+rc=0
+-- out
+allow	x
+-- err
+== src_settings_rules @TMP@/edge-json/22.json
+rc=1
+-- out
+ERROR	unterminated string (line 2)
+-- err
+== src_settings_rules @TMP@/edge-json/23.json
+rc=1
+-- out
+ERROR	comma before ] (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/24.json
+rc=1
+-- out
+ERROR	expected , or } (a missing comma?) (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/25.json
+rc=1
+-- out
+ERROR	unexpected end of file (line 2)
+-- err
+== src_settings_rules @TMP@/edge-json/26.json
+rc=1
+-- out
+ERROR	unexpected "t" (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/27.json
+rc=1
+-- out
+ERROR	unexpected "-" (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/28.json
+rc=0
+-- out
+-- err
+== src_settings_rules @TMP@/edge-json/29.json
+rc=1
+-- out
+ERROR	expected , or } (a missing comma?) (line 1)
+-- err
+== src_settings_rules @TMP@/edge-json/30.json
+rc=0
+-- out
+allow	Bash(git *)
+allow	Read(~/.cache/wiki-sources/**)
+-- err
+== src_settings_rules @TMP@/edge-json/31.json
+rc=0
+-- out
+-- err

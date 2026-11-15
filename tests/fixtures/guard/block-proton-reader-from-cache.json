@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"bash \"/home/u/.claude/plugins/cache/aitchbar-ai-tools/proton/1.0.0/scripts/drive.sh\" list \"/my-files/x\" --root \"/my-files/x\"","description":"x"},"tool_use_id":"x"}

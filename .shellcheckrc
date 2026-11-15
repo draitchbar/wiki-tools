@@ -1,0 +1,8 @@
+# Bash lint (CI and local: shellcheck -S warning on every *.sh).
+# Sourced libraries (py-run.sh, py-launch.sh, lib-source.sh) have no shebang.
+shell=bash
+# Variables set or used across sourced files, which shellcheck can't follow
+# through the scripts' computed source paths.
+disable=SC2034,SC2154
+# Intentional: a literal "~/" in patterns and messages; "VAR= VAR2=" empty assignments.
+disable=SC2088,SC1007

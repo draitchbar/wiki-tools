@@ -1,0 +1,14 @@
+{
+  "name": "wiki-tools",
+  "owner": {
+    "name": "draitchbar"
+  },
+  "description": "A Claude Code plugin for LLM-maintained Markdown wikis.",
+  "plugins": [
+    {
+      "name": "wiki",
+      "source": "./plugins/wiki",
+      "description": "Skills and guard hooks for Karpathy-style LLM wikis: init, ingest, sync status, lint, audit, themed commits, push block, and read-only access to pluggable sources."
+    }
+  ]
+}

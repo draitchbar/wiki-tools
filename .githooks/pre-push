@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Checks every commit, ref name and tag about to be pushed for personal
+# data (scripts/pii-check.sh). Switched on per clone:
+#   git config core.hooksPath .githooks
+# Any failure blocks the push, a missing script included. Never bypass it
+# with --no-verify; fix the commits instead.
+top=$(git rev-parse --show-toplevel) || exit 1
+[ -f "$top/scripts/pii-check.sh" ] || { echo "pre-push: scripts/pii-check.sh missing" >&2; exit 1; }
+bash "$top/scripts/pii-check.sh" pre-push "$1" || {
+  echo "pre-push: push blocked by the personal-data check" >&2
+  exit 1
+}

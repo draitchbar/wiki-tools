@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/home/u/.cache/wiki-sources/mywiki/teams/walk.tsv","content":"file:///b!drive/01ABC\tTeam files/AP/plan.pptx\t48213\n"},"tool_use_id":"x"}

@@ -1,0 +1,7 @@
+# Python lint (CI and local: `ruff check .`). Python 3.9+, standard library only.
+target-version = "py39"
+line-length = 100
+
+[lint]
+select = ["E", "F", "W", "B"]
+ignore = ["E501"]

@@ -1,0 +1,463 @@
+"""sources.py: read-only view of a wiki's sources for the wiki skills.
+
+The body of sources.sh, which is its launcher (docs/adr.md, 4). Same operations, arguments, output
+byte for byte, messages (`sources: ...`) and exit codes as the bash version
+(checked by a dual run and real use on both machines, then deleted; the
+dual run's edge cases are kept in tests/fixtures/sources/edge.out):
+
+  sources.py [--plugin DIR] list
+  sources.py [--plugin DIR] show <key>
+  sources.py [--plugin DIR] catalog
+  sources.py [--plugin DIR] contract <type>
+  sources.py [--plugin DIR] settings [<type>... [--key <key>]]
+  sources.py [--plugin DIR] check-settings
+
+--plugin is the plugin folder as bash spells it (the launcher passes it):
+messages and filled-in contracts use that spelling, files are opened
+through its native form (sourcelib.native). Run it from inside a wiki.
+Writes nothing. Exit 1: a refusal or a problem (as the bash version);
+exit 3: an internal error.
+
+Known differences from bash, accepted in the plan: names and types are
+split into words on space, tab and newline but never glob-expanded; type,
+key and catalog order is C order; a key is matched literally in
+raw/sync-log.md (sed took it as a regex).
+"""
+
+import os
+import re
+import sys
+
+# -I leaves this folder off sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import contract  # noqa: E402
+import sourcelib  # noqa: E402
+from sourcelib import err, git, out  # noqa: E402
+
+USAGE = ("usage: sources.sh <list|show <key>|catalog|contract <type>|"
+         "settings [<type>... [--key <key>]]|check-settings>")
+_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", re.ASCII)
+_MANUAL = re.compile(r"last_checked_([A-Za-z0-9_-]*):", re.ASCII)
+
+
+class Die(Exception):
+    """sources.sh's die: message on stderr, exit 1."""
+
+
+def raw(b):
+    """Bytes to stdout as they are (file contents)."""
+    sys.stdout.buffer.write(b)
+
+
+def name_ok(s):
+    """`printf '%s' "$s" | grep -Eq "$SRC_NAME_RE"`: any line matches."""
+    return any(contract.NAME_RE.fullmatch(ln) for ln in s.split("\n"))
+
+
+def basename(p):
+    return p.rstrip("/").rsplit("/", 1)[-1]
+
+
+def platform():
+    """src_platform."""
+    p = sys.platform
+    if p.startswith("linux"):
+        return "linux"
+    if p in ("win32", "cygwin", "msys"):
+        return "windows"
+    if p == "darwin":
+        return "macos"
+    import platform as pf
+    return pf.system().lower()
+
+
+def read_bytes(path):
+    with open(path, "rb") as fh:
+        return fh.read()
+
+
+class Wiki:
+    def __init__(self, plugin):
+        self.plugin = plugin                # native
+        self.plugin_shown = sourcelib.show(plugin)
+        top = sourcelib.toplevel(None)
+        if not top:
+            raise Die("not inside a git repo; run from a wiki.")
+        self.root = top
+        self.plat = platform()
+        self.log = self.root + "/raw/sync-log.md"
+        self.idir = contract.instance_dir(self.root)
+
+    def state_of(self, k):
+        """The last_checked value in raw/sync-log.md."""
+        if not os.path.isfile(self.log):
+            return "no sync-log"
+        pre = re.compile(r"last_checked_" + re.escape(k) + r":\s*")
+        for ln in read_bytes(self.log).decode("utf-8", errors="surrogateescape").split("\n"):
+            m = pre.match(ln)
+            if m:
+                v = ln[m.end():].replace("\r", "")
+                return v or "no last_checked_%s line" % k
+        return "no last_checked_%s line" % k
+
+    def contract(self, t):
+        return contract.contract(self.root, t, self.plugin)
+
+    def platform_ok(self, c):
+        return self.plat in contract.list_(c, "platforms")
+
+    def print_contract(self, c):
+        """The contract with ${CLAUDE_PLUGIN_ROOT} filled in, CRs dropped."""
+        b = read_bytes(c).replace(b"\r", b"")
+        raw(b.replace(b"${CLAUDE_PLUGIN_ROOT}",
+                      self.plugin_shown.encode("utf-8", errors="surrogateescape")))
+
+    def manual_keys(self):
+        """src_manual_keys."""
+        if not os.path.isfile(self.log):
+            return []
+        keys = set()
+        for ln in read_bytes(self.log).decode("utf-8", errors="surrogateescape").split("\n"):
+            m = _MANUAL.match(ln)
+            if m:
+                keys.add(m.group(1))
+        return [k for k in sorted(keys, key=contract._bytes_key)
+                if k != "raw" and not os.path.isfile("%s/%s.md" % (self.idir, k))]
+
+    def catalog(self):
+        """src_catalog: (type, standard|local, title)."""
+        res = []
+        for base, kind in ((self.plugin + "/sources", "standard"),
+                           (self.root + "/.claude/sources/types", "local")):
+            try:
+                names = os.listdir(base)
+            except OSError:
+                continue
+            for t in sorted((n for n in names if not n.startswith(".")), key=contract._bytes_key):
+                f = "%s/%s/SOURCE.md" % (base, t)
+                if os.path.isfile(f):
+                    res.append((t, kind, contract.field(f, "title")))
+        return res
+
+
+# The operations.
+
+def op_list(w, args):
+    if len(args) != 0:
+        raise Die("usage: sources.sh list")
+    out("Sources of %s (platform: %s):" % (basename(w.root), w.plat))
+    out("- raw: built in (raw/), last checked: %s" % w.state_of("raw"))
+    for k in sourcelib.words(contract.instances(w.root)):
+        t = contract.field("%s/%s.md" % (w.idir, k), "type")
+        try:
+            c = w.contract(t)
+        except contract.ContractError:
+            out("- %s: type %s: UNKNOWN TYPE" % (k, t or "?"))
+            continue
+        kind = "standard" if c.startswith(w.plugin + "/") else "local"
+        valid, _ = sourcelib.quietly(sourcelib.validate_instance, w.root, k, w.plugin)
+        ok = "valid" if valid else "INVALID (run: sources.sh show %s)" % k
+        p = "yes" if w.platform_ok(c) else "no (only %s)" % ",".join(contract.list_(c, "platforms"))
+        m = ""
+        if contract.field(c, "mode") == "research":
+            m = ', research (/wiki:research %s "<question>"; not ingested)' % k
+        out("- %s: type %s (%s)%s, %s, available here: %s, last checked: %s"
+            % (k, t, kind, m, ok, p, w.state_of(k)))
+    for k in sourcelib.words(w.manual_keys()):
+        out("- %s: manual key (no source file; enters via raw/ or user statements; "
+            "/wiki:ingest cannot read it), last checked: %s" % (k, w.state_of(k)))
+    return 0
+
+
+def check_needed(w, k, f):
+    """The instance file changed since the last ingest (a new root or
+    label): its parameters haven't met reality yet."""
+    last = w.state_of(k)
+    if not _DATE.fullmatch(last):
+        return
+    rel = f[len(w.root) + 1:] if f.startswith(w.root + "/") else f
+    _, st = git(w.root, "status", "--porcelain", "--", rel)
+    if st.rstrip("\n"):
+        out("Check needed: the instance file has uncommitted changes since the last ingest (%s)." % last)
+        return
+    # Exact commit times: the instance file vs the last commit that changed
+    # its last_checked line; by date if that line was never committed.
+    _, changed = git(w.root, "log", "-1", "--format=%ct %cs", "--", rel)
+    _, stamped = git(w.root, "log", "-1", "--format=%ct", "-G^last_checked_%s:" % k,
+                     "--", "raw/sync-log.md")
+    changed, stamped = changed.rstrip("\n"), stamped.rstrip("\n")
+    if not changed:
+        return
+    ct, _, cs = changed.partition(" ")
+    if stamped:
+        try:
+            need = not int(ct) <= int(stamped)
+        except ValueError:
+            need = True
+    else:
+        need = not cs < last
+    if need:
+        out("Check needed: the instance file changed (%s) since the last ingest (%s)." % (cs, last))
+
+
+def op_show(w, args):
+    if len(args) != 1:
+        raise Die("usage: sources.sh show <key>")
+    k = args[0]
+    if k == "raw":
+        out("raw is built in: new or changed files in raw/ that the raw/sync-log.md history "
+            "does not list. Last checked: %s" % w.state_of("raw"))
+        return 0
+    if not name_ok(k):
+        raise Die("invalid key '%s'" % k)
+    f = "%s/%s.md" % (w.idir, k)
+    if not os.path.isfile(f):
+        raise Die("no source '%s' in this wiki (no %s). Known: raw %s. Add one with /wiki:add-source."
+                  % (k, f, " ".join(contract.instances(w.root))))
+    valid, errs = sourcelib.quietly(sourcelib.validate_instance, w.root, k, w.plugin)
+    if not valid:
+        raise Die("source '%s' doesn't validate:\n%s" % (k, "\n".join(errs)))
+    t = contract.field(f, "type")
+    c = w.contract(t)
+    if not w.platform_ok(c):
+        raise Die("source '%s' (type %s) isn't available on %s; it supports: %s."
+                  % (k, t, w.plat, " ".join(contract.list_(c, "platforms"))))
+    out("Source %s: valid, available on %s, last checked: %s" % (k, w.plat, w.state_of(k)))
+    check_needed(w, k, f)
+    out("")
+    out("===== Instance file %s =====" % (f[len(w.root) + 1:] if f.startswith(w.root + "/") else f))
+    raw(read_bytes(f).replace(b"\r", b""))
+    out("")
+    out("===== Contract %s =====" % c)
+    w.print_contract(c)
+    return 0
+
+
+def op_catalog(w, args):
+    if len(args) != 0:
+        raise Die("usage: sources.sh catalog")
+    out("Source types (platform: %s):" % w.plat)
+    for t, kind, title in w.catalog():
+        try:
+            c = w.contract(t)
+        except contract.ContractError:
+            out("- %s (%s): BROKEN (shadows a standard type?)" % (t, kind))
+            continue
+        p = "" if w.platform_ok(c) else ", not available on %s" % w.plat
+        out("- %s (%s, %s%s): %s" % (t, kind, contract.field(c, "access"), p, title))
+    return 0
+
+
+def op_contract(w, args):
+    if len(args) != 1:
+        raise Die("usage: sources.sh contract <type>")
+    t = args[0]
+    try:
+        c = w.contract(t)
+    except contract.ContractError as e:
+        err(str(e))
+        # Shadowed by a local type: still show the standard contract, which
+        # is what the instances must be rewritten to.
+        std = "%s/sources/%s/SOURCE.md" % (w.plugin, t)
+        if not (name_ok(t) and os.path.isfile(std)):
+            return 1
+        c = std
+        out("WARNING: shown is the standard contract; a local type of the same name shadows it (see above).")
+        out("")
+    valid, errs = sourcelib.quietly(sourcelib.validate_contract, c)
+    if not valid:
+        out("WARNING: contract does not validate:")
+        out("\n".join(errs))
+        out("")
+    out("===== Contract %s =====" % c)
+    w.print_contract(c)
+    return 0
+
+
+def json_list(items):
+    """grep -v '^$' | dedupe | escape \\ and " | quote | comma all but last."""
+    seen, res = set(), []
+    for r in items:
+        if r == "" or r in seen:
+            continue
+        seen.add(r)
+        res.append('      "%s"' % r.replace("\\", "\\\\").replace('"', '\\"'))
+    return ",\n".join(res)
+
+
+def op_settings(w, args):
+    types, key = "", ""
+    i = 0
+    while i < len(args):
+        if args[i] == "--key":
+            if i + 1 >= len(args):
+                raise Die("--key needs an instance key")
+            key = args[i + 1]
+            i += 2
+        else:
+            types += " " + args[i]
+            i += 1
+    if key and not name_ok(key):
+        raise Die("invalid instance key '%s'" % key)
+    if not types:
+        if key:
+            raise Die("--key goes with a type: settings <type> --key <key>")
+        rules = sourcelib.needed_rules(w.root, w.plugin)
+    else:
+        rules = []
+        for t in sourcelib.words([types]):
+            try:
+                c = w.contract(t)
+            except contract.ContractError as e:
+                err(str(e))
+                return 1
+            tr = sourcelib.type_rules(c)
+            if key:
+                rules += sourcelib.narrow_rules(tr, basename(w.root), key)
+            else:
+                rules += ["%s\t%s\t%s" % (ln.split("\t")[0], _f(ln, 1), _f(ln, 1)) for ln in tr]
+
+    def pick(lst):
+        return [_f(ln, 1) for ln in rules if _f(ln, 0) == lst]
+
+    out('{\n  "permissions": {\n    "allow": [\n%s\n    ],\n    "deny": [\n%s\n    ]\n  }\n}'
+        % (json_list(pick("allow")), json_list(pick("deny"))))
+    wide = [ln for ln in rules if _f(ln, 1) != _f(ln, 2)]
+    if wide:
+        out("\nCache rules are narrowed to this wiki and instance (~/.cache/wiki-sources/<wiki>/<key>/); "
+            "a broader rule already in settings.json, e.g. %s, covers them too." % _f(wide[0], 2))
+    # access: tools types name no tools, so they add nothing above; say so.
+    if not types:
+        seen, ts = set(), []
+        for k in sourcelib.words(contract.instances(w.root)):
+            t = contract.field("%s/%s.md" % (w.idir, k), "type")
+            if t not in seen:
+                seen.add(t)
+                ts.append(t)
+        tlist = sourcelib.words(ts)
+    else:
+        tlist = sourcelib.words([types])
+    for t in tlist:
+        try:
+            c = w.contract(t)
+        except contract.ContractError:
+            continue
+        if contract.field(c, "access") != "tools":
+            continue
+        out("\n%s (access: tools) names no tools, so it adds no tool rules here (only its cache rules, "
+            "if any). Allow the read tools this machine supplies for it yourself (this wiki's settings "
+            "or your user settings; see its Caveats). How read-only is kept is in its Caveats, not in "
+            "these settings." % t)
+    return 0
+
+
+def _f(ln, n):
+    """awk -F'\\t' field n+1 ("" when missing)."""
+    fs = ln.split("\t")
+    return fs[n] if n < len(fs) else ""
+
+
+def op_check_settings(w, args):
+    if len(args) != 0:
+        raise Die("usage: sources.sh check-settings")
+    sf = w.root + "/.claude/settings.json"
+    if not os.path.isfile(sf):
+        out("settings.json: missing (%s)" % sf)
+        return 1
+    try:
+        text = read_bytes(sf).decode("utf-8", errors="surrogateescape")
+    except OSError as e:
+        err("sourcelib: internal error: %s: %s" % (type(e).__name__, e))
+        out("settings.json: NOT valid JSON: ")
+        return 1
+    have, e = sourcelib.settings_rules(text)
+    if e is not None:
+        out("settings.json: NOT valid JSON: %s" % e)
+        return 1
+    out("settings.json: valid JSON, %d permission rules" % len(have))
+    bad = 0
+    hs = set(have)
+    need = sourcelib.needed_rules(w.root, w.plugin)
+    miss = ["  %s: %s" % m for m in sourcelib.missing_rules(need, have)]
+    if miss:
+        bad = 1
+        out("missing (rules your sources need):\n" + "\n".join(miss))
+    else:
+        out("missing: none")
+    counts = {}
+    for ln in have:
+        counts[ln] = counts.get(ln, 0) + 1
+    dup = ["  " + ln.replace("\t", ": ", 1)
+           for ln in sorted((ln for ln, n in counts.items() if n > 1), key=contract._bytes_key)]
+    if dup:
+        bad = 1
+        out("duplicates:\n" + "\n".join(dup))
+    else:
+        out("duplicates: none")
+    allow = {_f(ln, 1) for ln in have if _f(ln, 0) == "allow"}
+    deny = {_f(ln, 1) for ln in have if _f(ln, 0) == "deny"}
+    both = ["  " + r for r in sorted(allow & deny, key=lambda s: contract._bytes_key("  " + s))]
+    if both:
+        bad = 1
+        out("in both allow and deny (deny wins):\n" + "\n".join(both))
+    else:
+        out("conflicts: none")
+    blocked = ["  allow: %s (deny: %s)" % m for m in sourcelib.blocked_rules(need, have)]
+    if blocked:
+        bad = 1
+        out("blocked by deny (rules your sources need; deny wins):\n" + "\n".join(blocked))
+    else:
+        out("blocked by deny: none")
+    seen, broad = set(), []
+    for ln in need:
+        if _f(ln, 1) == _f(ln, 2):
+            continue
+        pair = _f(ln, 0) + "\t" + _f(ln, 2)
+        if pair in seen:
+            continue
+        seen.add(pair)
+        if pair in hs:
+            broad.append("  " + _f(ln, 2))
+    if broad:
+        out("note: these rules reach every wiki's cache; the per-instance rules (sources.sh settings) "
+            "would do:\n" + "\n".join(broad))
+    return bad
+
+
+OPS = {"list": op_list, "show": op_show, "catalog": op_catalog, "contract": op_contract,
+       "settings": op_settings, "check-settings": op_check_settings}
+
+
+def _main(argv):
+    plugin = contract.PLUGIN
+    if argv[:1] == ["--plugin"] and len(argv) > 1:
+        plugin, argv = argv[1], argv[2:]
+    plugin = sourcelib.native(plugin)
+    op, args = (argv[0], argv[1:]) if argv else ("", [])
+    w = Wiki(plugin)
+    fn = OPS.get(op)
+    if fn is None:
+        raise Die(USAGE)
+    return fn(w, args)
+
+
+def main(argv):
+    try:
+        rc = _main(argv)
+    except Die as e:
+        err("sources: %s" % e)
+        rc = 1
+    except sourcelib.GitBashPath as e:
+        err("sources: %s" % e)
+        rc = 3
+    except Exception as e:  # an internal error is never a refusal
+        err("sources: internal error: %s: %s" % (type(e).__name__, e))
+        rc = 3
+    sys.stdout.flush()
+    sys.stdout.buffer.flush()
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

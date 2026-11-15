@@ -1,0 +1,441 @@
+== lint-before-commit
+rc=0
+-- out
+## Mechanical checks: ew (2026-10-16)
+
+Pages: 13. Errors: 9. Warnings: 26. Info: 2.
+
+### ERROR: missing frontmatter (3)
+
+- `bom.md`: no YAML frontmatter
+- `empty.md`: no YAML frontmatter
+- `top.md`: no YAML frontmatter
+
+### ERROR: missing required fields (1)
+
+- `unclosed.md`: missing sources created updated
+
+### ERROR: broken links (5)
+
+- `[[a\]]` (no such page) linked from `ok.md`
+- `[[ghost-page]]` (no such page) linked from `ok.md`
+- `[[spaced]]` (no such page) linked from `ok.md`
+- `[[target]]` (no such page) linked from `ok.md`
+- `[[Økonomi-x]]` (no such page) linked from `index.md`, `top.md`
+
+### WARN: orphan pages (11)
+
+- `.hidden/h.md`: no inbound links from other pages
+- `a/b.md`: no inbound links from other pages
+- `bom.md`: no inbound links from other pages
+- `crlf.md`: no inbound links from other pages
+- `dates.md`: no inbound links from other pages
+- `empty.md`: no inbound links from other pages
+- `latin1.md`: no inbound links from other pages
+- `stale.md`: no inbound links from other pages
+- `sub/index.md`: no inbound links from other pages
+- `top.md`: no inbound links from other pages
+- `unclosed.md`: no inbound links from other pages
+
+### WARN: not in index.md (8)
+
+- `.hidden/h.md`: not listed in index.md
+- `dates.md`: not listed in index.md
+- `empty.md`: not listed in index.md
+- `latin1.md`: not listed in index.md
+- `stale.md`: not listed in index.md
+- `sub/index.md`: not listed in index.md
+- `top.md`: not listed in index.md
+- `unclosed.md`: not listed in index.md
+
+### WARN: no sources (1)
+
+- `sub/index.md`: `sources:` is empty; every claim is uncited
+
+### WARN: bad dates (5)
+
+- `dates.md`: `created: 2026-02-30` is not a YYYY-MM-DD date
+- `dates.md`: `updated: 2026-10-01 # comment` is not a YYYY-MM-DD date
+- `dates.md`: `status_as_of: 2027-01-01` is in the future
+- `dates.md`: `as_of: 2026-1-1` is not a YYYY-MM-DD date
+- `sub/index.md`: updated (2025-12-31) is before created (2026-01-01)
+
+### WARN: possibly stale (not updated in 90+ days) (1)
+
+- `stale.md`: updated 653 days ago and still says: afventer,currently,latest,pending,venter på,venter pÅ
+
+### INFO: missing status_as_of (2)
+
+- `stale.md` (decision): no `status_as_of`
+- `sub/index.md` (decision): no `status_as_of`
+
+## Clusters for contradiction checks
+
+- **(top level)**: `a-b.md`, `bom.md`, `crlf.md`, `dates.md`, `empty.md`, `latin1.md`, `ok.md`, `stale.md`, `top.md`, `unclosed.md`
+- **.hidden**: `.hidden/h.md`
+- **a**: `a/b.md`
+- **sub**: `sub/index.md`
+-- err
+== lint
+rc=0
+-- out
+## Mechanical checks: ew (2026-10-16)
+
+Pages: 13. Errors: 12. Warnings: 26. Info: 2.
+
+### ERROR: missing frontmatter (3)
+
+- `bom.md`: no YAML frontmatter
+- `empty.md`: no YAML frontmatter
+- `top.md`: no YAML frontmatter
+
+### ERROR: missing required fields (1)
+
+- `unclosed.md`: missing sources created updated
+
+### ERROR: broken links (5)
+
+- `[[a\]]` (no such page) linked from `ok.md`
+- `[[ghost-page]]` (no such page) linked from `ok.md`
+- `[[spaced]]` (no such page) linked from `ok.md`
+- `[[target]]` (no such page) linked from `ok.md`
+- `[[Økonomi-x]]` (no such page) linked from `index.md`, `top.md`
+
+### ERROR: wiki/log.md changed (append-only) (3)
+
+- uncommitted changes remove or rewrite 1 line(s) of existing entries
+- commit @H@ (@D@, rewrite) removes or rewrites 1 line(s) (ages out on @D@)
+- commit @H@ (@D@, side edit) removes or rewrites 1 line(s) (ages out on @D@)
+
+### WARN: orphan pages (11)
+
+- `.hidden/h.md`: no inbound links from other pages
+- `a/b.md`: no inbound links from other pages
+- `bom.md`: no inbound links from other pages
+- `crlf.md`: no inbound links from other pages
+- `dates.md`: no inbound links from other pages
+- `empty.md`: no inbound links from other pages
+- `latin1.md`: no inbound links from other pages
+- `stale.md`: no inbound links from other pages
+- `sub/index.md`: no inbound links from other pages
+- `top.md`: no inbound links from other pages
+- `unclosed.md`: no inbound links from other pages
+
+### WARN: not in index.md (8)
+
+- `.hidden/h.md`: not listed in index.md
+- `dates.md`: not listed in index.md
+- `empty.md`: not listed in index.md
+- `latin1.md`: not listed in index.md
+- `stale.md`: not listed in index.md
+- `sub/index.md`: not listed in index.md
+- `top.md`: not listed in index.md
+- `unclosed.md`: not listed in index.md
+
+### WARN: no sources (1)
+
+- `sub/index.md`: `sources:` is empty; every claim is uncited
+
+### WARN: bad dates (5)
+
+- `dates.md`: `created: 2026-02-30` is not a YYYY-MM-DD date
+- `dates.md`: `updated: 2026-10-01 # comment` is not a YYYY-MM-DD date
+- `dates.md`: `status_as_of: 2027-01-01` is in the future
+- `dates.md`: `as_of: 2026-1-1` is not a YYYY-MM-DD date
+- `sub/index.md`: updated (2025-12-31) is before created (2026-01-01)
+
+### WARN: possibly stale (not updated in 90+ days) (1)
+
+- `stale.md`: updated 653 days ago and still says: afventer,currently,latest,pending,venter på,venter pÅ
+
+### INFO: missing status_as_of (2)
+
+- `stale.md` (decision): no `status_as_of`
+- `sub/index.md` (decision): no `status_as_of`
+
+## Clusters for contradiction checks
+
+- **(top level)**: `a-b.md`, `bom.md`, `crlf.md`, `dates.md`, `empty.md`, `latin1.md`, `ok.md`, `stale.md`, `top.md`, `unclosed.md`
+- **.hidden**: `.hidden/h.md`
+- **a**: `a/b.md`
+- **sub**: `sub/index.md`
+-- err
+== lint-bad-today
+rc=1
+-- out
+-- err
+lint: bad WIKI_LINT_TODAY '16-10-2026'
+== lint-prefixes
+rc=0
+-- out
+## Mechanical checks: ew (2026-10-16)
+
+Pages: 15. Errors: 13. Warnings: 30. Info: 7.
+
+### ERROR: missing frontmatter (3)
+
+- `bom.md`: no YAML frontmatter
+- `empty.md`: no YAML frontmatter
+- `top.md`: no YAML frontmatter
+
+### ERROR: missing required fields (2)
+
+- `cites2.md`: missing created updated
+- `unclosed.md`: missing sources created updated
+
+### ERROR: broken links (5)
+
+- `[[a\]]` (no such page) linked from `ok.md`
+- `[[ghost-page]]` (no such page) linked from `ok.md`
+- `[[spaced]]` (no such page) linked from `ok.md`
+- `[[target]]` (no such page) linked from `ok.md`
+- `[[Økonomi-x]]` (no such page) linked from `index.md`, `top.md`
+
+### ERROR: wiki/log.md changed (append-only) (3)
+
+- uncommitted changes remove or rewrite 1 line(s) of existing entries
+- commit @H@ (@D@, rewrite) removes or rewrites 1 line(s) (ages out on @D@)
+- commit @H@ (@D@, side edit) removes or rewrites 1 line(s) (ages out on @D@)
+
+### WARN: orphan pages (13)
+
+- `.hidden/h.md`: no inbound links from other pages
+- `a/b.md`: no inbound links from other pages
+- `bom.md`: no inbound links from other pages
+- `cites.md`: no inbound links from other pages
+- `cites2.md`: no inbound links from other pages
+- `crlf.md`: no inbound links from other pages
+- `dates.md`: no inbound links from other pages
+- `empty.md`: no inbound links from other pages
+- `latin1.md`: no inbound links from other pages
+- `stale.md`: no inbound links from other pages
+- `sub/index.md`: no inbound links from other pages
+- `top.md`: no inbound links from other pages
+- `unclosed.md`: no inbound links from other pages
+
+### WARN: not in index.md (10)
+
+- `.hidden/h.md`: not listed in index.md
+- `cites.md`: not listed in index.md
+- `cites2.md`: not listed in index.md
+- `dates.md`: not listed in index.md
+- `empty.md`: not listed in index.md
+- `latin1.md`: not listed in index.md
+- `stale.md`: not listed in index.md
+- `sub/index.md`: not listed in index.md
+- `top.md`: not listed in index.md
+- `unclosed.md`: not listed in index.md
+
+### WARN: no sources (1)
+
+- `sub/index.md`: `sources:` is empty; every claim is uncited
+
+### WARN: bad dates (5)
+
+- `dates.md`: `created: 2026-02-30` is not a YYYY-MM-DD date
+- `dates.md`: `updated: 2026-10-01 # comment` is not a YYYY-MM-DD date
+- `dates.md`: `status_as_of: 2027-01-01` is in the future
+- `dates.md`: `as_of: 2026-1-1` is not a YYYY-MM-DD date
+- `sub/index.md`: updated (2025-12-31) is before created (2026-01-01)
+
+### WARN: possibly stale (not updated in 90+ days) (1)
+
+- `stale.md`: updated 653 days ago and still says: afventer,currently,latest,pending,venter på,venter pÅ
+
+### INFO: missing status_as_of (2)
+
+- `stale.md` (decision): no `status_as_of`
+- `sub/index.md` (decision): no `status_as_of`
+
+### INFO: citations with no matching source (5)
+
+- `cites2.md`: source `Proton: c` matches no source of this wiki
+- `cites2.md`: source `''` matches no source of this wiki
+- `cites2.md`: source `local File: raw/b` matches no source of this wiki
+- `cites2.md`: source `RAW/x` matches no source of this wiki
+- `stale.md`: source `counted under sources` matches no source of this wiki
+
+## Clusters for contradiction checks
+
+- **(top level)**: `a-b.md`, `bom.md`, `cites.md`, `cites2.md`, `crlf.md`, `dates.md`, `empty.md`, `latin1.md`, `ok.md`, `stale.md`, `top.md`, `unclosed.md`
+- **.hidden**: `.hidden/h.md`
+- **a**: `a/b.md`
+- **sub**: `sub/index.md`
+-- err
+== wiki-check
+rc=1
+-- out
+## Wiki check: ew
+
+Failures: 21.
+
+- PASS folder `raw/` exists
+- PASS folder `wiki/` exists
+- FAIL folder `outputs/` is missing. Fix: re-run /wiki:init, or create it
+- PASS folder `templates/` exists
+- PASS `raw/sync-log.md` exists
+- PASS `wiki/index.md` exists
+- PASS `wiki/log.md` exists
+- PASS `CLAUDE.md` exists
+- PASS `.gitignore` exists
+- PASS 4 page template(s) in `templates/`
+- FAIL CLAUDE.md still imports the schema by path: @~/x/schema/wiki-layout.md @y/schema/wiki-conventions.md. Fix: remove these lines; the wiki plugin loads the schema at session start
+- FAIL `last_checked_gmail: soon` in raw/sync-log.md is neither a YYYY-MM-DD date nor `never`. Fix: correct the value
+- FAIL `last_checked_bad: 2026-02-30` in raw/sync-log.md is neither a YYYY-MM-DD date nor `never`. Fix: correct the value
+- FAIL `last_checked_x: ` in raw/sync-log.md is neither a YYYY-MM-DD date nor `never`. Fix: correct the value
+- PASS raw/sync-log.md has 5 source line(s)
+- PASS `.gitignore` has `.obsidian/`
+- PASS `.gitignore` has `.claude/*`
+- FAIL `.gitignore` lacks `!.claude/settings.json`. Fix: add the line `!.claude/settings.json`
+- FAIL `.gitignore` lacks `!.claude/sources/`. Fix: add the line `!.claude/sources/`
+- PASS plugin `wiki@wiki-tools` is enabled
+- FAIL permission rules missing from .claude/settings.json: "Bash(git status *)" "Bash(git diff *)" "Bash(git log *)" "Bash(git add *)" "Bash(git commit *)" "Bash(pdftotext *)" "Bash(git push *)". Fix: paste the settings shown by /wiki:init
+- FAIL source permission rules missing from .claude/settings.json: "mcp__claude_ai_Gmail__search_threads" "mcp__claude_ai_Gmail__get_thread" "mcp__claude_ai_Gmail__get_message" "mcp__claude_ai_Gmail__list_labels" "mcp__claude_ai_Gmail__create_label" "mcp__claude_ai_Gmail__label_thread" "mcp__claude_ai_Gmail__send_message" "mcp__claude_ai_Gmail__reply" "mcp__claude_ai_Gmail__forward" "mcp__claude_ai_Gmail__create_draft" "mcp__claude_ai_Gmail__update_draft" "mcp__claude_ai_Gmail__delete_draft" "mcp__claude_ai_Gmail__trash_message" "mcp__claude_ai_Gmail__trash_thread" "mcp__claude_ai_Gmail__untrash_message" "mcp__claude_ai_Gmail__untrash_thread" "mcp__claude_ai_Gmail__mark_message_spam" "mcp__claude_ai_Gmail__mark_thread_spam" "mcp__claude_ai_Gmail__unmark_message_spam" "mcp__claude_ai_Gmail__unmark_thread_spam" "mcp__claude_ai_Gmail__delete_label" "mcp__claude_ai_Gmail__update_label" "mcp__claude_ai_Gmail__update_message_labels" "mcp__claude_ai_Gmail__unlabel_message" "mcp__claude_ai_Gmail__unlabel_thread". Fix: add them as `sources.sh settings` prints (allow: read and bookkeeping tools, deny: forbidden tools)
+- FAIL `.claude/settings.json` isn't committed. Fix: `git add -- .claude/settings.json && git commit` (you, not Claude)
+- FAIL source `bad` doesn't validate: unknown source type 'nosuch' (looked in @PLUGIN@/sources/nosuch/SOURCE.md and .claude/sources/types/nosuch/SOURCE.md). Fix: correct `.claude/sources/instances/bad.md` (you, not Claude)
+- FAIL `.claude/sources/instances/bad.md` isn't committed. Fix: `git add -- .claude/sources/instances/bad.md && git commit` (you, not Claude)
+- PASS source `gmail` (type gmail) is valid
+- FAIL `.claude/sources/instances/gmail.md` isn't committed. Fix: `git add -- .claude/sources/instances/gmail.md && git commit` (you, not Claude)
+- FAIL local source type `a-local` doesn't validate: .claude/sources/types/a-local/SOURCE.md: missing 'title';.claude/sources/types/a-local/SOURCE.md: missing 'access';.claude/sources/types/a-local/SOURCE.md: missing 'cite_prefix';.claude/sources/types/a-local/SOURCE.md: no platforms listed;.claude/sources/types/a-local/SOURCE.md: state must include last_checked;.claude/sources/types/a-local/SOURCE.md: script 'r.sh' is listed but missing;.claude/sources/types/a-local/SOURCE.md: script 'other.sh' is listed but missing;.claude/sources/types/a-local/SOURCE.md: missing section '## Check' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## List new' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Fetch' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Mark ingested' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Cite' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Resolve citation' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Caveats' (write "not supported" under it if it doesn't apply). Fix: correct `.claude/sources/types/a-local/` (you, not Claude)
+- FAIL `.claude/sources/types/a-local/SOURCE.md` isn't committed. Fix: `git add -- .claude/sources/types/a-local && git commit` (you, not Claude)
+- FAIL `.claude/sources/types/a-local/r.sh` isn't committed. Fix: `git add -- .claude/sources/types/a-local && git commit` (you, not Claude)
+- FAIL `.claude/sources/types/a-local/other.sh` isn't committed. Fix: `git add -- .claude/sources/types/a-local && git commit` (you, not Claude)
+- FAIL local source type `zz-local` doesn't validate: .claude/sources/types/zz-local/SOURCE.md: missing 'title';.claude/sources/types/zz-local/SOURCE.md: missing 'access';.claude/sources/types/zz-local/SOURCE.md: missing 'cite_prefix';.claude/sources/types/zz-local/SOURCE.md: no platforms listed;.claude/sources/types/zz-local/SOURCE.md: state must include last_checked;.claude/sources/types/zz-local/SOURCE.md: missing section '## Check' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## List new' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Fetch' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Mark ingested' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Cite' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Resolve citation' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Caveats' (write "not supported" under it if it doesn't apply). Fix: correct `.claude/sources/types/zz-local/` (you, not Claude)
+- FAIL `.claude/sources/types/zz-local/SOURCE.md` isn't committed. Fix: `git add -- .claude/sources/types/zz-local && git commit` (you, not Claude)
+- FAIL lint finds 11 structural error(s). Fix: run /wiki:lint
+- INFO lint flags 2 past commit(s) that rewrote `wiki/log.md`; not a setup failure, restoring the lines won't clear it, the last ages out on @D@
+- FAIL uncommitted setup files: CLAUDE.md wiki/log.md .gitignore raw/sync-log.md "templates/with. Fix: review and commit them
+- PASS the guard hooks and the source scripts find Python @V@
+- INFO no interpreter cached yet; the first guard call caches it (about 0.2 s, once)
+-- err
+== wiki-check-bad-today
+rc=1
+-- out
+## Wiki check: ew
+
+Failures: 21.
+
+- PASS folder `raw/` exists
+- PASS folder `wiki/` exists
+- FAIL folder `outputs/` is missing. Fix: re-run /wiki:init, or create it
+- PASS folder `templates/` exists
+- PASS `raw/sync-log.md` exists
+- PASS `wiki/index.md` exists
+- PASS `wiki/log.md` exists
+- PASS `CLAUDE.md` exists
+- PASS `.gitignore` exists
+- PASS 4 page template(s) in `templates/`
+- FAIL CLAUDE.md still imports the schema by path: @~/x/schema/wiki-layout.md @y/schema/wiki-conventions.md. Fix: remove these lines; the wiki plugin loads the schema at session start
+- FAIL `last_checked_gmail: soon` in raw/sync-log.md is neither a YYYY-MM-DD date nor `never`. Fix: correct the value
+- FAIL `last_checked_bad: 2026-02-30` in raw/sync-log.md is neither a YYYY-MM-DD date nor `never`. Fix: correct the value
+- FAIL `last_checked_x: ` in raw/sync-log.md is neither a YYYY-MM-DD date nor `never`. Fix: correct the value
+- PASS raw/sync-log.md has 5 source line(s)
+- PASS `.gitignore` has `.obsidian/`
+- PASS `.gitignore` has `.claude/*`
+- FAIL `.gitignore` lacks `!.claude/settings.json`. Fix: add the line `!.claude/settings.json`
+- FAIL `.gitignore` lacks `!.claude/sources/`. Fix: add the line `!.claude/sources/`
+- PASS plugin `wiki@wiki-tools` is enabled
+- FAIL permission rules missing from .claude/settings.json: "Bash(git status *)" "Bash(git diff *)" "Bash(git log *)" "Bash(git add *)" "Bash(git commit *)" "Bash(pdftotext *)" "Bash(git push *)". Fix: paste the settings shown by /wiki:init
+- FAIL source permission rules missing from .claude/settings.json: "mcp__claude_ai_Gmail__search_threads" "mcp__claude_ai_Gmail__get_thread" "mcp__claude_ai_Gmail__get_message" "mcp__claude_ai_Gmail__list_labels" "mcp__claude_ai_Gmail__create_label" "mcp__claude_ai_Gmail__label_thread" "mcp__claude_ai_Gmail__send_message" "mcp__claude_ai_Gmail__reply" "mcp__claude_ai_Gmail__forward" "mcp__claude_ai_Gmail__create_draft" "mcp__claude_ai_Gmail__update_draft" "mcp__claude_ai_Gmail__delete_draft" "mcp__claude_ai_Gmail__trash_message" "mcp__claude_ai_Gmail__trash_thread" "mcp__claude_ai_Gmail__untrash_message" "mcp__claude_ai_Gmail__untrash_thread" "mcp__claude_ai_Gmail__mark_message_spam" "mcp__claude_ai_Gmail__mark_thread_spam" "mcp__claude_ai_Gmail__unmark_message_spam" "mcp__claude_ai_Gmail__unmark_thread_spam" "mcp__claude_ai_Gmail__delete_label" "mcp__claude_ai_Gmail__update_label" "mcp__claude_ai_Gmail__update_message_labels" "mcp__claude_ai_Gmail__unlabel_message" "mcp__claude_ai_Gmail__unlabel_thread". Fix: add them as `sources.sh settings` prints (allow: read and bookkeeping tools, deny: forbidden tools)
+- FAIL `.claude/settings.json` isn't committed. Fix: `git add -- .claude/settings.json && git commit` (you, not Claude)
+- FAIL source `bad` doesn't validate: unknown source type 'nosuch' (looked in @PLUGIN@/sources/nosuch/SOURCE.md and .claude/sources/types/nosuch/SOURCE.md). Fix: correct `.claude/sources/instances/bad.md` (you, not Claude)
+- FAIL `.claude/sources/instances/bad.md` isn't committed. Fix: `git add -- .claude/sources/instances/bad.md && git commit` (you, not Claude)
+- PASS source `gmail` (type gmail) is valid
+- FAIL `.claude/sources/instances/gmail.md` isn't committed. Fix: `git add -- .claude/sources/instances/gmail.md && git commit` (you, not Claude)
+- FAIL local source type `a-local` doesn't validate: .claude/sources/types/a-local/SOURCE.md: missing 'title';.claude/sources/types/a-local/SOURCE.md: missing 'access';.claude/sources/types/a-local/SOURCE.md: missing 'cite_prefix';.claude/sources/types/a-local/SOURCE.md: no platforms listed;.claude/sources/types/a-local/SOURCE.md: state must include last_checked;.claude/sources/types/a-local/SOURCE.md: script 'r.sh' is listed but missing;.claude/sources/types/a-local/SOURCE.md: script 'other.sh' is listed but missing;.claude/sources/types/a-local/SOURCE.md: missing section '## Check' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## List new' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Fetch' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Mark ingested' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Cite' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Resolve citation' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Caveats' (write "not supported" under it if it doesn't apply). Fix: correct `.claude/sources/types/a-local/` (you, not Claude)
+- FAIL `.claude/sources/types/a-local/SOURCE.md` isn't committed. Fix: `git add -- .claude/sources/types/a-local && git commit` (you, not Claude)
+- FAIL `.claude/sources/types/a-local/r.sh` isn't committed. Fix: `git add -- .claude/sources/types/a-local && git commit` (you, not Claude)
+- FAIL `.claude/sources/types/a-local/other.sh` isn't committed. Fix: `git add -- .claude/sources/types/a-local && git commit` (you, not Claude)
+- FAIL local source type `zz-local` doesn't validate: .claude/sources/types/zz-local/SOURCE.md: missing 'title';.claude/sources/types/zz-local/SOURCE.md: missing 'access';.claude/sources/types/zz-local/SOURCE.md: missing 'cite_prefix';.claude/sources/types/zz-local/SOURCE.md: no platforms listed;.claude/sources/types/zz-local/SOURCE.md: state must include last_checked;.claude/sources/types/zz-local/SOURCE.md: missing section '## Check' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## List new' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Fetch' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Mark ingested' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Cite' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Resolve citation' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Caveats' (write "not supported" under it if it doesn't apply). Fix: correct `.claude/sources/types/zz-local/` (you, not Claude)
+- FAIL `.claude/sources/types/zz-local/SOURCE.md` isn't committed. Fix: `git add -- .claude/sources/types/zz-local && git commit` (you, not Claude)
+- FAIL lint.sh didn't run. Fix: run `bash @PLUGIN@/scripts/lint.sh` and read its error
+- FAIL uncommitted setup files: CLAUDE.md wiki/log.md .gitignore raw/sync-log.md "templates/with. Fix: review and commit them
+- PASS the guard hooks and the source scripts find Python @V@
+- INFO no interpreter cached yet; the first guard call caches it (about 0.2 s, once)
+-- err
+== wiki-check-bad-json
+rc=1
+-- out
+## Wiki check: ew
+
+Failures: 23.
+
+- PASS folder `raw/` exists
+- PASS folder `wiki/` exists
+- FAIL folder `outputs/` is missing. Fix: re-run /wiki:init, or create it
+- PASS folder `templates/` exists
+- PASS `raw/sync-log.md` exists
+- PASS `wiki/index.md` exists
+- PASS `wiki/log.md` exists
+- PASS `CLAUDE.md` exists
+- PASS `.gitignore` exists
+- PASS 4 page template(s) in `templates/`
+- FAIL CLAUDE.md still imports the schema by path: @~/x/schema/wiki-layout.md @y/schema/wiki-conventions.md. Fix: remove these lines; the wiki plugin loads the schema at session start
+- FAIL `last_checked_gmail: soon` in raw/sync-log.md is neither a YYYY-MM-DD date nor `never`. Fix: correct the value
+- FAIL `last_checked_bad: 2026-02-30` in raw/sync-log.md is neither a YYYY-MM-DD date nor `never`. Fix: correct the value
+- FAIL `last_checked_x: ` in raw/sync-log.md is neither a YYYY-MM-DD date nor `never`. Fix: correct the value
+- PASS raw/sync-log.md has 5 source line(s)
+- PASS `.gitignore` has `.obsidian/`
+- PASS `.gitignore` has `.claude/*`
+- FAIL `.gitignore` lacks `!.claude/settings.json`. Fix: add the line `!.claude/settings.json`
+- FAIL `.gitignore` lacks `!.claude/sources/`. Fix: add the line `!.claude/sources/`
+- FAIL plugin `wiki@wiki-tools` is not enabled. Fix: run `claude plugin install wiki@wiki-tools --scope project` in the wiki
+- FAIL permission rules missing from .claude/settings.json: "Bash(git status *)" "Bash(git diff *)" "Bash(git log *)" "Bash(git add *)" "Bash(git commit *)" "Bash(pdftotext *)" "Read(~/.cache/wiki-sources/**)" "Bash(git push *)". Fix: paste the settings shown by /wiki:init
+- FAIL `.claude/settings.json` is not valid JSON: unexpected "," (line 1). Fix: fix it by hand (`sources.sh check-settings` shows where)
+- FAIL source permission rules missing from .claude/settings.json: "mcp__claude_ai_Gmail__search_threads" "mcp__claude_ai_Gmail__get_thread" "mcp__claude_ai_Gmail__get_message" "mcp__claude_ai_Gmail__list_labels" "mcp__claude_ai_Gmail__create_label" "mcp__claude_ai_Gmail__label_thread" "mcp__claude_ai_Gmail__send_message" "mcp__claude_ai_Gmail__reply" "mcp__claude_ai_Gmail__forward" "mcp__claude_ai_Gmail__create_draft" "mcp__claude_ai_Gmail__update_draft" "mcp__claude_ai_Gmail__delete_draft" "mcp__claude_ai_Gmail__trash_message" "mcp__claude_ai_Gmail__trash_thread" "mcp__claude_ai_Gmail__untrash_message" "mcp__claude_ai_Gmail__untrash_thread" "mcp__claude_ai_Gmail__mark_message_spam" "mcp__claude_ai_Gmail__mark_thread_spam" "mcp__claude_ai_Gmail__unmark_message_spam" "mcp__claude_ai_Gmail__unmark_thread_spam" "mcp__claude_ai_Gmail__delete_label" "mcp__claude_ai_Gmail__update_label" "mcp__claude_ai_Gmail__update_message_labels" "mcp__claude_ai_Gmail__unlabel_message" "mcp__claude_ai_Gmail__unlabel_thread". Fix: add them as `sources.sh settings` prints (allow: read and bookkeeping tools, deny: forbidden tools)
+- FAIL `.claude/settings.json` isn't committed. Fix: `git add -- .claude/settings.json && git commit` (you, not Claude)
+- FAIL source `bad` doesn't validate: unknown source type 'nosuch' (looked in @PLUGIN@/sources/nosuch/SOURCE.md and .claude/sources/types/nosuch/SOURCE.md). Fix: correct `.claude/sources/instances/bad.md` (you, not Claude)
+- FAIL `.claude/sources/instances/bad.md` isn't committed. Fix: `git add -- .claude/sources/instances/bad.md && git commit` (you, not Claude)
+- PASS source `gmail` (type gmail) is valid
+- FAIL `.claude/sources/instances/gmail.md` isn't committed. Fix: `git add -- .claude/sources/instances/gmail.md && git commit` (you, not Claude)
+- FAIL local source type `a-local` doesn't validate: .claude/sources/types/a-local/SOURCE.md: missing 'title';.claude/sources/types/a-local/SOURCE.md: missing 'access';.claude/sources/types/a-local/SOURCE.md: missing 'cite_prefix';.claude/sources/types/a-local/SOURCE.md: no platforms listed;.claude/sources/types/a-local/SOURCE.md: state must include last_checked;.claude/sources/types/a-local/SOURCE.md: script 'r.sh' is listed but missing;.claude/sources/types/a-local/SOURCE.md: script 'other.sh' is listed but missing;.claude/sources/types/a-local/SOURCE.md: missing section '## Check' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## List new' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Fetch' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Mark ingested' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Cite' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Resolve citation' (write "not supported" under it if it doesn't apply);.claude/sources/types/a-local/SOURCE.md: missing section '## Caveats' (write "not supported" under it if it doesn't apply). Fix: correct `.claude/sources/types/a-local/` (you, not Claude)
+- FAIL `.claude/sources/types/a-local/SOURCE.md` isn't committed. Fix: `git add -- .claude/sources/types/a-local && git commit` (you, not Claude)
+- FAIL `.claude/sources/types/a-local/r.sh` isn't committed. Fix: `git add -- .claude/sources/types/a-local && git commit` (you, not Claude)
+- FAIL `.claude/sources/types/a-local/other.sh` isn't committed. Fix: `git add -- .claude/sources/types/a-local && git commit` (you, not Claude)
+- FAIL local source type `zz-local` doesn't validate: .claude/sources/types/zz-local/SOURCE.md: missing 'title';.claude/sources/types/zz-local/SOURCE.md: missing 'access';.claude/sources/types/zz-local/SOURCE.md: missing 'cite_prefix';.claude/sources/types/zz-local/SOURCE.md: no platforms listed;.claude/sources/types/zz-local/SOURCE.md: state must include last_checked;.claude/sources/types/zz-local/SOURCE.md: missing section '## Check' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## List new' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Fetch' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Mark ingested' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Cite' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Resolve citation' (write "not supported" under it if it doesn't apply);.claude/sources/types/zz-local/SOURCE.md: missing section '## Caveats' (write "not supported" under it if it doesn't apply). Fix: correct `.claude/sources/types/zz-local/` (you, not Claude)
+- FAIL `.claude/sources/types/zz-local/SOURCE.md` isn't committed. Fix: `git add -- .claude/sources/types/zz-local && git commit` (you, not Claude)
+- FAIL lint finds 11 structural error(s). Fix: run /wiki:lint
+- INFO lint flags 2 past commit(s) that rewrote `wiki/log.md`; not a setup failure, restoring the lines won't clear it, the last ages out on @D@
+- FAIL uncommitted setup files: CLAUDE.md wiki/log.md .gitignore raw/sync-log.md "templates/with. Fix: review and commit them
+- PASS the guard hooks and the source scripts find Python @V@
+- INFO no interpreter cached yet; the first guard call caches it (about 0.2 s, once)
+-- err
+== lint-no-commits
+rc=0
+-- out
+## Mechanical checks: ew-empty (2026-10-16)
+
+Pages: 0. Errors: 0. Warnings: 0. Info: 0.
+
+## Clusters for contradiction checks
+
+-- err
+== wiki-check-bare
+rc=1
+-- out
+## Wiki check: ew-empty
+
+Failures: 10.
+
+- FAIL folder `raw/` is missing. Fix: re-run /wiki:init, or create it
+- PASS folder `wiki/` exists
+- FAIL folder `outputs/` is missing. Fix: re-run /wiki:init, or create it
+- FAIL folder `templates/` is missing. Fix: re-run /wiki:init, or create it
+- FAIL `raw/sync-log.md` is missing. Fix: re-run /wiki:init, or create it as described in the wiki plugin's schema/wiki-layout.md
+- FAIL `wiki/index.md` is missing. Fix: re-run /wiki:init, or create it as described in the wiki plugin's schema/wiki-layout.md
+- FAIL `wiki/log.md` is missing. Fix: re-run /wiki:init, or create it as described in the wiki plugin's schema/wiki-layout.md
+- FAIL `CLAUDE.md` is missing. Fix: re-run /wiki:init, or create it as described in the wiki plugin's schema/wiki-layout.md
+- FAIL `.gitignore` is missing. Fix: re-run /wiki:init, or create it as described in the wiki plugin's schema/wiki-layout.md
+- FAIL no page templates in `templates/`. Fix: add templates/<type>.md for each page type named in CLAUDE.md
+- FAIL `.claude/settings.json` is missing. Fix: paste the settings shown by /wiki:init, then commit it
+- INFO no sources besides `raw/` (no files in `.claude/sources/instances/`)
+- PASS lint finds no structural errors
+- PASS setup files are committed
+- PASS the guard hooks and the source scripts find Python @V@
+- INFO no interpreter cached yet; the first guard call caches it (about 0.2 s, once)
+-- err
+== lint-no-git
+rc=1
+-- out
+-- err
+lint: not inside a git repo; run from a wiki.

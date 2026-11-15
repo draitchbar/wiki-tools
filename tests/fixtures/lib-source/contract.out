@@ -1,0 +1,8 @@
+== src_validate_contract @TMP@/edge-w/.claude/sources/types/loc/SOURCE.md
+rc=1
+-- out
+-- err
+@TMP@/edge-w/.claude/sources/types/loc/SOURCE.md: unknown platform 'beos'
+@TMP@/edge-w/.claude/sources/types/loc/SOURCE.md: main_ops item 'bad_op' must be a plain operation name
+@TMP@/edge-w/.claude/sources/types/loc/SOURCE.md: script 'b.sh' is listed but missing
+@TMP@/edge-w/.claude/sources/types/loc/SOURCE.md: missing section '## Caveats' (write "not supported" under it if it doesn't apply)

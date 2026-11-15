@@ -1,0 +1,63 @@
+# Wiki layout (raw + wiki pattern)
+
+For wikis that follow the raw/wiki pattern. Each wiki's CLAUDE.md names its folders, page types and page templates.
+
+## Structure
+- `raw/`: immutable source material and derived extracts. Never edit source files here.
+  - `raw/sync-log.md`: per source (`raw` and each instance key) a `last_checked_<key>: YYYY-MM-DD` line and any other state line its instance agreed (`<field>_<key>: <value>`), plus a history table. `never` means the source hasn't been ingested yet; its first ingest asks for a starting point.
+  - `raw/ocr/<file>.txt`: OCR text layers of scanned PDFs (created by the ingest skill).
+- `wiki/`: pages written and maintained by Claude.
+  - `wiki/index.md`: master catalogue, a `## <Section>` heading per section with a table headed exactly `| Page | Summary | Updated |`: per page a row with the page's `[[link]]`, a one-line summary and the page's `updated:` date (`YYYY-MM-DD`). Lint warns when a row's Updated differs from the page's `updated:`; tables or rows in any other format are not checked.
+  - `wiki/log.md`: append-only operations log, newest entry first, headed `## YYYY-MM-DD | <op> | <title>`, where `<op>` is `init`, `ingest`, `research`, `schema`, `lint`, `lint-fix`, `audit` or `audit-fix`. Entries are never edited; a later change gets its own entry. A merge conflict in `wiki/log.md` (two machines prepending entries) is resolved by keeping both entries, newest first. Lint flags removed or changed lines (uncommitted, or in the last 30 days of commits).
+- `outputs/`: reports: `lint-YYYY-MM-DD[-N].md`, `audit-<slug>-YYYY-MM-DD.md`, `init-research-YYYY-MM-DD.md`.
+- `work/` (optional): work in progress that is neither a source nor a page (decks being edited, diagram generators, handoff notes). Never cited as a source, not linted; CLAUDE.md says what goes there and which parts are gitignored.
+- `templates/`: one `<type>.md` per page type that has a template; new pages start from it.
+- `.claude/sources/`: the wiki's sources (guard-protected; the user installs each file with `${CLAUDE_PLUGIN_ROOT}/scripts/install-source-file.sh` and commits them):
+  - `instances/<key>.md`: one per source instance: its type, parameters and agreed state fields. The key is the `/wiki:ingest <key>` argument and names its state lines in `raw/sync-log.md`.
+  - `types/<type>/SOURCE.md`: wiki-local source types (contract plus optional wrapper scripts). Standard types live in `${CLAUDE_PLUGIN_ROOT}/sources/`.
+- Fetched source files are cached outside the repo in `~/.cache/wiki-sources/<wiki>/<key>/`. Don't copy them into the repo.
+
+## Page frontmatter
+Every wiki page starts with YAML frontmatter:
+
+```yaml
+---
+title: Page Title
+type: <one of the types listed in this wiki's CLAUDE.md>
+sources:
+  - "<source citation>"   # in the source type's Cite format, e.g. "Gmail: subject (YYYY-MM-DD)"
+related:
+  - "[[related-page]]"
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+status_as_of: YYYY-MM-DD   # only on types whose template has it
+as_of: YYYY-MM-DD          # dated analyses only (see below)
+---
+```
+
+Page types that hold decisions or statuses carry `status_as_of`, so a superseded decision doesn't read as current. CLAUDE.md names those types, and their templates (`templates/<type>.md`) include the field; lint reads the templates to know which types need it.
+
+An analysis or research page written at a point in time (e.g. before a contract was signed) can carry `as_of:` instead of being rewritten when events overtake it. It then opens with a banner, `> Written YYYY-MM-DD, before <event>. Since then: <one line, with a [[link]] to the current page>.` Lint treats such pages as historical: no stale or superseded findings.
+
+## Ingest workflow
+Use `/wiki:ingest <key> [filter]` (`raw` or an instance key). Add sources with `/wiki:add-source <type>`. Ingest:
+1. reads the instance and its type's contract, and `raw/sync-log.md` for its state;
+2. lists and fetches what's new as the contract says;
+3. creates or updates pages (templates as CLAUDE.md names them, verbatim-figures rule);
+4. updates `wiki/index.md` and appends to `wiki/log.md`;
+5. updates the instance's state lines and the history table in `raw/sync-log.md`;
+6. makes **one commit per ingested source**, staging named paths only.
+
+## Data model
+The folders under `wiki/`, the page types, the templates and which types carry `status_as_of` form the wiki's data model, set by `/wiki:init` from the wiki's purpose. It isn't fixed: the first ingest of each source, and any ingest that brings material no page type fits, reviews the model against the purpose in CLAUDE.md and proposes changes. Changes are applied only after the user agrees, in a separate commit logged as `schema`.
+
+## Query workflow
+1. Read `wiki/index.md` to find the relevant pages.
+2. Read those pages and answer, citing them with `[[wikilinks]]`.
+3. For exact figures, confirm against the cited source.
+4. Offer to save a valuable new synthesis as a page.
+
+## Lint and audit
+- `/wiki:lint` runs the structural checks and the contradiction checks. Run it about every 5 ingests; the report goes to `outputs/lint-YYYY-MM-DD.md` (`-2`, `-3`, … for a later run the same day).
+- `/wiki:audit <page>` re-reads a page's sources and checks every figure and claim against them. Use it on the key pages CLAUDE.md names (figures, decisions, statuses), and whenever lint reports a contradiction. The report goes to `outputs/audit-<slug>-YYYY-MM-DD.md`.
+- Reports live in `outputs/` and are committed; wiki pages don't link to them.

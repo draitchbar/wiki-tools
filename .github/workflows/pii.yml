@@ -1,0 +1,61 @@
+# The personal-data check (scripts/pii-check.sh; docs/development.md,
+# "Personal data"). Required check for main's ruleset: "pii".
+# On a PR: its commits, title, description and branch name. On main: the
+# commit GitHub created at the merge (detection only: it is already pushed).
+# Trust model: the job runs the PR's own copy of this file and the check,
+# with the denylist; collaborators are trusted, and changes to either are
+# reviewed by the owner. The secret goes only to the steps that scan.
+name: pii
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pii-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pii:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: PR commits
+        if: github.event_name == 'pull_request'
+        env:
+          PII_DENYLIST: ${{ secrets.PII_DENYLIST }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/pii-check.sh --require-denylist range "$BASE..$HEAD"
+      - name: PR title, description and branch name
+        if: github.event_name == 'pull_request' && !cancelled()
+        env:
+          PII_DENYLIST: ${{ secrets.PII_DENYLIST }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          rc=0
+          printf '%s\n' "$TITLE" | bash scripts/pii-check.sh --require-denylist text "PR title" || rc=1
+          printf '%s\n' "$BODY" | bash scripts/pii-check.sh --require-denylist text "PR description" || rc=1
+          printf '%s\n' "$BRANCH" | bash scripts/pii-check.sh --require-denylist text "branch name" || rc=1
+          exit $rc
+      - name: Commits pushed to main
+        if: github.event_name == 'push'
+        env:
+          PII_DENYLIST: ${{ secrets.PII_DENYLIST }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            bash scripts/pii-check.sh --require-denylist range "$BEFORE..$AFTER"
+          else
+            bash scripts/pii-check.sh --require-denylist range -1 "$AFTER"
+          fi
