@@ -47,4 +47,5 @@ On a hit: fix the commit (`git commit --amend`, or `git rebase -i` for an older 
 ```bash
 bash scripts/pii-check.sh tree                 # every file of HEAD
 bash scripts/pii-check.sh range main..HEAD     # the branch's commits
+printf '%s\n' 'some text' | bash scripts/pii-check.sh text sample   # a text, e.g. before posting it
 ```
