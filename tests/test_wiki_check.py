@@ -72,6 +72,7 @@ def test_good(good, cli):
     assert "Failures: 0." in out
     assert "PASS the guard hooks and the source scripts find Python 3." in out
     assert "PASS CLAUDE.md has no schema imports" in out
+    assert "outside the wiki layout" not in out
 
 
 @pytest.mark.checks("wiki-check/python-cached", "wiki-check/python-not-cached")
@@ -225,7 +226,43 @@ def test_deny_blocks(mk, cli, deny):
             '"Edit(~/.cache/wiki-sources/f23/code/**)" (deny "%s")' % deny) in text(r)
 
 
+@pytest.mark.checks("wiki-check/stray-markdown", "wiki-check/stray-markdown-not-failure")
+def test_stray_markdown(mk, cli):
+    """Tracked Markdown outside the layout is listed as INFO, not a failure;
+    the layout's folders, work/, dot folders and dot files, untracked files
+    and the root's CLAUDE.md and README.md aren't."""
+    w = mk("f24")
+    for rel in ("draft.md", "notes/mail.MD", "notes/CLAUDE.md", "README.md", "work/deck.md", "raw/note.md",
+                "outputs/r.md", ".hidden.md", "notes/.drafts/x.md", "notes/a.txt"):
+        write(w / rel, "Draft.\n")
+    git(w, "add", "-A")
+    git(w, "commit", "-qm", "more")
+    write(w / "untracked.md", "x\n")
+    r = wc(cli, w)
+    out = text(r)
+    assert r.rc == 0, out
+    assert ("INFO 3 Markdown file(s) outside the wiki layout: `draft.md` `notes/CLAUDE.md` `notes/mail.MD`. "
+            "Move each to `work/` (drafts) or `raw/` (source material), or delete it") in out, out
+    assert "Failures: 0." in out
+
+
 @pytest.mark.checks("wiki-check/outside-git")
 def test_outside_git(cli, tmp_path):
     (tmp_path / "plain").mkdir()
-    assert wc(cli, tmp_path / "plain").rc == 1
+    r = wc(cli, tmp_path / "plain", {"GIT_CEILING_DIRECTORIES": posix(tmp_path)})
+    assert r.rc == 1
+    assert text(r) == "wiki-check: not inside a git repo; run from a wiki.\n"
+
+
+@pytest.mark.checks("wiki-check/outside-git-plugin-enabled", "wiki-check/outside-git-plugin-disabled")
+def test_outside_git_not_initialised(cli, tmp_path):
+    """No repo yet, but the folder's settings enable the plugin: point to /wiki:init."""
+    w = tmp_path / "new"
+    env = {"GIT_CEILING_DIRECTORIES": posix(tmp_path)}
+    write(w / SETTINGS, '{"enabledPlugins": {"wiki@wiki-tools": true}}\n')
+    r = wc(cli, w, env)
+    assert r.rc == 1
+    assert text(r) == ("wiki-check: not inside a git repo, but `.claude/settings.json` here enables the wiki "
+                       "plugin: this wiki isn't initialised yet. Run (or finish) `/wiki:init`.\n")
+    write(w / SETTINGS, '{"enabledPlugins": {"wiki@wiki-tools": false}}\n')
+    assert text(wc(cli, w, env)) == "wiki-check: not inside a git repo; run from a wiki.\n"

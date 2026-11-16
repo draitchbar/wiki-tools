@@ -47,7 +47,7 @@ plugins/wiki/
     ocr.sh                        ocrmypdf wrapper (Linux)
     lint.sh                       deterministic wiki checks for /wiki:lint (read-only); a launcher for lint.py
     lint.py                       the work of lint.sh
-    wiki-check.sh                 setup check for /wiki:init check mode (read-only); also checks the guard hook and the scripts find Python; a launcher for wiki_check.py
+    wiki-check.sh                 setup check for /wiki:init check mode (read-only); also lists Markdown outside the layout and checks the guard hook and the scripts find Python; a launcher for wiki_check.py
     wiki_check.py                 the work of wiki-check.sh, lint in-process
 scripts/pii-check.sh, pii_check.py  repo tooling, not the plugin: the personal-data check (docs/development.md, "Personal data")
 .githooks/pre-push                runs the personal-data check on every push (switched on per clone)

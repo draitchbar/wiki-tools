@@ -14,6 +14,8 @@ allowed-tools:
   - Bash(git mv *)
   - Bash(git add *)
   - Bash(git commit *)
+  - Bash(git config user.name)
+  - Bash(git config user.email)
   - Bash(mkdir *)
   - Bash(mv *)
   - Bash(ls *)
@@ -35,11 +37,12 @@ Set up this folder as an LLM wiki in the shared raw/wiki layout (`${CLAUDE_PLUGI
 1. `uname -s` (with the Bash tool). `Linux` and Git Bash on Windows (`MINGW*` or `MSYS*`) are supported; on anything else, stop: "/wiki:init supports Linux and Windows (Git Bash) only." On Windows, run every shell command in this skill with the Bash tool (Git Bash), never PowerShell: the wiki's scripts run only there. If a call is refused with "no Python 3.9 or later found", stop and show the user that message: the guard hooks need Python and refuse every Bash, Write and Edit call until it is installed.
 2. Find the folder root: the git toplevel, or the current folder if it isn't a repo yet.
 3. Read `.claude/settings.json` with the Read tool (the guard blocks Bash commands such as `grep` or `cat` on it) and check that it enables `wiki@wiki-tools`. If not, stop and show the user step 2 of the setup: `claude plugin install wiki@wiki-tools --scope project`, then restart `claude` here.
-4. Pick the mode:
+4. Check the git identity: `git config user.name` and `git config user.email` must each print a value. If either prints nothing, stop before asking or writing anything, since the commit in step 7 would fail: show the user the fix, `git config --global user.name "<your name>"` and `git config --global user.email "<your email>"` (without `--global`, after `git init`, for this wiki only), and ask them to run `/wiki:init` again.
+5. Pick the mode:
    - **Check**: `CLAUDE.md`, `raw/sync-log.md` and `wiki/` exist. Go to **Check mode** at the end; skip everything else.
    - **New**: the folder contains nothing but `.claude/`, `.git/`, `.obsidian/`.
    - **Adopt**: anything else. Inventory the files with `git ls-files` and `ls -R` (names, extensions, tracked or not, `.gitignore` status) and read only the first lines of Markdown files (frontmatter, headings) and the existing `CLAUDE.md`. Don't read source documents in depth now.
-5. Tell the user the mode in one line and why.
+6. Tell the user the mode in one line and why.
 
 ## 1. Raison d'être
 Take it from the arguments above. If they're empty, ask for it: "What is this wiki for, and what decision or outcome should it support?" In adopt mode, offer the existing CLAUDE.md's description as the starting point.
@@ -143,6 +146,6 @@ Also list files that adopt mode left in place, and any open questions.
 1. Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/wiki-check.sh`. If it prints only `wiki-check: no Python 3.9 or later found ...` instead of a report, that is the one failure: report it with the fix it names (the guard refuses every Bash, Write and Edit call until Python is installed), and stop.
 2. Check that the shared conventions are actually loaded: they are if your instructions contain the heading "Ask for context, don't guess" from wiki-conventions.md and "Data model" from wiki-layout.md. If not, the plugin's SessionStart hook didn't run: check that the plugin is enabled (step 0.3), then tell the user to restart `claude` here.
    - If wiki-check reports that CLAUDE.md still imports the schema by path (a wiki set up before the plugin loaded it), propose removing those lines. After the user's go, remove them and commit CLAUDE.md alone with the message `Load the shared schema from the plugin`.
-3. Report every FAIL with its fix as a short numbered list, and say which ones only the user can do (settings, files under `.claude/sources/`, commits of `.claude/` files, installing Python).
+3. Report every FAIL with its fix as a short numbered list, and say which ones only the user can do (settings, files under `.claude/sources/`, commits of `.claude/` files, installing Python). Pass on an INFO line about Markdown files outside the wiki layout too, with its fix.
 4. If everything passes: say so, and suggest `/wiki:sync-status`, then the first `/wiki:ingest <source>`.
 Check mode writes nothing except the commits the user approves (removing old schema imports), and calls no source.
