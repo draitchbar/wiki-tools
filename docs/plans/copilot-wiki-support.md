@@ -20,7 +20,7 @@ DRY: one plugin package, schema, skill set, agent-role definitions, contract par
 
 ## What is known
 
-Read-only investigation on 2026-11-15 with this repository, Copilot CLI 1.0.112's shipped documentation and command help, and Claude Code 2.1.325's command help. No live model session, installation, source or guard validation has been run.
+Read-only investigation on 2026-11-15 with this repository, Copilot CLI 1.0.112's shipped documentation and command help, and Claude Code 2.1.325's command help; plus the hook tests recorded in `docs/development.md`, "Agents" (Copilot 1.0.112 on Windows, a `PreToolUse` hook in a throwaway repo's `.claude/settings.json`). No wiki session, plugin installation, source or guard validation has been run.
 
 | Finding | Consequence |
 |---|---|
@@ -32,11 +32,13 @@ Read-only investigation on 2026-11-15 with this repository, Copilot CLI 1.0.112'
 | Copilot does not use Claude `permissions.allow/deny`; repository settings cannot supply its enterprise permission policy. | No fictitious permission JSON, no narrow rules translated into broad shell allows. Restrictions come from the common guard and the readers. |
 | In prompt mode, both clients deny requests that would need approval. | A denied request alone is not evidence that the wiki guard worked. |
 | `hooks.json` matches a fixed tool list (`Bash\|PowerShell\|Write\|Edit\|MultiEdit\|Read\|Grep\|Glob`), and `guard.py` allows any tool it does not know. | A Copilot tool with another name never reaches the guard. Needs a decision ([step 3](#3-extend-the-common-guard)), not only a live test. |
-| `hookjson.py` requires `tool_name`; the guard's `agent_only` and main-session rules read `agent_id` and `cwd`. | Whether Copilot's payload carries these fields decides how much of the guard works unchanged. |
-| The guard refuses wiki scripts run through PowerShell; Copilot's native Windows shell is PowerShell, and bare `bash` on a Windows PATH can be WSL. | Copilot on Windows needs a new, validated invocation route: part C. |
+| Tested on Windows: Copilot's hook input has Claude's field names (`tool_name`, `tool_input`, `cwd`), and the main session sends no `agent_id`. | `hookjson.py` should parse it as is. Open: whether a child agent's calls carry `agent_id`, and the same on Linux and for plugin hooks. |
+| Tested: exit 2 denies, but the reason reaches the model only with Claude's JSON deny reply; a hook that errors denies the call; exit 0 without output allows. | The guard needs the JSON reply for Copilot (step 3). Fail-closed on error holds without `onFailure`. |
+| Tested: in a folder that is not trusted, Copilot skips repo hooks with a warning and the command runs. | Check whether plugin hooks are skipped the same way; if so, readiness must detect an untrusted wiki, since the guard is silently off. |
+| Tested on Windows: `"shell": "bash"` is ignored and `bash` comes from PATH (WSL on the test machine); a PowerShell command arrives as `tool_name: "Bash"`. | The guard's PowerShell refusal does not fire for Copilot, and it would parse PowerShell text as Bash. Copilot on Windows needs its own route: part C; until then it must be refused outright, not half-checked. |
 | `bash tests/run-tests.sh --e2e` exercises launchers, not a model running in a wiki. | Keep that layer; add a small opt-in live-client layer with a separate result. |
 
-Not yet verified, and so the spike's subject: hook matcher coverage and input fields, exit-2/error/timeout denial, `shell: bash`/`onFailure: block`, SessionStart context and its survival of resume and compaction, skill `!` injections, plugin-root substitution, skill `allowed-tools` frontmatter, file/image tools, and child-agent hook coverage and identity. Client documentation is not runtime proof.
+Not yet verified, and so the spike's subject: the same hook behavior for plugin hooks and on Linux, matcher coverage, timeout denial, SessionStart context and its survival of resume and compaction, skill `!` injections, plugin-root substitution, skill `allowed-tools` frontmatter, file/image tools, and child-agent hook coverage and identity. Client documentation is not runtime proof.
 
 ## Part A: the spike
 
@@ -97,10 +99,11 @@ Then:
 1. Apply the decision. Every enabled file-mutation, shell-execution and protected-source read/search capability reaches the guard or stays outside the supported configuration. Shell follow-up input is checked as a command.
 2. Normalize the observed payloads into the guard's current representation (`hookjson.py`), including Copilot's spelling of `tool_name`, `cwd` and `agent_id`. Validate every target and the replacement content of a multi-file patch. A missing or malformed field in a checked tool's payload blocks. No second policy engine.
 3. Child identity: a missing or untrusted `agent_id` is treated as the main session, so it never grants `agent_only` access.
-4. PowerShell stays refused for wiki scripts, as today. Copilot on Windows is part C.
+4. Copilot on Windows is part C. Until then the guard refuses every shell call from Copilot on Windows (`COPILOT_CLI=1` on a Windows platform), because its PowerShell commands arrive as `tool_name: "Bash"` and must not be checked as Bash text. Claude's PowerShell refusal stays as it is.
 5. Preserve push blocking, root protection, wrapper lookalike/chaining checks, broken-contract behavior and diagnostics. Where Copilot cannot inherit Claude's permission denials, cover the contract-declared shell denials in the guard; combine denials, never client grants.
 6. Protected paths: **parity, not expansion.** Today the guard protects `.claude/sources`, `.claude/settings*` and `.claude/plugins/` (with the cached Python). Add only Copilot's direct equivalents, taken from the spike: its project settings and hook files (`.github/copilot/settings*.json`, `.github/hooks/`) and its registered plugin copy and data root, wherever `COPILOT_HOME` puts them. User-level profiles, extensions, MCP configuration and agent/skill folders are not added: the guard is a guardrail, not a security boundary. They are named in the docs as outside the supported configuration instead.
-7. Verify the launcher's exit-2, unexpected-exit, missing-interpreter and timeout paths in each client. Add a response-format adapter only if the spike shows one is needed.
+7. Reply with Claude's JSON deny (`hookSpecificOutput.permissionDecision: "deny"` and the reason) so the reason reaches the model in both clients; keep a non-zero exit as the fallback when the JSON cannot be produced. Verify the launcher's unexpected-exit, missing-interpreter and timeout paths in each client.
+8. If plugin hooks are skipped in an untrusted folder, `wiki-check` and the session-start status say so for Copilot.
 
 **Exit:** all existing Claude guard cases pass, and real Copilot tool calls are refused for the same covered actions before any side effect. A hook log that says "block" while the command runs is a failure.
 
@@ -279,6 +282,7 @@ Channels, replies, chat-day fetching, SharePoint trees, resource URIs, auth scop
 ## Evidence references
 
 - Repository mechanisms: [ADR 1-7 and 10](../adr.md), [development](../development.md), [setup](../setup.md), [guard](../guard.md), [skills](../skills.md), [layout](../layout.md).
+- Copilot hook tests: `docs/development.md`, "Agents"; `docs/adr.md`, "Two coding agents, one set of rules".
 - Guard dispatch: `plugins/wiki/hooks/hooks.json` (matcher), `plugins/wiki/scripts/guard.py` (`main`: unknown tools pass; PowerShell refusal), `hookjson.py` (required fields).
 - Discovery defect: `plugins/wiki/skills/research/SKILL.md`, description frontmatter.
 - Test reuse: `tests/conftest.py`, `test_guard.py`, `test_py_launch.py`, `test_install.py`, `test_sources.py`, `test_sync_status.py`, `test_wiki_check.py`, `test_agent_files.py`, `.github/workflows/ci.yml`.

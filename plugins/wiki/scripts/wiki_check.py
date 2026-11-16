@@ -12,7 +12,10 @@ of the test suite on both), except:
   present";
 - the Python check names the interpreter running this check (bash probed
   one like py-launch.sh does). Without Python the launcher prints its own
-  message and exits 1 instead of a report.
+  message and exits 1 instead of a report;
+- two checks the bash version never had: Markdown files outside the
+  layout (INFO), and, outside a git repo, a pointer to /wiki:init when
+  the folder's settings enable the plugin.
 
   wiki_check.py --plugin DIR
 
@@ -45,6 +48,11 @@ _TEMPLATE_RULE = re.compile(r'"(mcp__[A-Za-z_]+|Bash\([^"]*\)|Read\([^"]*\))"')
 _DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", re.ASCII)
 _SPACE = re.compile(r"[ \t\n\v\f\r]")
 _AWK_FS = re.compile(r"[ \t\n]+")
+_ENABLED = '"wiki@wiki-tools":true'
+# Where a wiki's Markdown lives (schema/wiki-layout.md), and the root files
+# that aren't pages.
+_LAYOUT_DIRS = ("raw", "wiki", "outputs", "templates", "work")
+_ROOT_MD = ("CLAUDE.md", "README.md")
 
 
 class Die(Exception):
@@ -71,6 +79,12 @@ def _ok_date(v):
     return True
 
 
+def _plugin_enabled(settings):
+    """True if the settings file at this path enables the wiki plugin
+    (False if it can't be read)."""
+    return _ENABLED in _SPACE.sub("", read_text(settings))
+
+
 class Check:
     def __init__(self, plugin_shown):
         self.plugin_shown = plugin_shown
@@ -78,6 +92,10 @@ class Check:
         self.here = plugin_shown + "/scripts"           # as bash spells it
         top = sourcelib.toplevel(".")
         if not top:
+            if _plugin_enabled(".claude/settings.json"):
+                raise Die("not inside a git repo, but `.claude/settings.json` here enables the "
+                          "wiki plugin: this wiki isn't initialised yet. Run (or finish) "
+                          "`/wiki:init`.")
             raise Die("not inside a git repo; run from a wiki.")
         self.root = top
         self.fails = 0
@@ -195,7 +213,7 @@ class Check:
                       "paste the settings shown by /wiki:init, then commit it")
         else:
             text = read_text(st)
-            if '"wiki@wiki-tools":true' in _SPACE.sub("", text):
+            if _ENABLED in _SPACE.sub("", text):
                 self.ok("plugin `wiki@wiki-tools` is enabled")
             else:
                 self.fail("plugin `wiki@wiki-tools` is not enabled", "run `claude plugin install "
@@ -327,7 +345,21 @@ class Check:
                 names.append(fs[1] if len(fs) > 1 else "")
             self.fail("uncommitted setup files: %s" % " ".join(names), "review and commit them")
 
-        # 9. Python for the guard hooks and the scripts: this check runs in it.
+        # 9. Markdown outside the layout: neither a source nor a page, so
+        # lint, the index and ingest never see it. The wiki works with it.
+        # Dot folders (.claude/sources/instances/ and the like) and dot files
+        # aren't pages.
+        _, o = git(root, "ls-files", "-z")
+        stray = [f for f in o.split("\0")
+                 if f.lower().endswith(".md") and f not in _ROOT_MD
+                 and f.split("/", 1)[0] not in _LAYOUT_DIRS
+                 and not any(p.startswith(".") for p in f.split("/"))]
+        if stray:
+            self.info("%d Markdown file(s) outside the wiki layout: %s. Move each to `work/` "
+                      "(drafts) or `raw/` (source material), or delete it"
+                      % (len(stray), " ".join("`%s`" % f for f in stray)))
+
+        # 10. Python for the guard hooks and the scripts: this check runs in it.
         v = sys.version_info
         self.ok("the guard hooks and the source scripts find Python %d.%d.%d %s"
                 % (v[0], v[1], v[2], sys.executable.replace("\\", "/")))

@@ -1,5 +1,8 @@
 # Tests and lint on every PR and on main. Required checks for main's ruleset:
-# "lint", "test (ubuntu-latest)" and "test (windows-latest)".
+# "lint", "test (ubuntu-latest, plain)", "test (ubuntu-latest, e2e)",
+# "test (windows-latest, plain)" and "test (windows-latest, e2e)".
+# The two test modes run as separate jobs, and each runs its modules in
+# parallel (pytest-xdist, docs/adr.md, 10): the Windows suite is slow.
 name: ci
 
 on:
@@ -39,6 +42,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]   # windows: Git Bash
+        mode: [plain, e2e]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -48,9 +52,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: python -m pip install pytest
+      - run: python -m pip install pytest pytest-xdist
       - run: git config --global user.name ci && git config --global user.email ci@example.invalid
-      - name: tests
-        run: bash tests/run-tests.sh
-      - name: tests (--e2e)
-        run: bash tests/run-tests.sh --e2e
+      - name: tests (${{ matrix.mode }})
+        run: bash tests/run-tests.sh ${{ matrix.mode == 'e2e' && '--e2e' || '' }}
