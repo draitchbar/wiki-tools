@@ -1,6 +1,6 @@
 """The files coding agents read (docs/adr.md, 10): rules and skills are
 written once for Claude Code and Copilot CLI. CLAUDE.md only imports
-AGENTS.md, which imports CONTRIBUTING.md; no instruction or skill files only
+AGENTS.md, which imports CONTRIBUTING.md; no instruction, skill or config files only
 one agent reads; skills in .claude/skills/ have the frontmatter both need,
 and a manual-only skill carries the guard line Copilot needs."""
 
@@ -13,6 +13,7 @@ from conftest import TESTS
 REPO = TESTS.parent
 SKILLS = sorted((REPO / ".claude" / "skills").glob("*/SKILL.md"))
 ONE_AGENT_ONLY = [".github/copilot-instructions.md", ".github/instructions", ".github/skills",
+                  ".github/agents", ".github/mcp.json", ".github/copilot/settings.json",
                   ".agents", "GEMINI.md", ".claude/CLAUDE.md"]
 
 

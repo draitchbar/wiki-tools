@@ -21,7 +21,7 @@ The contribution rules, for people and agents alike:
 ## Agents
 - If the push hook, a guard or the push itself is blocked or fails, stop and report it; never get around it (another remote URL, `git -c`, the GitHub API or web UI). The hook must be switched on in every clone before its first push, cloud sessions included.
 - Change GitHub only through `git push` and `gh` (PRs, comments). Never Copilot's `/delegate` or a GitHub MCP write tool: they commit on GitHub, past the push hook.
-- Files for agents (this file, `CLAUDE.md`, skills in `.claude/skills/`) use only what both Claude Code and Copilot CLI support (`docs/development.md`, "Agents"); a step only one agent can do says so and gives the other's way. No instruction or skill files that only one agent reads (`.github/copilot-instructions.md`, `.github/instructions/`, `.github/skills/`, `.agents/`, `GEMINI.md`, `.claude/CLAUDE.md`) and no symlinks. `tests/test_agent_files.py` checks this.
+- Files for agents (this file, `CLAUDE.md`, skills in `.claude/skills/`) use only what both Claude Code and Copilot CLI support (`docs/development.md`, "Agents"); a step only one agent can do says so and gives the other's way. No instruction, skill or config files that only one agent reads (`.github/copilot-instructions.md`, `.github/instructions/`, `.github/skills/`, `.github/agents/`, `.github/mcp.json`, `.github/copilot/settings.json`, `.agents/`, `GEMINI.md`, `.claude/CLAUDE.md`) and no symlinks. `tests/test_agent_files.py` checks this.
 - Copilot CLI ignores `disable-model-invocation`, so a manual-only skill starts its body with: Run only when the user typed `/<name>`; if you loaded this skill yourself, stop and ask whether to start it.
 
 ## Plans
