@@ -58,6 +58,8 @@ A deliverable of its own. It changes no runtime code; it adds fixtures and a sho
 6. Try shared project activation without `--plugin-dir`, and separately a local-directory mount. Check for exactly one guard invocation per relevant call and none in an unrelated folder.
 7. On Windows, only observe: Copilot's native shell, plugin-root substitution and how Git Bash can be invoked. This feeds part C; nothing is built for it now.
 
+**Who:** Claude Code implements the spike; Copilot CLI (local, never `/delegate`) reviews it, the capture driver, the matrix and the fixtures in particular, before part B starts. The implementing agent is then not the client under test, so the captured sessions don't inherit its environment, profile or approvals, and the client whose behavior is recorded checks the record. The review checks the evidence; it doesn't replace it.
+
 **Exit:** a compact capability matrix (in `docs/development.md`, beside the existing agent table), normalized synthetic payload fixtures under `tests/fixtures/`, and the list of unsupported or gating cases. Then **revise steps 2-10 against the matrix** in the same pull request: drop what the evidence makes unnecessary, and settle the decision in step 3.
 
 Stop conditions, decided here rather than discovered later:
@@ -263,15 +265,21 @@ A Copilot-capable reader; compare JQL, fields, pagination, comment/link behavior
 
 ### Gmail
 
-Expected effort: high.
+Expected effort: medium, after the `gws` reader plugin ([roadmap](../roadmap.md)).
 
-A reader with thread semantics plus narrowly permitted creation/application of the wiki-ingested label. Preserve late-arrival handling, label IDs and failure recovery. A read-only reader alone is insufficient; do not replace label state with dates. Send/draft/delete stay unavailable.
+Reader: the `gws` reader plugin, the Google Workspace CLI behind a separate plugin like the `proton` reader, with only the `gmail.readonly` scope. The claude.ai connector doesn't exist in Copilot, and an MCP reader would need guard coverage of MCP calls first. Read-only is then enforced by Google, not by the guard: send, draft, delete and label writes fail in either client. The contract becomes tool-neutral (`access: tools`) with `guard_words: gws`, so the session reaches Google only through the reader, never `gws` directly or `gws auth`.
+
+`gmail.readonly` can't apply the wiki-ingested label, so state moves to dates: search from the day before `last_checked` with an overlap window for late arrivals, and skip threads the sync log or a page's `sources:` already names by thread ID. This replaces labels for safety, not portability, and applies in Claude too once the reader serves both. Preserve thread retrieval, the instance's labels/senders/recipients/exclude filters and citations. Wikis with label state need a one-time transition.
+
+Ready when the reader exists and passes in Claude, its status reports the granted scopes, and Copilot runs it through part B's shell route and guard. Tests: late-arriving mail inside and outside the window, an already-ingested thread, a token with broader scopes (Check warns), and direct `gws` / `gws auth` refused in both clients.
 
 ### Google Drive
 
-Expected effort: high.
+Expected effort: medium, after the `gws` reader plugin ([roadmap](../roadmap.md)).
 
-Folder ID/path equivalence, recursive paging, modification dates, Docs/Sheets/Slides export, download shape, comments and read-only restrictions. Preserve citations and cache behavior; explain formats the reader cannot export.
+Reader: the same `gws` reader plugin, with only the `drive.readonly` scope, so sharing, editing and deleting fail at Google in either client. Contract as for Gmail: tool-neutral, `guard_words: gws`. State already needs no writes. Establish folder ID/path equivalence, recursive paging, modification dates, Docs/Sheets/Slides export and download shape against the current connector; preserve citations and cache behavior and explain formats the reader cannot export.
+
+Ready when the reader exists and passes in Claude with traversal/export/citation equivalence, and Copilot runs it through part B's shell route and guard. Tests: paged trees, changed documents, missing formats, a token with broader scopes (Check warns), and direct `gws` refused.
 
 ### Microsoft Teams
 

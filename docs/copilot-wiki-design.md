@@ -95,8 +95,8 @@ These are architectural assessments, not completed migrations or time estimates.
 | OneNote | Low-to-medium with a compatible reader; otherwise high. Fresh HTML/text, timestamps, scope and snapshots matter |
 | Proton files | Medium with a compatible external reader; otherwise high. Read-only operations, roots and installation/cache paths matter |
 | Jira | Medium-to-high: reader, API/paging differences, JQL, cursor semantics and read-only enforcement |
-| Gmail | High: thread semantics and essential narrowly permitted wiki-label creation/application |
-| Google Drive | High: recursive listing, exports/downloads, timestamps and restrictions |
+| Gmail | Medium through the `gws` reader plugin: read-only at Google (`gmail.readonly`), so date state replaces the wiki label; thread semantics |
+| Google Drive | Medium through the `gws` reader plugin: read-only at Google (`drive.readonly`); recursive listing, exports/downloads and timestamps |
 | Microsoft Teams | Highest expected: channels/replies/chats/SharePoint, ordering, URIs, scopes and tenant-wide filtering |
 
 Raw is built in; local-folder is one of eight standard types. The plan delivers those two sources and parks the seven other types. Reader-neutral contracts are easier only if the external reader actually works.
