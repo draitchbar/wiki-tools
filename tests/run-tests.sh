@@ -5,8 +5,13 @@
 #   bash tests/run-tests.sh --e2e      in-process tests through the launchers instead
 #   bash tests/run-tests.sh ARGS...    pytest's options, e.g. -k guard -x
 #
+# With pytest-xdist installed the modules run in parallel, one module per
+# worker (-n auto --dist loadfile: a module's story fixture runs once);
+# -n 0 runs serially. Optional; CI installs it (docs/adr.md, 10).
+#
 # pytest is the only thing to install for the tests, not pinned:
 #   python -m pip install --user --upgrade pytest   (Windows: py -3 -m pip ...)
+#   ... pytest pytest-xdist                         (optional: parallel runs)
 #   sudo apt install python3-pytest                 (Debian/Ubuntu's own Python)
 # Python is found as the plugin's scripts find it (py-run.sh). No -I: it
 # would hide a pip --user pytest.
@@ -25,4 +30,13 @@ if [ -z "${CI:-}" ] && [ "$(git -C "$here/.." config core.hooksPath 2>/dev/null)
   printf 'run-tests: the pre-push personal-data check is off in this clone. Switch it on:\n  git config core.hooksPath .githooks\n' >&2
 fi
 
-exec "$_pr_py" -X utf8 -m pytest "$here" "$@"
+# Parallel when pytest-xdist is there, except for --check-names, which
+# prints at collection and so needs one process. Arguments after these
+# win (-n 0).
+par=()
+if "$_pr_py" -c 'import xdist' 2>/dev/null; then
+  par=(-n auto --dist loadfile)
+  for a in "$@"; do [ "$a" = --check-names ] && par=(); done
+fi
+
+exec "$_pr_py" -X utf8 -m pytest "$here" "${par[@]}" "$@"

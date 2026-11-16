@@ -8,7 +8,7 @@ Edit this repo in an agent session opened in the clone, Claude Code or Copilot C
 
 0. Once per clone, switch on the personal-data check: `git config core.hooksPath .githooks` ("Personal data", below). `run-tests.sh` says so while it is off.
 1. Work on a branch. Every change to a script, a hook or a wrapper comes with a test: a case in a `tests/test_*.py` module, or a guard fixture in `tests/fixtures/<push|guard>/<pass|block>-<case>.json` (with a `.msg` beside it for the exact message).
-2. `bash tests/run-tests.sh` must pass (pytest needs installing once: `python -m pip install --user --upgrade pytest`, on Debian/Ubuntu `sudo apt install python3-pytest`). A change to a launcher or another `.sh` file also needs `bash tests/run-tests.sh --e2e`, which runs the in-process tests through the launchers. `bash tests/run-tests.sh -k guard -x` runs a selection (pytest only).
+2. `bash tests/run-tests.sh` must pass (pytest needs installing once: `python -m pip install --user --upgrade pytest`, on Debian/Ubuntu `sudo apt install python3-pytest`). A change to a launcher or another `.sh` file also needs `bash tests/run-tests.sh --e2e`, which runs the in-process tests through the launchers. `bash tests/run-tests.sh -k guard -x` runs a selection (pytest only). With `pytest-xdist` installed (optional) the modules run in parallel; `-n 0` runs serially.
 3. Lint (below), commit, push the branch and open a pull request.
 4. After the merge, on each machine: `git pull`, then start a new wiki session or run `/reload-plugins`.
 
