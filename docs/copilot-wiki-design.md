@@ -1,6 +1,6 @@
 # Design: one wiki plugin for Claude Code and Copilot CLI
 
-Status: proposed, independently reviewed by an Opus 5.5 rubber-duck sub-agent. The [implementation plan](plans/copilot-wiki-support.md) includes subsequent client research and the first-delivery scope. Neither document claims implemented or runtime-verified Copilot wiki support.
+Status: proposed. This file holds the intent, the constraints and the rejected alternatives; the [plan](plans/copilot-wiki-support.md) holds the client research, the steps, the open guard decision and the tests, and is the one to follow where the two differ in detail. Neither claims implemented or runtime-verified Copilot wiki support.
 
 ## Intent
 
@@ -10,7 +10,7 @@ Minimal one-time, user-approved setup adjustments are acceptable. Preserve exist
 
 Accept instruction-based manual-only invocation in Copilot; do not emulate Claude's enforced `disable-model-invocation`. Approval prompts, command presentation and model configuration may differ. Source support can arrive incrementally, with unavailable sources reported explicitly.
 
-This concerns local Copilot CLI, not VS Code, the cloud coding agent or `/delegate`. Linux and Windows with Git Bash remain the supported platforms.
+This concerns local Copilot CLI, not VS Code, the cloud coding agent or `/delegate`. Linux and Windows with Git Bash remain the supported platforms for Claude Code. Copilot comes first on Linux; Copilot on Windows is a separate, later delivery (plan, part C).
 
 ## Architecture
 
@@ -35,7 +35,7 @@ Copilot's shipped documentation establishes Claude-style package discovery, proj
 
 ## Installation and context
 
-Use native marketplace registration and updates per machine/client, with activation only in the wiki. Prefer the shared `.claude/settings.json` declaration. If that cannot provide Copilot's required scope, derive a minimal `.github/copilot/settings.json` activation fragment; its documented project semantics are the fallback. No independently maintained plugin list or invented Copilot `--scope project` flag.
+Use native marketplace registration and updates per machine/client, with activation only in the wiki. Each client may therefore run a different copy of the plugin against the same wiki; formats stay readable by an older copy, and `wiki-check` shows which copy is running (plan, step 4). Prefer the shared `.claude/settings.json` declaration. If that cannot provide Copilot's required scope, derive a minimal `.github/copilot/settings.json` activation fragment; its documented project semantics are the fallback. No independently maintained plugin list or invented Copilot `--scope project` flag.
 
 An enabled wiki must load its plugin while an unrelated folder and wiki-tools itself remain unguarded. A direct `--plugin-dir` mount is useful for development/testing but does not prove normal project activation. Each client may keep a different installed copy; resolve paths from the executing plugin and verify the release candidate rather than presume simultaneous updates or Claude's observed live-clone behavior.
 
@@ -43,7 +43,7 @@ Keep `schema.sh` as the sole schema loader/substituter. Both schema bodies must 
 
 Keep all eight skills and the two research roles authored once. A short shared capability binding supplies native tool equivalents where necessary. Use the established manual-only instruction guard and name arguments in descriptions. If command injections fail, call the existing script explicitly; if skill-root substitution fails, use the resolved root from schema context.
 
-Scripts remain Bash. Copilot's Windows native shell may require a precisely validated invocation of an explicitly resolved Git Bash executable and absolute script path. Never rely on bare `bash` resolving to Git Bash or use Bash environment-variable syntax in PowerShell. The plan specifies that invocation and its guard tests.
+Scripts remain Bash. Copilot's native Windows shell is PowerShell, which the guard refuses for wiki scripts today, so Copilot on Windows needs a precisely validated invocation of an explicitly resolved Git Bash executable and absolute script path. Never rely on bare `bash` resolving to Git Bash or use Bash environment-variable syntax in PowerShell. That route, and how the executable is found and trusted, is the plan's part C, not the first delivery.
 
 File-reading guidance describes capabilities, not Claude-only API parameters. Existing text extraction and OCR remain shared; image/PDF capabilities must be demonstrated or reported unavailable. Missing extraction is never an empty successful document.
 
@@ -51,11 +51,11 @@ File-reading guidance describes capabilities, not Claude-only API parameters. Ex
 
 **One policy, with small measured runtime normalization.** Reuse `guard.py`, `hookjson.py`, `contract.py` and `py-launch.sh`.
 
-Coverage comes before parsing: every enabled command, file mutation or protected-source read must reach the guard or remain outside the supported configuration. This includes input to running shells, multi-file patches, relevant MCP calls and child-agent tools. Validate all affected targets. Unknown protected-capability payloads block rather than use the current unrecognized-tool allow path.
+Coverage comes before parsing: every enabled command, file mutation or protected-source read must reach the guard or remain outside the supported configuration. This includes input to running shells, multi-file patches, relevant MCP calls and child-agent tools. Validate all affected targets. Today the hook matches a fixed tool list and the guard allows a tool name it does not know, so a differently named tool is never checked; the plan's step 3 decides how unknown tools are handled (recommended: a catch-all matcher and a classified list, unknown names refused).
 
-Preserve push blocking, protected paths/roots, wrapper lookalike/chaining checks, broken-contract behavior and diagnostics. A PowerShell invocation can be recognized as an approved Bash-wrapper call only in the exact validated form; arbitrary PowerShell/Bash programs do not gain that exception.
+Preserve push blocking, protected paths/roots, wrapper lookalike/chaining checks, broken-contract behavior and diagnostics. PowerShell stays refused for wiki scripts until part C; then an invocation is recognized as an approved Bash-wrapper call only in the exact validated form.
 
-Protect both clients' guard-affecting configuration and registered plugin/cache/data paths from either client's wiki session, including the cached Python executable. Protect plugin/hook-disabling operations and new execution-definition locations. Experimental extension loading/augmentation is outside the supported surface until its tools have equivalent coverage; do not introduce an extension portability layer.
+Protected paths keep parity with today's rather than grow: the guard protects the wiki's `.claude/sources`, `.claude/settings*` and the registered plugin copy with its cached Python, and gains only Copilot's direct equivalents (its project settings and hook files, its plugin copy and data root). User-level profiles, extensions, MCP configuration and agent/skill folders are outside the supported configuration and documented as such, not guarded; do not introduce an extension portability layer.
 
 Missing Python, malformed input, hook failure and timeout must actually deny the tool. Adapt response encoding only if client evidence requires it. A log message saying "block" while the command runs is a failure. The guard remains a guardrail, not a security boundary.
 
@@ -75,7 +75,7 @@ General lint/audit dispatch for supported sources also requires demonstrated chi
 
 Separate valid instance, supported client, available reader and enforceable restrictions. A valid but unavailable source is not a broken contract that blocks ordinary wiki work.
 
-Leave its cursor, labels, snapshots and `last_checked` untouched. Do not silently route it to raw. Pages stay readable; audits report unresolved evidence rather than unsupported claims being declared true or false. Status must not recommend ingesting unavailable sources.
+Unavailability is an instruction to the skills, not enforcement, and the docs say so. Leave its cursor, labels, snapshots and `last_checked` untouched. Do not silently route it to raw. Pages stay readable; audits report unresolved evidence rather than unsupported claims being declared true or false. Status must not recommend ingesting unavailable sources.
 
 Source-specific transport knowledge stays in that type's directory, never in skills. Keep instance keys, parameters and cite prefixes. Credentials and machine-local registration remain outside the public repo.
 
@@ -99,7 +99,7 @@ These are architectural assessments, not completed migrations or time estimates.
 | Google Drive | High: recursive listing, exports/downloads, timestamps and restrictions |
 | Microsoft Teams | Highest expected: channels/replies/chats/SharePoint, ordering, URIs, scopes and tenant-wide filtering |
 
-Raw is built in; local-folder is one of eight standard types. The plan delivers those two sources and leaves the seven other types as independent design-phase tasks. Reader-neutral contracts are easier only if the external reader actually works.
+Raw is built in; local-folder is one of eight standard types. The plan delivers those two sources and parks the seven other types. Reader-neutral contracts are easier only if the external reader actually works.
 
 ## Readiness and evidence
 
@@ -107,7 +107,7 @@ Reuse `wiki-check.sh`, `sources.sh` and sync-status, not a second diagnostic too
 
 Static checks can verify contracts and bindings but cannot prove that hooks ran or denies were honored. A supported binding is not an installed/authenticated reader; the source's Check operation establishes that before state changes.
 
-The [plan's acceptance matrix](plans/copilot-wiki-support.md#8-add-opt-in-end-to-end-tests-through-the-real-clients) covers native installation, lifecycle context, actual guard denials, source ingestion, cross-client handoff and existing-wiki regression in both clients on both platforms. Not-attempted model refusals are inconclusive, not guard passes.
+The detailed cases live in the deterministic tests. A [small live smoke set](plans/copilot-wiki-support.md#8-a-small-live-smoke-set-through-the-real-clients) covers lifecycle context, actual guard denials, the two sources, cross-client handoff and an unavailable source, and one existing wiki is checked interactively. The support claim names the client versions it was tested with and when to re-run. Not-attempted model refusals are inconclusive, not guard passes.
 
 ## Alternatives rejected
 
@@ -119,8 +119,6 @@ The [plan's acceptance matrix](plans/copilot-wiki-support.md#8-add-opt-in-end-to
 - All sources required before Copilot use: incompatible with incremental support.
 - New manual-invocation enforcement machinery: explicitly outside scope.
 
-## Review and references
+## References
 
-An Opus 5.5 rubber-duck reviewer found four substantive draft gaps: hook coverage before normalization, cross-client guard tampering, unspecified client readiness and existing connector caveats conflicting with shared source types. The revised design addresses them. Subsequent plan research/review refines Windows invocation, client-support metadata, child coverage, installed-candidate verification and live acceptance without changing the single-authoring decision.
-
-Evidence: [ADR 1-7 and 10](adr.md), [development](development.md), [setup](setup.md), [guard](guard.md), existing plugin hooks/scripts/skills/agents and all eight source contracts; the client documentation and read-only discovery findings recorded in the plan. Neither independent review certifies runtime compatibility.
+[ADR 1-7 and 10](adr.md), [development](development.md), [setup](setup.md), [guard](guard.md), the existing plugin hooks/scripts/skills/agents and all eight source contracts; the client documentation and read-only discovery findings recorded in the plan.
