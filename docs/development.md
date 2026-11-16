@@ -38,7 +38,20 @@ What both support, and so what agent files may use (Copilot CLI 1.0.112, tested 
 | `$ARGUMENTS` in a skill | yes | yes |
 | `argument-hint` | shown | not shown: say the arguments in `description` too |
 | `disable-model-invocation: true` | enforced | ignored: the skill's body starts with the guard line (`AGENTS.md`, "Agents") |
-| Hooks and permissions in `.claude/settings.json` | yes | hooks read, reply format unconfirmed; permissions not read |
+| Hooks and permissions in `.claude/settings.json` | yes | hooks read in a trusted folder; a deny's reason reaches the model only with Claude's JSON reply (below); permissions not read |
+
+Copilot CLI's hooks, tested with a `PreToolUse` hook in `.claude/settings.json` (1.0.112 on Windows, a throwaway repo, one shell command per run):
+
+| Hook | Result |
+|---|---|
+| Folder not trusted | Repo hooks skipped, with a warning; the command ran. |
+| `"shell": "bash"`, command `bash hook.sh` | `shell` is ignored: `bash` came from PATH, on the test machine WSL's, with no distro. The hook failed and the call was denied as "hook errored". |
+| Git Bash named explicitly, hook exits 2 | The hook ran, but the wrapping shell turned exit 2 into exit 1: denied only as an error. |
+| The same, exit code passed through | Denied, "hook exited with code 2"; the hook's stderr reason doesn't reach the model. |
+| Exit 0 with Claude's JSON (`hookSpecificOutput.permissionDecision: "deny"` and a reason) | Denied, and the reason reaches the model. |
+| Exit 0, no output | The command ran. |
+
+Also seen: the input has Claude's field names (`hook_event_name`, `session_id`, `cwd`, `tool_use_id`, `tool_name`, `tool_input`), and a PowerShell command arrives as `tool_name: "Bash"`; the main session sends no `agent_id`; a hook that errors denies the call even without `onFailure: "block"` (fail-closed). So a guard hook for both agents needs the JSON deny reply rather than exit 2 alone, Git Bash named explicitly on Windows, and a trusted folder. Still open: whether a Copilot subagent's calls carry `agent_id` (the guard uses it to tell subagents from the main session), and the same tests on Linux.
 
 With Copilot CLI:
 - Trust the folder when asked; don't use `--allow-all`/`--yolo`, and never `--enable-all-github-mcp-tools` here: the built-in GitHub MCP server is read-only by default, and its write tools would commit on GitHub, past the push hook. The same goes for `/delegate`.
