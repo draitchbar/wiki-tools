@@ -33,7 +33,7 @@ The marketplace is this local folder, so Claude Code runs the plugin straight fr
 - **Adopt** (folder with content): the same, plus a move table that brings existing notes into `wiki/` (with `git mv` and frontmatter) and source files into `raw/`.
 - **Check** (already set up): runs `scripts/wiki-check.sh` and reports what's missing; it also lists Markdown files outside the layout (INFO, not a failure). Run outside a git repo in a folder whose settings enable the plugin, it says the wiki isn't initialised yet and points to `/wiki:init`.
 
-Before anything else, `/wiki:init` checks that git has a commit identity (`git config user.name`, `user.email`) and stops with the fix if not, since setup ends with a commit.
+In new and adopt mode, before asking or writing anything, `/wiki:init` checks that git has a commit identity (`git config user.name`, `user.email`) and stops with the fix if not, since setup ends with a commit. Check mode skips this.
 
 Only you can start `/wiki:init` (`disable-model-invocation`). Claude can run its check itself: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/wiki-check.sh` (read-only; the guard allows it). A test plan sent to a wiki session therefore uses `wiki-check.sh`, or marks `/wiki:init` as a step the user runs.
 
