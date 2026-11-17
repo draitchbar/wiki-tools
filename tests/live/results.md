@@ -70,3 +70,5 @@ Columns: the lane (`plugindir`: `--plugin-dir` the test copy; `project`: only wh
 | copilot-skill-sync | plugindir |  | guard=guard | 1 | 0 | PostToolUse=1 PreToolUse=8 SessionEnd=1 SessionStart=2 Stop=1 UserPromptSubmit=1 | Bash:0 Bash:0 |
 | copilot-timeout-onfailure | plugindir | --allow-tool shell(touch) | guard=allow pre-nomatcher=sleep | 1 | 0 | PostToolUse=1 PreToolUse=3 SessionEnd=1 SessionStart=2 Stop=1 UserPromptSubmit=1 | Bash:0 |
 | copilot-write-edit | plugindir | --allow-tool write(wiki/spike-note.md) | guard=allow |  | 0 | PostToolUse=2 PreToolUse=6 SessionEnd=1 SessionStart=2 Stop=1 UserPromptSubmit=1 | Write:0 Edit:0 |
+
+One interactive session, run by hand (`SPIKE_RUN=interactive-write-bash`, `--autopilot --allow-all`, `claude-sonnet-5.5`): asked to type `git push` into a running shell with `write_bash`, the model searched its tools (`tool_search_tool`, pattern `write_bash`: "No tools found"), started nothing and ended with `task_complete`, which fired PreToolUse. Hook calls: SessionStart 2 (`source: new`), UserPromptSubmit 2 (the second an autopilot continuation), PreToolUse 4, PostToolUse 2, Stop 2. Remote unchanged.
