@@ -118,7 +118,7 @@ Files: `hooks/hooks.json`, `scripts/hookjson.py`, `guard.py`, `py-launch.sh`; fi
 | c. Fixed list plus Copilot's names | Smallest change. | The hole stays and is found only by re-running live tests. |
 | d. Like a, but the matcher leaves out the known-harmless names | Unknown names still reach the guard and are refused; known-harmless tools start no process. | A negative-lookahead matcher: Claude's matchers are regexes, Copilot's support for one is unchecked. The list lives in two places (matcher and guard), kept in step by a test. |
 
-Under `--allow-all` the guard is the only check on a tool call (results above), which weighs for a or d over b and c. Before choosing between a and d, measure one guard run on Windows in a real wiki session (Linux: 20-33 ms; Windows is estimated at 150-300 ms from ADR 4's process-start numbers) and count from a real session's transcript how many extra calls a catch-all adds.
+Under `--allow-all` the guard is the only check on a tool call (results above), which weighs for a or d over b and c. Measured for the choice (2026-11-17): one run of the guard hook as `hooks.json` starts it takes about 80 ms on Windows (Git Bash; 65 ms for a tool it doesn't check, 33 ms of it the bash start), against 20-33 ms on Linux. In two real wikis' Claude transcripts (about 18,600 tool calls, subagents included), a catch-all adds 13-15% more guard runs: about half MCP tools, the rest subagent hand-backs, `Agent`, tool search, messages, web tools, `Skill` and questions. That is about 1 s per 100 tool calls on Windows, small beside the model's own time, and option d would save at most that. **Recommendation: a.** d stays available if a later client makes harmless calls far more frequent.
 
 Then:
 
