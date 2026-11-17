@@ -13,8 +13,11 @@
 # Writes $SPIKE/runs/<client>-<case>/: out.jsonl (the client's JSON
 # stream), err.txt, meta.txt (argv, rc, seconds) and capture/ (what the
 # capture hook logged during the run). Mode files in $SPIKE/capture stay.
-# Explicit model IDs; never --allow-all, --yolo, --bare or a permission
-# bypass.
+# Explicit model IDs; never --yolo, --bare or a permission bypass, and
+# --allow-all only in the autopilot cases, which test the mode users run
+# Copilot in (--autopilot --allow-all), never to make another case pass.
+# Captures carry the run ID (SPIKE_RUN); a capture with another ID is moved
+# to runs/stray, not counted.
 
 set -u
 SPIKE=${SPIKE:-$HOME/spike}
@@ -48,12 +51,13 @@ esac
 argv+=("$@")
 
 t0=$(date +%s)
+export SPIKE_RUN="$client-$case-$t0"
 # At most two attempts, and a second only when the client crashed before
 # its first hook (an infrastructure failure, not a result).
 for attempt in 1 2; do
   (cd "$cwd" && timeout "${SPIKE_TIMEOUT:-600}" "${argv[@]}") > "$out/out.jsonl" 2> "$out/err.txt" < /dev/null
   rc=$?
-  grep -q SIGSEGV "$out/err.txt" && [ -z "$(find "$cap" -maxdepth 1 -name '*.json' -print -quit)" ] || break
+  grep -q -E 'SIGSEGV|Failed to load package index' "$out/err.txt" && [ -z "$(find "$cap" -maxdepth 1 -name '*.json' -print -quit)" ] || break
   cp "$out/err.txt" "$out/err-attempt$attempt.txt"
 done
 {
@@ -63,5 +67,10 @@ done
   printf 'modes:'; for m in "$cap"/mode.*; do [ -f "$m" ] && printf ' %s=%s' "${m##*/mode.}" "$(cat "$m")"; done; printf '\n'
   printf 'version=%s\n' "$("$client" --version 2>/dev/null | head -1)"
 } > "$out/meta.txt"
-find "$cap" -maxdepth 1 -type f ! -name 'mode.*' ! -name reason-word -exec mv {} "$out/capture/" \;
+for f in "$cap"/*.env; do
+  [ -f "$f" ] || continue
+  dest=$out/capture
+  grep -qx "run=$SPIKE_RUN" "$f" || dest=$SPIKE/runs/stray
+  mv "${f%.env}".* "$dest/"
+done
 printf '%s rc=%s %ss captures=%s\n' "$client-$case" "$rc" "$(( $(date +%s) - t0 ))" "$(find "$out/capture" -name '*.json' | wc -l)"

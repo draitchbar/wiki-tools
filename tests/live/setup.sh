@@ -6,12 +6,18 @@
 #   bash setup.sh all       everything below, from the checkout at $SPIKE_SRC
 #   bash setup.sh canary    new schema canaries in the test plugin copy only
 #   bash setup.sh reset     empty the capture folder and its mode files
+#   bash setup.sh hooks     rewrite only the test copy's hooks.json
+#
+# SPIKE_ONFAILURE=block adds "onFailure": "block" to the PreToolUse hooks,
+# as the real guard hook has it.
 #
 # Layout under $SPIKE (default ~/spike):
 #   mkt/      test copy of the marketplace; plugins/wiki gets the capture
 #             hook (scripts/spike-capture.sh), a capturing hooks.json and
 #             canary lines in both schema files
-#   wiki/     a disposable git wiki with one local-folder instance (notes)
+#   wiki/     a disposable git wiki with a local-folder instance (notes),
+#             a codebase instance (code, root other/: agent_only) and a
+#             bare remote (remote.git) to push to
 #   wiki2/    the same, activated through .claude/settings.json only (1.6)
 #   source/   the notes instance's root, outside every wiki
 #   other/    an unrelated git folder: no captures expected there
@@ -28,15 +34,17 @@ plug=$mkt/plugins/wiki
 
 hooks_json() {
   cap='bash \"${CLAUDE_PLUGIN_ROOT}/scripts/spike-capture.sh\"'
+  of=
+  [ "${SPIKE_ONFAILURE:-}" = block ] && of='"onFailure": "block", '
   cat <<EOF
 {
   "hooks": {
     "PreToolUse": [
       { "matcher": "Bash|PowerShell|Write|Edit|MultiEdit|Read|Grep|Glob",
-        "hooks": [ { "type": "command", "shell": "bash", "timeout": 20, "command": "$cap guard guard" } ] },
+        "hooks": [ { "type": "command", "shell": "bash", ${of}"timeout": 20, "command": "$cap guard guard" } ] },
       { "matcher": "*",
-        "hooks": [ { "type": "command", "shell": "bash", "timeout": 10, "command": "$cap pre-star" } ] },
-      { "hooks": [ { "type": "command", "shell": "bash", "timeout": 10, "command": "$cap pre-nomatcher" } ] }
+        "hooks": [ { "type": "command", "shell": "bash", ${of}"timeout": 10, "command": "$cap pre-star" } ] },
+      { "hooks": [ { "type": "command", "shell": "bash", ${of}"timeout": 10, "command": "$cap pre-nomatcher" } ] }
     ],
     "PostToolUse": [ { "hooks": [ { "type": "command", "shell": "bash", "command": "$cap post" } ] } ],
     "UserPromptSubmit": [ { "hooks": [ { "type": "command", "shell": "bash", "command": "$cap prompt" } ] } ],
@@ -109,6 +117,19 @@ state:
 ---
 EOF
   printf '%s\n' "$2" > "$d/.claude/settings.json"
+  if [ "${3:-}" = code ]; then
+    cat > "$d/.claude/sources/instances/code.md" <<EOF
+---
+key: code
+type: codebase
+roots:
+  - $SPIKE/other
+state:
+  - last_checked
+---
+EOF
+    printf 'last_checked_code: never\n' >> "$d/raw/sync-log.md"
+  fi
   git -C "$d" init -q -b main
   git -C "$d" add -A
   git -C "$d" -c user.name=Spike -c user.email=spike@example.com commit -q -m "Spike wiki"
@@ -132,7 +153,18 @@ all() {
     > "$SPIKE/source/sub folder/minutes one.txt"
   printf 'Spring fair is planned for 2027-04-18.\n' > "$SPIKE/source/fair.txt"
   plugin_settings='{ "permissions": { "deny": [ "Bash(git push *)" ] } }'
-  mkwiki "$SPIKE/wiki" "$plugin_settings"
+  rm -rf "$SPIKE/other"
+  mkdir -p "$SPIKE/other"
+  printf 'Unrelated folder.
+' > "$SPIKE/other/README.md"
+  git -C "$SPIKE/other" init -q -b main
+  git -C "$SPIKE/other" add -A
+  git -C "$SPIKE/other" -c user.name=Spike -c user.email=spike@example.com commit -q -m other
+  mkwiki "$SPIKE/wiki" "$plugin_settings" code
+  rm -rf "$SPIKE/remote.git"
+  git init -q --bare "$SPIKE/remote.git"
+  git -C "$SPIKE/wiki" remote add origin "$SPIKE/remote.git"
+  git -C "$SPIKE/wiki" push -q origin main
   mkwiki "$SPIKE/wiki2" "$(cat <<EOF
 {
   "permissions": { "deny": [ "Bash(git push *)" ] },
@@ -156,5 +188,6 @@ case "${1:-}" in
   all) all ;;
   canary) canary ;;
   reset) reset ;;
-  *) echo "usage: setup.sh all|canary|reset" >&2; exit 1 ;;
+  hooks) hooks_json > "$plug/hooks/hooks.json" ;;
+  *) echo "usage: setup.sh all|canary|reset|hooks" >&2; exit 1 ;;
 esac

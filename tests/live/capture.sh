@@ -8,8 +8,9 @@
 # Logs one hook call to $SPIKE_CAPTURE (default ~/spike/capture): the input
 # as <stamp>-<tag>.json, and the hook's environment (names that matter to
 # hooks; nothing named like a token, key or secret) with its timing as
-# <stamp>-<tag>.env. Then behaves as the mode file $SPIKE_CAPTURE/mode.<tag>
-# says, or as <default mode>, or allows:
+# <stamp>-<tag>.env, with the run ID run.sh exports (SPIKE_RUN), so a late
+# hook from an earlier run can't pass as this one's. Then behaves as the
+# mode file $SPIKE_CAPTURE/mode.<tag> says, or as <default mode>, or allows:
 #
 #   allow       exit 0, no output
 #   exit2       reason on stderr, exit 2
@@ -34,8 +35,8 @@ mode=$(cat "$out/mode.$tag" 2>/dev/null || printf '%s' "${2:-allow}")
 word=$(cat "$out/reason-word" 2>/dev/null || true)
 plugin=$(cd "$(dirname "$0")/.." && pwd)
 {
-  printf 'tag=%s\nmode=%s\nscript=%s\npwd=%s\nparent=%s\n' \
-    "$tag" "$mode" "$0" "$PWD" "$(ps -o args= -p "$PPID" 2>/dev/null | cut -c1-200)"
+  printf 'tag=%s\nmode=%s\nrun=%s\nscript=%s\npwd=%s\nparent=%s\n' \
+    "$tag" "$mode" "${SPIKE_RUN:-}" "$0" "$PWD" "$(ps -o args= -p "$PPID" 2>/dev/null | cut -c1-200)"
   env | grep -E '^(CLAUDE|COPILOT|PLUGIN|PROJECT|GITHUB_COPILOT|AGENT|SESSION|HOOK)[A-Z0-9_]*=' \
     | grep -v -i -E '^[^=]*(TOKEN|KEY|SECRET|AUTH|PASS)[^=]*=' | sort
 } > "$stem.env"
