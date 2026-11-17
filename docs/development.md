@@ -80,6 +80,8 @@ The wiki plugin in both clients, from the spike of the Copilot plan (`docs/plans
 | Cost per tool call | capture hook ~7 ms, guard 20-33 ms | the same per hook, added up (serial) |
 | Reliability | | 5 of about 45 starts crashed before any hook (4 SIGSEGV, 1 "Failed to load package index"); rerun, once by `run.sh`, the others by hand |
 
+On Windows (Copilot CLI 1.0.113 from PowerShell, the same day, plan step 1.7): the agent's shell is PowerShell (tool `powershell`, sent to hooks as `Bash`), and plugin hook commands run in PowerShell too; `"shell": "bash"` and `COPILOT_BASH_PATH` change neither, and a command starting with `bash` gets WSL's `bash.exe` from PATH. So today's guard hook, written in bash, fails to parse and Copilot refuses every tool call there. A hook's `powershell` field, which Copilot runs instead of `command`, can start Git Bash by its path (about 340 ms per hook). `COPILOT_GITHUB_TOKEN` doesn't reach the agent's shell.
+
 Also seen: a claude.ai login applies its organization's synced plugins and settings even to a fresh configuration folder; Copilot connects its GitHub MCP server by default, whose tool calls the spike didn't exercise.
 
 With Copilot CLI:

@@ -33,10 +33,13 @@ input=$(cat)
 printf '%s\n' "$input" > "$stem.json"
 mode=$(cat "$out/mode.$tag" 2>/dev/null || printf '%s' "${2:-allow}")
 word=$(cat "$out/reason-word" 2>/dev/null || true)
-plugin=$(cd "$(dirname "$0")/.." && pwd)
+# Sourced by a hook (". spike-capture.sh <tag>"), $0 is the shell: use the
+# plugin root the client passes.
+plugin=${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}
 {
   printf 'tag=%s\nmode=%s\nrun=%s\nscript=%s\npwd=%s\nparent=%s\n' \
     "$tag" "$mode" "${SPIKE_RUN:-}" "$0" "$PWD" "$(ps -o args= -p "$PPID" 2>/dev/null | cut -c1-200)"
+  printf 'bash=%s %s\nostype=%s\n' "${BASH:-}" "${BASH_VERSION:-}" "${OSTYPE:-}"
   env | grep -E '^(CLAUDE|COPILOT|PLUGIN|PROJECT|GITHUB_COPILOT|AGENT|SESSION|HOOK)[A-Z0-9_]*=' \
     | grep -v -i -E '^[^=]*(TOKEN|KEY|SECRET|AUTH|PASS)[^=]*=' | sort
 } > "$stem.env"

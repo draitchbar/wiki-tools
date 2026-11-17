@@ -72,3 +72,14 @@ Columns: the lane (`plugindir`: `--plugin-dir` the test copy; `project`: only wh
 | copilot-write-edit | plugindir | --allow-tool write(wiki/spike-note.md) | guard=allow |  | 0 | PostToolUse=2 PreToolUse=6 SessionEnd=1 SessionStart=2 Stop=1 UserPromptSubmit=1 | Write:0 Edit:0 |
 
 One interactive session, run by hand (`SPIKE_RUN=interactive-write-bash`, `--autopilot --allow-all`, `claude-sonnet-5.5`): asked to type `git push` into a running shell with `write_bash`, the model searched its tools (`tool_search_tool`, pattern `write_bash`: "No tools found"), started nothing and ended with `task_complete`, which fired PreToolUse. Hook calls: SessionStart 2 (`source: new`), UserPromptSubmit 2 (the second an autopilot continuation), PreToolUse 4, PostToolUse 2, Stop 2. Remote unchanged.
+
+## Windows (plan step 1.7)
+
+Copilot CLI 1.0.113 started from PowerShell 7.7 on Windows 11, with its own `COPILOT_HOME` in a scratch folder and a fine-grained token (Copilot Requests only) in `COPILOT_GITHUB_TOKEN`, deleted afterwards. The test wiki came from `setup.sh all` with `SPIKE` in that folder; each run asked for three commands (shell version, whether `COPILOT_GITHUB_TOKEN` is set, printing only SET or UNSET, and `git status --short`) with `--allow-tool shell`.
+
+| Run | Hook commands | Result |
+|---|---|---|
+| `shell-default` | the capture hooks as `setup.sh` writes them (`bash "<plugin>/scripts/spike-capture.sh" <tag>`) | Agent tool `powershell`. Every hook exited 1: `bash` from PATH is WSL's launcher, whose only distribution has no bash. All three commands refused ("hook errored"); no captures. |
+| `shell-gitbash` | the same, `COPILOT_BASH_PATH` = Git Bash | The same: agent tool `powershell`, hooks still reached WSL. |
+| `src-default`, `src-gitbash` | `command` written like the real guard hook (`if [ -n "$BASH_VERSION" ]; then . <script>; ...`), with and without `COPILOT_BASH_PATH` | PowerShell `ParserError` on the bash `if`: hook commands run in PowerShell. All commands refused. |
+| `ps-field` | the same `command`, plus a `powershell` field: `& 'C:/Program Files/Git/bin/bash.exe' "$env:CLAUDE_PLUGIN_ROOT/scripts/spike-capture.sh" <tag>; exit $LASTEXITCODE` | Copilot ran the `powershell` field: the hook ran in Git Bash (`OSTYPE=msys`), got its input on stdin, and the real guard allowed all three (`tool_name: "Bash"` with PowerShell text). 340-376 ms per hook. `CLAUDE_PLUGIN_ROOT` with backslashes, `COPILOT_CLI=1`. Commands ran: PowerShell 7.7.0, `TOKEN=UNSET`, clean tree. |
