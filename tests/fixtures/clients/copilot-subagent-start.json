@@ -1,0 +1,10 @@
+{
+  "sessionId": "00000000-0000-4000-8000-000000000014",
+  "timestamp": 1767225600000,
+  "cwd": "@WIKI@",
+  "transcriptPath": "/home/u/.copilot/session-state/00000000-0000-4000-8000-000000000014/events.jsonl",
+  "agentName": "general-purpose",
+  "agent_id": "00000000-0000-4000-8000-000000000013",
+  "agent_type": "general-purpose",
+  "parent_agent_id": "00000000-0000-4000-8000-000000000014"
+}

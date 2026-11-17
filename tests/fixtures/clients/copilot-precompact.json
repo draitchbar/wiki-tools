@@ -1,0 +1,9 @@
+{
+  "hook_event_name": "PreCompact",
+  "session_id": "00000000-0000-4000-8000-000000000016",
+  "timestamp": "2026-01-01T00:00:00.000Z",
+  "cwd": "@WIKI@",
+  "transcript_path": "/home/u/.copilot/session-state/00000000-0000-4000-8000-000000000016/events.jsonl",
+  "trigger": "manual",
+  "custom_instructions": ""
+}

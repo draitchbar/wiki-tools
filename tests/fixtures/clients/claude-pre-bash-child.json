@@ -1,0 +1,19 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000003",
+  "transcript_path": "/home/u/.claude/projects/-home-u-wiki/00000000-0000-4000-8000-000000000003.jsonl",
+  "cwd": "@WIKI@",
+  "prompt_id": "00000000-0000-4000-8000-000000000004",
+  "permission_mode": "default",
+  "agent_id": "a0000000000000001",
+  "agent_type": "general-purpose",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git log -1 --oneline",
+    "description": "<description>"
+  },
+  "tool_use_id": "toolu_0000000000000000000007"
+}

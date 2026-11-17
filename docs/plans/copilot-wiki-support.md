@@ -1,6 +1,6 @@
 # Plan: Copilot CLI in existing wikis
 
-Status: planned, not implemented. The [design](../copilot-wiki-design.md) holds the reasons and constraints; this file holds the work, in order, with exit conditions. Indexed in [the roadmap](../roadmap.md).
+Status: part A's Linux evidence collected (2026-11-17; [results](#results-of-the-spike)); its Windows observations (1.7) and the Copilot review are still open. Parts B and C not started. The [design](../copilot-wiki-design.md) holds the reasons and constraints; this file holds the work, in order, with exit conditions. Indexed in [the roadmap](../roadmap.md).
 
 ## Outcome and scope
 
@@ -68,6 +68,22 @@ Stop conditions, decided here rather than discovered later:
 - If SessionStart cannot inject the schema, look for another automatic context hook that runs the same `schema.sh`. No duplicated schemas, no wiki imports.
 - If there is no reliable guard route or no reliable context route, stop the migration rather than ship a degraded mode. Do not retry a blocked action another way.
 
+### Results of the spike
+
+Run on Linux on 2026-11-17 with Copilot CLI 1.0.112 and Claude Code 2.1.326; the matrix is in `docs/development.md`, "Agents", the payloads in `tests/fixtures/clients/`, the driver in `tests/live/` (`Dockerfile`, `setup.sh`, `capture.sh`, `run.sh`). Baseline at `94456e8` in the container: all tests, `--e2e`, ruff and shellcheck green. About 45 prompt-mode sessions, 25 Copilot premium requests.
+
+No stop condition holds:
+
+- **Child calls are guarded.** Both clients send every child tool call through the plugin's PreToolUse hooks with an `agent_id`, the main session's calls without one, and a deny stops a child's call with its reason shown. Audit/lint dispatch can stay on in Copilot.
+- **There is a context route,** but not today's: Copilot ignores SessionStart's plain stdout and Claude's `hookSpecificOutput.additionalContext`, and reads only a top-level `additionalContext`. One JSON object with both keys reached the model in both clients, at start and after resume, and in Copilot it survived automatic compaction.
+- **There is a guard route,** with work: Copilot uses Claude's tool names but its own argument names, so the guard needs normalization (step 3); today it refuses every Copilot Write and Edit.
+
+Gating cases found, now in the steps below: a hook timeout lets the call through in both clients; a hook exit other than 2 lets it through in Claude (py-launch.sh already maps those to 2); Copilot's patch tool sends several files as one string; `read_bash` fires no hook; in a folder that isn't trusted, Copilot silently loads no plugin; skill bodies get no `` !`cmd` `` and no `${CLAUDE_PLUGIN_ROOT}` in Copilot.
+
+Not run, still owed before part B: **1.7 (Windows)**, which needs a Copilot login that can't land in the Windows credential store the developer's own login uses (a fine-grained token in `COPILOT_GITHUB_TOKEN` for the spike's processes only); **`write_bash`**, which prompt mode doesn't offer: one interactive session; Claude's automatic compaction (only `/compact` run); MCP tool calls (Copilot connects its GitHub MCP server by default). And the **Copilot review** below.
+
+For the driver, learned the hard way: the container needs `--init` (a test waits on a killed process, and a `sleep` PID 1 never reaps it); Copilot crashed before its first hook on about 1 start in 9, so `run.sh` retries exactly that once; `--resume` can't be combined with `--trust-folder`; a claude.ai login brings the organization's synced plugins and settings into a fresh profile, so isolation is per machine, not per account.
+
 ## Part B: first delivery (Copilot on Linux)
 
 Each step names its files and an exit condition. Details below are the current best guess and are expected to shrink after part A.
@@ -76,11 +92,12 @@ Each step names its files and an exit condition. Details below are the current b
 
 Files: the marketplace/plugin manifests, `templates/project-settings.json`, `wiki_check.py`, setup docs; tests in `test_wiki_check.py` and the live module.
 
-1. Keep the package layout. Quote the research skill's description. Check the other frontmatter with both clients' loaders.
-2. Prefer `.claude/settings.json` as the shared activation declaration. Verify marketplace resolution in a fresh wiki, not on a preconfigured machine.
-3. If Copilot does not honor that declaration with the required scope, emit the smallest derived `.github/copilot/settings.json` fragment (`enabledPlugins`, `extraKnownMarketplaces`). No separately authored plugin list; no Copilot-only instruction file.
+1. Keep the package layout. Quote the research skill's description (Copilot rejects it today). Check the other frontmatter with both clients' loaders; the agents' `effort:` only draws a Copilot warning and stays.
+2. `.claude/settings.json` is the shared activation declaration: the spike saw Copilot load the plugin from `enabledPlugins` and `extraKnownMarketplaces` alone, and nothing in an unrelated folder or wiki-tools. Claude in `-p` needed the marketplace registered for the user first; check whether that holds interactively, and keep the setup docs' registration step either way. Verify in a fresh wiki, not on a preconfigured machine.
+3. ~~A derived `.github/copilot/settings.json` fragment~~: not needed, per the spike.
 4. Registration and authentication are per machine and client; activation is per wiki. No invented `--scope project` flag, no global guard.
-5. Resolve scripts against the executing plugin, never a fixed clone path, in local-directory and installed-copy modes. Teach the readiness check the activation mode.
+5. Resolve scripts against the executing plugin, never a fixed clone path, in local-directory and installed-copy modes. Both clients run a directory marketplace in place and fill in `CLAUDE_PLUGIN_ROOT` and `CLAUDE_PLUGIN_DATA` for hooks (Copilot's data root is `~/.copilot/plugin-data/`). Teach the readiness check the activation mode.
+6. **Trust:** in a folder that isn't trusted, Copilot loads none of the plugin and says nothing, so no guard runs. Nothing of the plugin can detect this from inside; the setup docs say to trust the wiki folder, and that missing skills mean an untrusted folder.
 
 **Exit:** fresh project activation loads the plugin, its schema and its skills in both clients; an unrelated folder and wiki-tools itself remain unguarded. `--plugin-dir` alone does not satisfy this.
 
@@ -88,7 +105,7 @@ Files: the marketplace/plugin manifests, `templates/project-settings.json`, `wik
 
 Files: `hooks/hooks.json`, `scripts/hookjson.py`, `guard.py`, `py-launch.sh`; fixtures and `test_guard.py`, `test_py_launch.py`, `test_contract_parity.py`.
 
-**Decision to take from the spike's numbers: how an unknown tool is handled.** Today a tool outside the matcher list never reaches the guard, and the guard allows a name it does not know. Adding Copilot's names to the list keeps that hole for every later tool. The options:
+**How an unknown tool is handled: option a, proposed from the spike's numbers, for the owner to confirm with this plan's review.** Today a tool outside the matcher list never reaches the guard, and the guard allows a name it does not know. Adding Copilot's names to the list keeps that hole for every later tool. The spike saw Copilot reuse Claude's names for its file and shell tools, add its own (`skill`, `stop_bash`, `tool_search_tool`), and fire no hook at all for `read_bash`; one guard run costs 20-33 ms on Linux, and Copilot runs a call's hooks one after another, Claude in parallel. The options:
 
 | Option | Effect | Cost |
 |---|---|---|
@@ -98,14 +115,15 @@ Files: `hooks/hooks.json`, `scripts/hookjson.py`, `guard.py`, `py-launch.sh`; fi
 
 Then:
 
-1. Apply the decision. Every enabled file-mutation, shell-execution and protected-source read/search capability reaches the guard or stays outside the supported configuration. Shell follow-up input is checked as a command.
-2. Normalize the observed payloads into the guard's current representation (`hookjson.py`), including Copilot's spelling of `tool_name`, `cwd` and `agent_id`. Validate every target and the replacement content of a multi-file patch. A missing or malformed field in a checked tool's payload blocks. No second policy engine.
+1. Apply the decision. Every enabled file-mutation, shell-execution and protected-source read/search capability reaches the guard or stays outside the supported configuration. Shell follow-up input (`write_bash`) is checked as a command; whether it fires a hook at all is the interactive check still owed from step 1. `read_bash` and `stop_bash` touch only a shell the guard already let start.
+2. Normalize the observed payloads (`tests/fixtures/clients/`) into the guard's current representation (`hookjson.py`). `tool_name`, `cwd`, `agent_id` and `session_id` are already Claude's; the arguments are not: `path` for `file_path`, `file_text` for `content`, `old_str`/`new_str` for `old_string`/`new_string`, `paths` for Grep's `path`. Copilot's patch tool arrives as `Edit` whose `tool_input` is the patch text: parse its `*** Add File:`, `*** Update File:`, `*** Delete File:` and `*** Move to:` lines and check every target and every added line. A missing or malformed field in a checked tool's payload blocks, as now. No second policy engine. The fixtures become `pass-`/`block-` cases.
 3. Child identity: a missing or untrusted `agent_id` is treated as the main session, so it never grants `agent_only` access.
 4. Copilot on Windows is part C. Until then the guard refuses every shell call from Copilot on Windows (`COPILOT_CLI=1` on a Windows platform), because its PowerShell commands arrive as `tool_name: "Bash"` and must not be checked as Bash text. Claude's PowerShell refusal stays as it is.
 5. Preserve push blocking, root protection, wrapper lookalike/chaining checks, broken-contract behavior and diagnostics. Where Copilot cannot inherit Claude's permission denials, cover the contract-declared shell denials in the guard; combine denials, never client grants.
-6. Protected paths: **parity, not expansion.** Today the guard protects `.claude/sources`, `.claude/settings*` and `.claude/plugins/` (with the cached Python). Add only Copilot's direct equivalents, taken from the spike: its project settings and hook files (`.github/copilot/settings*.json`, `.github/hooks/`) and its registered plugin copy and data root, wherever `COPILOT_HOME` puts them. User-level profiles, extensions, MCP configuration and agent/skill folders are not added: the guard is a guardrail, not a security boundary. They are named in the docs as outside the supported configuration instead.
-7. Reply with Claude's JSON deny (`hookSpecificOutput.permissionDecision: "deny"` and the reason) so the reason reaches the model in both clients; keep a non-zero exit as the fallback when the JSON cannot be produced. Verify the launcher's unexpected-exit, missing-interpreter and timeout paths in each client.
-8. If plugin hooks are skipped in an untrusted folder, `wiki-check` and the session-start status say so for Copilot.
+6. Protected paths: **parity, not expansion.** Today the guard protects `.claude/sources`, `.claude/settings*` and `.claude/plugins/` (with the cached Python). Add only Copilot's direct equivalents: its project settings and hook files (`.github/copilot/settings*.json`, `.github/hooks/`) and, under `COPILOT_HOME`, `plugin-data/` (where the cached Python lands, since Copilot sets `CLAUDE_PLUGIN_DATA` there) and `installed-plugins/`. User-level profiles, extensions, MCP configuration and agent/skill folders are not added: the guard is a guardrail, not a security boundary. They are named in the docs as outside the supported configuration instead.
+7. Reply with Claude's JSON deny (`hookSpecificOutput.permissionDecision: "deny"` and the reason): the spike saw it deny with the reason shown in both clients, where exit 2 shows Copilot no reason. Keep exit 2 as the fallback when the JSON cannot be produced; py-launch.sh's mapping of every other exit to 2 stays, since Claude lets a call through on exit 1 or 127.
+8. **Timeouts let the call through in both clients** (the spike's hook was killed at its `timeout` and the command ran). Neither client offers a fail-closed timeout. Give the guard hook an explicit, generous `timeout` in `hooks.json`, keep the guard's own time far below it, and name the gap in `docs/guard.md`.
+9. ~~`wiki-check` reports an untrusted folder~~: in one, Copilot loads no plugin at all, so nothing of ours runs to report it (step 2, item 6).
 
 **Exit:** all existing Claude guard cases pass, and real Copilot tool calls are refused for the same covered actions before any side effect. A hook log that says "block" while the command runs is a failure.
 
@@ -115,13 +133,14 @@ Files: skill/agent bodies, `schema.sh`, `sync_status.py`, `sources.py`, `sourcel
 
 1. Add the established "Run only when the user typed ..." line to the manual-only plugin skills. Keep Claude's frontmatter restriction; name arguments in descriptions.
 2. Where a skill names a Claude-only tool API (`Agent` calls with `subagent_type`, question handling), replace it with a short shared capability binding: plain Bash execution, asking the user, named subagent dispatch, awaiting results. Preserve confirmations and named-path commits.
-3. `schema.sh` stays the schema loader. If `!` injections do not work, the shared skills call the same scripts explicitly. If plugin-root substitution fails in skill bodies, use the resolved root from schema context. If `allowed-tools` is a load error in Copilot, find the form both loaders accept; if it is merely ignored, accept the extra approval prompts.
-4. Add `--client claude|copilot` only to the diagnostics and source views that need client readiness. Explicit selection wins; otherwise `COPILOT_CLI=1` selects Copilot, and a plain terminal keeps the Claude default. Sanitize these variables in test environments. The guard's rules do not depend on the client.
-5. One small declarative source opt-in, `clients:`, in the existing flat contract format: absent means Claude only (today's behavior, so older local types stay valid), local-folder declares both, built-in raw is handled by the core. Validate it like `platforms:`, with parser parity.
-6. `sources.sh list/show/catalog`, sync status, init/check and add-source show a source as unavailable in Copilot without calling a valid instance broken. Ingest and research refuse it; audit reports its claims as unresolved. Its sync state and cache are untouched. **This refusal is an instruction, not enforcement:** a wrapper-based source is also refused by the guard where its contract says so, but nothing stops a user's own MCP server in Copilot. Say so in `docs/guard.md` rather than imply protection.
-7. Copilot readiness checks never report Claude permission strings as effective protection, and the installer reports do not tell Copilot users to add permissions it ignores.
-8. Version drift: each client may run its own installed copy of the plugin against the same wiki. This delivery changes no page, state, cache or contract format, and `clients:` is optional, so an older copy still reads the wiki. Make `wiki-check` print the executing plugin's root and commit (or content hash), so two copies can be compared. A later change that an older copy cannot read needs its own decision in `docs/adr.md`.
-9. The two research roles stay authored once and discoverable. Audit/lint subagent dispatch must work for supported sources, or is switched off in Copilot (step 1's stop condition). Codebase research, `agent_only` and nested critique stay parked with the codebase source.
+3. `schema.sh` stays the schema loader, and prints one JSON object carrying the schema as both `additionalContext` (Copilot) and `hookSpecificOutput.additionalContext` (Claude), the form the spike saw reach both; `sync-status.sh`'s SessionStart output the same. Bash only, so the JSON escaping is done in bash (no `jq`), with a test of every escaped character. Check Copilot's size limit for that context against the 9,000-byte budget. Copilot also runs the `startup`-matcher hook (sync status) on every resume.
+4. Skill bodies, from the spike: Copilot runs no `` !`cmd` `` and fills in no `${CLAUDE_PLUGIN_ROOT}`. So the shared skills call the same scripts explicitly as a first step, and the schema context states the resolved plugin root, which skills name instead of relying on substitution (`schema.sh` already fills it in). `allowed-tools` is ignored, not an error: accept the extra approval prompts in Copilot. Copilot names the skills without `wiki:`; the docs give both spellings.
+5. Add `--client claude|copilot` only to the diagnostics and source views that need client readiness. Explicit selection wins; otherwise `COPILOT_CLI=1` selects Copilot (the spike saw Copilot set it in hooks and Claude not), and a plain terminal keeps the Claude default. Sanitize these variables in test environments. The guard's rules do not depend on the client.
+6. One small declarative source opt-in, `clients:`, in the existing flat contract format: absent means Claude only (today's behavior, so older local types stay valid), local-folder declares both, built-in raw is handled by the core. Validate it like `platforms:`, with parser parity.
+7. `sources.sh list/show/catalog`, sync status, init/check and add-source show a source as unavailable in Copilot without calling a valid instance broken. Ingest and research refuse it; audit reports its claims as unresolved. Its sync state and cache are untouched. **This refusal is an instruction, not enforcement:** a wrapper-based source is also refused by the guard where its contract says so, but nothing stops a user's own MCP server in Copilot. Say so in `docs/guard.md` rather than imply protection.
+8. Copilot readiness checks never report Claude permission strings as effective protection, and the installer reports do not tell Copilot users to add permissions it ignores.
+9. Version drift: each client may run its own installed copy of the plugin against the same wiki. This delivery changes no page, state, cache or contract format, and `clients:` is optional, so an older copy still reads the wiki. Make `wiki-check` print the executing plugin's root and commit (or content hash), so two copies can be compared. A later change that an older copy cannot read needs its own decision in `docs/adr.md`.
+10. The two research roles stay authored once and discoverable. Audit/lint subagent dispatch stays on in Copilot: the spike saw child calls guarded and identified by `agent_id` in both clients. Codebase research, `agent_only` and nested critique stay parked with the codebase source.
 
 **Exit:** the supported routines work in both clients, unavailable sources do not block them, no state migration is introduced, and client selection is covered without changing standalone Claude defaults.
 
@@ -165,7 +184,7 @@ git ls-files -z '*.sh' | xargs -0 shellcheck -S warning
 
 ### 8. A small live smoke set through the real clients
 
-Extend `tests/conftest.py` and add `tests/test_live_clients.py`, reusing the git, file, normalization and argv helpers. No second runner, browser harness or SDK dependency.
+Extend `tests/conftest.py` and add `tests/test_live_clients.py`, reusing the git, file, normalization and argv helpers. No second runner, browser harness or SDK dependency. The spike's `tests/live/` (container, setup, capture hook, prompt-mode runner) is where this starts: its lessons (an init process, a retry only for a crash before the first hook, no `--trust-folder` on resume, org-synced Claude settings) carry over, and its shell runner becomes the pytest module's helper or goes.
 
 Planned interface, not an existing command (a change to `run-tests.sh`, so it needs its own test and a green `--e2e`):
 
@@ -229,7 +248,7 @@ Its own delivery after part B, with its own short design once step 1's Windows o
 
 What it must settle:
 
-- Whether Copilot on Windows can be given a Bash tool or shell setting at all; if so, most of this part disappears.
+- Whether Copilot on Windows can be given a Bash tool or shell setting at all; if so, most of this part disappears. First candidate: `COPILOT_BASH_PATH` (Copilot 1.0.112's `copilot help environment`: the bash used for the agent's shell commands and for command hooks; on Windows, otherwise bash from PATH). Step 1.7 tries it with Git Bash.
 - Otherwise a single source-neutral invocation form, `& "<Git Bash executable>" "<native absolute script>" <args>`, that the guard recognizes only in that exact shape, rejecting WSL, `-c`/`-lc`, extra commands or operators and lookalike executables.
 - **How the Git Bash executable is found and trusted in plugin code.** Today only the test suite resolves it; "from the trusted Git installation" needs a definition (which registry key or path, who may write it) before the guard relies on it.
 - How the resolved executable and plugin root reach the skills (schema context, not a user-maintained registry, not a PowerShell `${CLAUDE_PLUGIN_ROOT}`).

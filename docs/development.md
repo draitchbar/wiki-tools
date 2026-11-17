@@ -51,7 +51,35 @@ Copilot CLI's hooks, tested with a `PreToolUse` hook in `.claude/settings.json` 
 | Exit 0 with Claude's JSON (`hookSpecificOutput.permissionDecision: "deny"` and a reason) | Denied, and the reason reaches the model. |
 | Exit 0, no output | The command ran. |
 
-Also seen: the input has Claude's field names (`hook_event_name`, `session_id`, `cwd`, `tool_use_id`, `tool_name`, `tool_input`), and a PowerShell command arrives as `tool_name: "Bash"`; the main session sends no `agent_id`; a hook that errors denies the call even without `onFailure: "block"` (fail-closed). So a guard hook for both agents needs the JSON deny reply rather than exit 2 alone, Git Bash named explicitly on Windows, and a trusted folder. Still open: whether a Copilot subagent's calls carry `agent_id` (the guard uses it to tell subagents from the main session), and the same tests on Linux.
+Also seen: the input has Claude's field names (`hook_event_name`, `session_id`, `cwd`, `tool_use_id`, `tool_name`, `tool_input`), and a PowerShell command arrives as `tool_name: "Bash"`; the main session sends no `agent_id`; a hook that errors denies the call even without `onFailure: "block"` (fail-closed). So a guard hook for both agents needs the JSON deny reply rather than exit 2 alone, Git Bash named explicitly on Windows, and a trusted folder. The Linux results, subagents included, are in the next table.
+
+The wiki plugin in both clients, from the spike of the Copilot plan (`docs/plans/copilot-wiki-support.md`, step 1): Copilot CLI 1.0.112 and Claude Code 2.1.326 on Linux, 2026-11-17, both with `claude-sonnet-5.5` (Copilot also with `gpt-6.1-sol`, for its patch tool), in a disposable container (`tests/live/`) with a capture hook beside the real guard. The payloads, normalized, are in `tests/fixtures/clients/` (for reference; no test runs them yet). Windows was not part of it.
+
+| | Claude Code | Copilot CLI |
+|---|---|---|
+| Discovery (`--plugin-dir`) | 8 skills as `wiki:<name>`, 2 agents, all hook events | 7 skills, named without `wiki:`: `research` is rejected (its description's `mode: research` is invalid YAML); agents load, `effort:` ignored with a warning |
+| Activation from the wiki's `.claude/settings.json` (`enabledPlugins`, `extraKnownMarketplaces` with a directory source) | only once the marketplace is registered for the user (`claude plugin marketplace add`); in `-p` the project file alone loads nothing | the project file alone, in a trusted folder. In a folder that isn't trusted the plugin silently doesn't load: no hooks, no warning. `--plugin-dir` hooks run without trust |
+| Unrelated folder, wiki-tools itself | no plugin hooks | no plugin hooks |
+| Plugin files; plugin data | the directory itself; `~/.claude/plugins/data/<plugin>-<marketplace>` | the directory itself; `~/.copilot/plugin-data/<marketplace>/<plugin>` (`--plugin-dir`: `_direct/<hash>`) |
+| Hook environment | `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_PROJECT_DIR`; command run by `/bin/sh -c` (dash) | the same three, plus `COPILOT_PLUGIN_ROOT`, `COPILOT_PLUGIN_DATA`, `COPILOT_PROJECT_DIR`, `PLUGIN_ROOT`, `COPILOT_HOOK_DIR`, `COPILOT_CLI=1`; command run by bash |
+| Tool names in hooks | `Bash`, `Read`, `Grep`, `Glob`, `Write`, `Edit`, `Agent`, `Skill` | the same names for its bash, view, grep, glob, create, edit, apply_patch and task tools; also `skill`, `stop_bash`, `tool_search_tool`. `read_bash` fires no hook; `write_bash` (input to a running shell) isn't offered in `-p`, so not seen |
+| `tool_input` fields | `file_path`; Write `content`; Edit `old_string`/`new_string`; Grep `path` | `path`; Write `file_text`; Edit `old_str`/`new_str`; Grep `paths`. A multi-file patch arrives as `Edit` with `tool_input` a string (the patch). Async shell: `mode: "async"`, `shellId` |
+| Today's guard on those | as designed | every Write and Edit refused: "Write call without file_path" (fail closed). Read, Grep, Glob passed |
+| Several hooks on one call | run in parallel | run one after another, in order; the first deny stops the rest |
+| Subagents | no `agent_id` in the main session; a child's calls carry `agent_id`, `agent_type` | the same, plus `parent_agent_id`, and the child's `session_id` is its `agent_id`. SubagentStart is camelCase (`sessionId`, `transcriptPath`, `agentName`) without `hook_event_name` |
+| Hook exits 2 | denied; stderr reaches the model | denied; the reason doesn't reach the model |
+| Hook exits 1, or 127 (no interpreter) | **the command runs** | denied ("hook errored") |
+| Claude's JSON deny | denied; the reason reaches the model | the same |
+| Hook timeout (killed at its `timeout`) | **the command runs** | **the command runs** |
+| JSON deny of a subagent's call | denied; the reason reaches the model | the same |
+| SessionStart context | plain stdout, or `hookSpecificOutput.additionalContext` | only a top-level `additionalContext`. One JSON object with both keys works in both |
+| Resume | SessionStart again (`source: resume`); old context stays in the history | SessionStart again (`source: resume`), `startup`-matcher hooks too; the new context replaces the old. `--resume` refuses `--trust-folder` |
+| Compaction | PreCompact, then SessionStart (`source: compact`) (`/compact`; automatic not tried) | PreCompact, no SessionStart; the SessionStart context survived two automatic compactions |
+| Skill bodies | `` !`cmd` `` runs, `${CLAUDE_PLUGIN_ROOT}` filled in | loaded as written: no `` !`cmd` ``, no substitution (the model found the scripts from the skill's own path). `allowed-tools` ignored, not an error: the wrapper still asks |
+| Cost per tool call | capture hook ~7 ms, guard 20-33 ms | the same per hook, added up (serial) |
+| Reliability | | 5 of about 45 starts crashed before any hook (4 SIGSEGV, 1 "Failed to load package index"); the retry ran |
+
+Also seen: a claude.ai login applies its organization's synced plugins and settings even to a fresh configuration folder; Copilot connects its GitHub MCP server by default, whose tool calls the spike didn't exercise.
 
 With Copilot CLI:
 - Trust the folder when asked; don't use `--allow-all`/`--yolo`, and never `--enable-all-github-mcp-tools` here: the built-in GitHub MCP server is read-only by default, and its write tools would commit on GitHub, past the push hook. The same goes for `/delegate`.

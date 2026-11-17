@@ -1,0 +1,9 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000003",
+  "transcript_path": "/home/u/.claude/projects/-home-u-wiki/00000000-0000-4000-8000-000000000003.jsonl",
+  "cwd": "@WIKI@",
+  "prompt_id": "00000000-0000-4000-8000-000000000004",
+  "agent_id": "a0000000000000001",
+  "agent_type": "general-purpose",
+  "hook_event_name": "SubagentStart"
+}
