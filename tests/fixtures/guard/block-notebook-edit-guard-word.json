@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"NotebookEdit","tool_input":{"notebook_path":"/home/u/wikis/mywiki/outputs/a.ipynb","new_source":"!proton-drive ls","cell_type":"code"},"tool_use_id":"x"}

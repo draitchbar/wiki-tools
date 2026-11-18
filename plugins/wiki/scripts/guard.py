@@ -581,7 +581,16 @@ def shell_has_command(call, ctx):
 def write_has_path(call, ctx):
     """A write call without file_path (fail closed)."""
     if call.kind == "write" and not call.paths:
-        return "%s call without file_path; refusing (fail closed)." % call.tool
+        field = "notebook_path" if call.tool == "NotebookEdit" else "file_path"
+        return "%s call without %s; refusing (fail closed)." % (call.tool, field)
+    return None
+
+
+def known_tool(call, ctx):
+    """A tool the guard doesn't classify (fail closed)."""
+    if call.kind == "unknown":
+        return ("tool '%s' is not known to the wiki guard; refusing (fail closed). If it is "
+                "safe, it is added to the guard's list in wiki-tools." % call.tool)
     return None
 
 
@@ -743,6 +752,7 @@ CHECKS = [
     no_push,
     shell_has_command,
     write_has_path,
+    known_tool,
     nested_claude,
     agent_only_read,
     broken_sources,
