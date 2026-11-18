@@ -49,7 +49,9 @@ HARMLESS = frozenset((
     "EndConversation", "EnterPlanMode", "EnterWorktree", "ExitPlanMode", "ExitWorktree",
     "ListAgents", "ListMcpResourcesTool", "PushNotification", "ReadMcpResourceTool",
     "RemoteTrigger", "ReportFindings", "ScheduleWakeup", "SendFeedback", "SendMessage",
-    "SendUserFile", "ShareOnboardingGuide", "Skill", "SubagentHandback", "TaskCreate", "TaskGet",
+    "SendUserFile", "ShareOnboardingGuide", "Skill", "SubagentHandback",
+    "Task",  # Agent's name in older Claude Code versions
+    "TaskCreate", "TaskGet",
     "TaskList", "TaskStop", "TaskUpdate", "TaskOutput", "TodoWrite", "ToolSearch",
     "WaitForMcpServers", "WebFetch", "WebSearch", "Workflow",
 ))
