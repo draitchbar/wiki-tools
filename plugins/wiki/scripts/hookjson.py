@@ -1,9 +1,22 @@
 """hookjson.py: read Claude Code hook input.
 
-parse(raw) takes the hook JSON as bytes and returns a Hook, or None when the
-input can't be used: not valid JSON, not an object, no tool_name, or a field
-the guard reads that isn't a string (JSON null counts as absent: an optional
-field may be null). Callers block on None (fail closed).
+parse(raw) takes the hook JSON as bytes and returns a HookCall, or None when
+the input can't be used: not valid JSON, not an object, no tool_name, or a
+field the guard reads that isn't a string (JSON null counts as absent: an
+optional field may be null). Callers block on None (fail closed).
+
+A HookCall says what the call does, whatever the tool:
+  tool      the tool name as Claude Code sends it;
+  kind      "shell" (Bash, PowerShell), "write" (Write, Edit, MultiEdit),
+            "read" (Read, Grep, Glob), or "" for any other tool;
+  shell     "bash" or "powershell" for a shell call, else "";
+  command   the shell command ("" if none);
+  paths     the paths the call names, empty ones left out: a write call's
+            file_path; a read call's file_path and path;
+  contents  what a write call writes: content, then every new_string;
+  pattern   Grep's/Glob's pattern and glob, joined by a space;
+  subagent  the hook input's agent_id ("" in the main session);
+  cwd       the hook input's cwd.
 
 - \\uXXXX escapes are decoded, and every MultiEdit new_string is read;
 - newlines and carriage returns in a value become ";" so a multi-line
@@ -20,8 +33,15 @@ import json
 _INPUT_KEYS = ("command", "file_path", "path", "pattern", "glob", "content", "new_string")
 
 
-class Hook:
-    __slots__ = ("tool", "command", "file", "content", "cwd", "path", "pattern", "agent_id")
+_KINDS = {"Bash": "shell", "PowerShell": "shell", "Write": "write", "Edit": "write",
+          "MultiEdit": "write", "Read": "read", "Grep": "read", "Glob": "read"}
+_SHELLS = {"Bash": "bash", "PowerShell": "powershell"}
+
+
+class HookCall:
+    # A plain class, not a dataclass: dataclasses would add import time to
+    # every tool call.
+    __slots__ = ("kind", "shell", "command", "paths", "contents", "pattern", "subagent", "cwd", "tool")
 
 
 def _clean(s):
@@ -73,15 +93,19 @@ def parse(raw):
             return None
         vals[k] = _clean(v)
 
-    h = Hook()
+    h = HookCall()
     h.tool = tool
+    h.kind = _KINDS.get(tool, "")
+    h.shell = _SHELLS.get(tool, "")
     h.command = vals["command"]
-    h.file = vals["file_path"]
-    h.content = vals["content"] + " " + " ".join(new_strings)
-    h.cwd = vals["cwd"]
-    h.path = vals["path"]
+    if h.kind == "write":
+        h.paths = tuple(v for v in (vals["file_path"],) if v)
+    else:
+        h.paths = tuple(v for v in (vals["file_path"], vals["path"]) if v)
+    h.contents = (vals["content"],) + tuple(new_strings)
     h.pattern = vals["pattern"] + " " + vals["glob"]
-    h.agent_id = vals["agent_id"]
+    h.subagent = vals["agent_id"]
+    h.cwd = vals["cwd"]
     return h
 
 
