@@ -683,10 +683,13 @@ def roots_shell(call, ctx):
 
 
 def protected_write(call, ctx):
-    """A write call on a protected path."""
+    """A write call on a protected path or anywhere in the plugin folder, as
+    for shell commands: its skills, schema and templates are what every
+    wiki session is told."""
     if call.kind != "write":
         return None
-    hit = ctx.protected_hit(norm(call.paths[0]))
+    path = norm(call.paths[0])
+    hit = ctx.protected_hit(path) or contains_any(path, ctx.plugin_forms)
     if hit:
         return "'%s' is protected ('%s'). The user edits it themselves." % (call.paths[0], hit)
     return None
