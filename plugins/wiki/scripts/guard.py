@@ -94,6 +94,10 @@ _SCRIPT_NAME = re.compile(r"[a-z0-9_-]+\.sh", re.ASCII)
 # Contract lines may hold any Unicode whitespace (see contract.py).
 _AGENT_ONLY = re.compile(r"agent_only:\s*yes\s*")
 _OP = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
+# Protected path segments: the name followed by "/", a quote, whitespace, a
+# shell character or the end, not by another name character, so
+# ~/.claude/plugins is protected and .claude/plugins-notes is not.
+_SEGMENTS = re.compile(r"\.claude/plugins(?![a-z0-9_.-])", re.ASCII)
 
 CORE_SCRIPTS = ("scripts/ocr.sh", "scripts/sync-status.sh", "scripts/lint.sh",
                 "scripts/wiki-check.sh", "scripts/sources.sh", "scripts/decode-download.sh")
@@ -213,7 +217,7 @@ class Context:
             if f:
                 self.protected_paths += [f + "/scripts", f + "/hooks", f + "/sources"]
         self.protected_paths += ["plugins/wiki/scripts", "plugins/wiki/hooks", "plugins/wiki/sources",
-                                 ".claude/sources", ".claude/settings", ".claude/plugins/"]
+                                 ".claude/sources", ".claude/settings"]
         self._wiki_root = None
         self._sources = None
         self._scripts = {}
@@ -311,6 +315,16 @@ class Context:
             if any(type_re.fullmatch(ln) for ln in C._lines(f)):
                 roots += self.root_forms(f)
         return roots
+
+    def protected_hit(self, text):
+        """The first protected path text (normalised) names, or "": a
+        protected path anywhere in it, or a protected segment
+        (.claude/plugins)."""
+        hit = contains_any(text, self.protected_paths)
+        if hit:
+            return hit
+        m = _SEGMENTS.search(text)
+        return m.group() if m else ""
 
     def under_root(self, path):
         for r in self.sources.roots:
@@ -635,8 +649,8 @@ def protected_shell(call, ctx):
     cmd = norm(call.command)
     if ctx.shell_exempt(cmd):
         return None
-    hit = contains_any(cmd, ctx.protected_paths + ctx.plugin_forms + PROTECTED_WORDS
-                       + ctx.sources.guard_words)
+    hit = ctx.protected_hit(cmd) or contains_any(cmd, ctx.plugin_forms + PROTECTED_WORDS
+                                                 + ctx.sources.guard_words)
     if not hit:
         return None
     if call.shell == "bash":
@@ -672,7 +686,7 @@ def protected_write(call, ctx):
     """A write call on a protected path."""
     if call.kind != "write":
         return None
-    hit = contains_any(norm(call.paths[0]), ctx.protected_paths)
+    hit = ctx.protected_hit(norm(call.paths[0]))
     if hit:
         return "'%s' is protected ('%s'). The user edits it themselves." % (call.paths[0], hit)
     return None
