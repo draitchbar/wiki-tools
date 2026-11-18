@@ -229,7 +229,11 @@ class Context:
             if f:
                 self.protected_paths += [f + "/scripts", f + "/hooks", f + "/sources"]
         self.protected_paths += ["plugins/wiki/scripts", "plugins/wiki/hooks", "plugins/wiki/sources",
-                                 ".claude/sources", ".claude/settings"]
+                                 ".claude/sources", ".claude/settings",
+                                 # Files that run code later: git hooks and config, MCP
+                                 # servers, skills and agents (their frontmatter hooks).
+                                 ".git/hooks", ".git/config", ".mcp.json", ".claude/skills",
+                                 ".claude/agents"]
         self._wiki_root = None
         self._sources = None
         self._scripts = {}
