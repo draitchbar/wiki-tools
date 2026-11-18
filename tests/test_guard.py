@@ -16,9 +16,11 @@ import os
 import shutil
 from pathlib import Path
 
+import guard
+import hookjson
 import pytest
 
-from conftest import (BASH, IS_WIN, PLUGIN, PLUGIN_BASH, PLUGIN_P, TESTS, copytree,
+from conftest import (BASH, IS_WIN, PLUGIN, PLUGIN_BASH, PLUGIN_P, TESTS, call_main, copytree,
                       hooks_guard_command, norm, write)
 
 FIXTURES = TESTS / "fixtures"
@@ -70,6 +72,101 @@ def test_fixture_message(fixture, gw, guard_run):
                                  for m in sorted(FIXTURES.glob("*/*.msg"))])
 def test_message_has_fixture(msg):
     assert msg.with_suffix(".json").is_file()
+
+
+# --- the checks: an ordered list, each one tested -------------------------
+
+@pytest.mark.checks("guard/no-push-first")
+def test_no_push_first():
+    """git push is checked before anything else can decide."""
+    assert guard.CHECKS[0] is guard.no_push
+
+
+def _deciding_check(data, wiki):
+    """The name of the check that refuses the hook input data, "" if none
+    (in-process, on the test wiki, with HOME=/home/u as the fixtures)."""
+    got = []
+
+    def run():
+        call = hookjson.parse(data.encode("utf-8"))
+        if call is not None:
+            check = guard.decide(call)[0]
+            got.append(check.__name__ if check else "")
+    call_main(run, None, env={"HOME": "/home/u", "USERPROFILE": None, "CLAUDE_PROJECT_DIR": wiki})
+    return got[0] if got else ""
+
+
+@pytest.mark.checks("guard/every-check-has-a-fixture")
+def test_every_check_has_a_fixture(gw):
+    """Each check in CHECKS refuses at least one block- fixture (the broken
+    source files of test_fail_closed for broken_sources), so a removed or
+    reordered check shows in the fixtures."""
+    wiki = str(gw).replace("\\", "/")
+    hit = {_deciding_check(subst(f.read_text(encoding="utf-8"), wiki), wiki)
+           for f in sorted(FIXTURES.glob("*/block-*.json"))}
+    BROKEN["instance-no-frontmatter"](gw)
+    hit.add(_deciding_check(ORDINARY, wiki))
+    missing = [c.__name__ for c in guard.CHECKS if c.__name__ not in hit]
+    assert not missing
+
+
+def _parsed(path):
+    call = hookjson.parse((FIXTURES / path).read_bytes())
+    return {k: getattr(call, k) for k in hookjson.HookCall.__slots__}
+
+
+@pytest.mark.parametrize("path,want", [
+    pytest.param("guard/pass-ordinary-bash.json", dict(
+        kind="shell", shell="bash", command="pdftotext -layout contract.pdf /tmp/c.txt", paths=(),
+        contents=("", ""), pattern=" ", subagent="", cwd="/home/u/wikis/mywiki", tool="Bash"),
+        id="hookjson/parse-bash"),
+    pytest.param("guard/block-powershell-multiline.json", dict(
+        kind="shell", shell="powershell", command="Get-Date;proton-drive ls", paths=(),
+        contents=("", ""), pattern=" ", subagent="", cwd="C:\\Users\\u\\wikis\\mywiki",
+        tool="PowerShell"),
+        id="hookjson/parse-powershell"),
+    pytest.param("guard/block-edit-helper-content.json", dict(
+        kind="write", shell="", command="", paths=("/home/u/wikis/mywiki/tool.py",),
+        contents=("", 'os.system("proton-drive fs trash /x")'), pattern=" ", subagent="",
+        cwd="/home/u/wikis/mywiki", tool="Edit"),
+        id="hookjson/parse-edit"),
+    pytest.param("guard/block-write-no-path.json", dict(
+        kind="write", shell="", command="", paths=(), contents=("x", ""), pattern=" ",
+        subagent="", cwd="/home/u/wikis/mywiki", tool="Write"),
+        id="hookjson/parse-write-no-path"),
+    pytest.param("guard/block-codebase-grep-main.json", dict(
+        kind="read", shell="", command="", paths=("/home/u/src/components",), contents=("", ""),
+        pattern="foo ", subagent="", cwd="/home/u/wikis/mywiki", tool="Grep"),
+        id="hookjson/parse-grep"),
+    pytest.param("guard/pass-codebase-read-agent.json", dict(
+        kind="read", shell="", command="", paths=("/home/u/src/components/app/A.java",),
+        contents=("", ""), pattern=" ", subagent="a1", cwd="/home/u/wikis/mywiki", tool="Read"),
+        id="hookjson/parse-read-subagent"),
+])
+def test_parse(path, want):
+    assert _parsed(path) == want
+
+
+@pytest.mark.checks("hookjson/parse-multiedit")
+def test_parse_multiedit():
+    data = _bash_input("MultiEdit", {"file_path": "/home/u/wikis/mywiki/a.py", "edits": [
+        {"old_string": "a", "new_string": "b\tc"}, {"old_string": "d", "new_string": "e\nf"}]})
+    call = hookjson.parse(data.encode("utf-8"))
+    assert (call.kind, call.paths, call.contents) == ("write", ("/home/u/wikis/mywiki/a.py",),
+                                                      ("", "", "b c", "e;f"))
+
+
+@pytest.mark.parametrize("path", [pytest.param(p, id="hookjson/parse-none-" + p.split("/")[1][:-5])
+                                  for p in ("push/block-non-string-command.json",
+                                            "push/block-malformed.json")])
+def test_parse_none(path):
+    assert hookjson.parse((FIXTURES / path).read_bytes()) is None
+
+
+@pytest.mark.checks("hookjson/parse-other-tool")
+def test_parse_other_tool():
+    call = hookjson.parse(_bash_input("WebFetch", {"url": "https://example.com"}).encode())
+    assert (call.kind, call.shell, call.paths) == ("", "", ())
 
 
 # --- hooks.json: one guard command, run as Claude Code runs it ------------
