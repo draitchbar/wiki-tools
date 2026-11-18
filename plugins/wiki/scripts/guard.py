@@ -708,7 +708,7 @@ def protected_write(call, ctx):
     wiki session is told."""
     if call.kind != "write":
         return None
-    path = norm(call.paths[0])
+    path = ctx.abs_path(call.paths[0])
     hit = ctx.protected_hit(path) or contains_any(path, ctx.plugin_forms)
     if hit:
         return "'%s' is protected ('%s'). The user edits it themselves." % (call.paths[0], hit)
@@ -716,10 +716,12 @@ def protected_write(call, ctx):
 
 
 def roots_write(call, ctx):
-    """A write call inside a filesystem instance's root."""
+    """A write call inside a filesystem instance's root. The path is made
+    absolute and its ".." resolved first, as for agent_only reads, so
+    <wiki>/../Scans/x can't get past."""
     if call.kind != "write":
         return None
-    hit = ctx.under_root(norm(call.paths[0]))
+    hit = ctx.under_root(ctx.abs_path(call.paths[0]))
     if hit:
         return "'%s' is inside the read-only source folder '%s'." % (call.paths[0], hit)
     return None
