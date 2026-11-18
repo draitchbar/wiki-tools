@@ -5,6 +5,7 @@ The index of plans: what is in progress, what is planned, and what is parked, ea
 ## In progress
 - **`lint.sh` in the largest wiki:** on the machine that holds it, compare `lint.sh`'s output with the last bash version of the script. It is a work wiki, the largest, and has content the other wikis lack (codebase research sources, Jira and Teams citation prefixes).
 - **Clone-anywhere layout** (`docs/adr.md`, 1): check on Windows (Git Bash), and plugin loading in a fresh clone of a wiki without a project-scope install (`docs/setup.md`, "Open checks").
+- **Guard checks only where Claude's permission rules fall short** (#24, [plan](plans/guard-rules-review.md)): the principle for ADR 3 and a review of every guard check, Claude Code only. Decisions taken 2026-11-18; first a behavior-unchanged restructure of `guard.py`, then the agreed fixes and new checks (every tool through the guard, the whole plugin folder for Write, `.git` hooks and config, nested `claude` sessions).
 
 ## Planned, not started
 - **Copilot CLI in existing wikis:** [design](copilot-wiki-design.md) and [step-by-step plan](plans/copilot-wiki-support.md). Three parts: a spike that collects real compatibility evidence and revises the plan; the first delivery, the shared-plugin migration plus `raw` and `local-folder` for Copilot on Linux, with a small real-client smoke set and Claude regression on Linux and Windows; then Copilot on Windows. Switching sessions needs no content/state migration.
