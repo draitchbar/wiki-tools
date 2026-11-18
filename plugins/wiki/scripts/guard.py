@@ -1,16 +1,16 @@
-"""PreToolUse guard (Bash, PowerShell, Write, Edit, MultiEdit, Read, Grep,
-Glob): keep the sources read-only, keep Claude away from the guard
-machinery, and block git push. Run through py-launch.sh, which turns any
-exit other than 0 (allow) or 2 (block) into a block. Replaced guard.sh and
-block-push.sh (speed plan, step 2b).
+"""PreToolUse guard (every tool, matcher "*"): keep the sources read-only,
+keep Claude away from the guard machinery, and block git push. Run through
+py-launch.sh, which turns any exit other than 0 (allow) or 2 (block) into a
+block. Replaced guard.sh and block-push.sh (speed plan, step 2b).
 
 Structure: hookjson.parse turns the hook input into a HookCall (what kind
-of call: shell, write, read or other; its command, paths and contents).
-CHECKS lists the checks in order, one small function each, no_push first;
-each gets the call and a Context (the plugin folder, the wiki root and
-what the source files say, each loaded once, when first needed) and
-returns a reason to refuse or None. The first reason wins; a call no
-check refuses is allowed.
+of call: shell, write, read, harmless, mcp or unknown; its command, paths
+and contents). CHECKS lists the checks in order, one small function each,
+no_push first; each gets the call and a Context (the plugin folder, the
+wiki root and what the source files say, each loaded once, when first
+needed) and returns a reason to refuse or None. The first reason wins; a
+call no check refuses is allowed. Harmless and mcp tools pass; an unknown
+tool is refused (fail closed).
 
 What the guard knows about sources comes from the contracts at hook time:
 every standard type (plugins/wiki/sources/*/SOURCE.md), every local type of
@@ -19,26 +19,31 @@ this wiki (.claude/sources/types/*/SOURCE.md) and every instance
   guard words  blocked in shell commands and in non-Markdown files;
   scripts      wrapper scripts allowed as a plain `bash <path> <args>` call;
   roots        of filesystem instances: blocked in shell commands,
-               read-only for Write/Edit.
+               read-only for the write tools.
 A source file that can't be used (no frontmatter, unknown type, a
 filesystem instance without roots, a name that isn't a kebab-case key, a
-folder that can't be listed) blocks every shell command and Write/Edit call
-(fail closed), except read-only diagnostics: git status/log/diff/show and
+folder that can't be listed) blocks every shell and write call (fail
+closed), except read-only diagnostics: git status/log/diff/show and
 sources.sh list/show/contract. The message names the first such file.
 
-Bash and PowerShell:
+Shell tools (Bash, PowerShell, Monitor's command):
 - git push, checked first so no exception below can let one through. The
   user pushes. `git stash push` passes, but only written exactly so: "git"
   (or "git.exe") directly followed by "stash push"; `git -C stash push`
   could be a real push. Known false positive: a command naming both "git"
   and the word "push", e.g. in a commit message. Rephrase it.
-- then a protected path, a core keyword, a guard word or a filesystem root.
-  Exceptions (Bash only, since the scripts run in Git Bash): a plain call of
-  one of the plugin's core scripts, or of a script a contract lists, with no
-  ; & | < > ` $ and no "..". Wrappers outside the plugin don't count: the
-  wikis' settings allow them by wildcard.
-Write/Edit/MultiEdit: no protected path, nothing inside a filesystem root,
-no guard word in non-Markdown content (a helper script around a CLI).
+- a nested claude session: "claude" as a command word, never as text.
+- then a protected path (the plugin folder, .claude/sources, settings,
+  plugins, skills and agents, .git/hooks, .git/config, .mcp.json), a guard
+  word or a filesystem root. Exceptions (Bash and Monitor, since the
+  scripts run in Git Bash): a plain call of one of the plugin's core
+  scripts, or of a script a contract lists, with no ; & | < > ` $ and no
+  "..". Wrappers outside the plugin don't count: the wikis' settings allow
+  them by wildcard.
+Write tools (Write, Edit, MultiEdit, NotebookEdit): no protected path,
+nothing in the plugin folder, nothing inside a filesystem root (the path
+resolved first), no guard word in non-Markdown content (a helper script
+around a CLI).
 agent_only types (e.g. codebase): their roots are for subagents only. In
 the main session (hook input without agent_id) Read, Grep and Glob on them
 are blocked, and their wrappers run only the contract's main_ops, named as
