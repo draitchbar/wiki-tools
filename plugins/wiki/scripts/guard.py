@@ -98,11 +98,23 @@ _OP = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
 # shell character or the end, not by another name character, so
 # ~/.claude/plugins is protected and .claude/plugins-notes is not.
 _SEGMENTS = re.compile(r"\.claude/plugins(?![a-z0-9_.-])", re.ASCII)
+# A nested claude session: "claude" (or a path ending in /claude, or
+# claude.exe, bare or in quotes) as a command word: at the start of the
+# command or of a segment (after ; & | ( $( or a backtick; hookjson turns
+# newlines into ;), after any number of VAR=value assignments, wrappers
+# (env, exec, command, nohup, timeout <n>, ...), their options and numbers.
+# Never as text: ~/.claude/x, claude-notes.md, a commit message.
+_CLAUDE_CMD = re.compile(
+    r"(?:\A|[;&|(`])" + WS + "*"
+    r"(?:(?:[a-z_][a-z0-9_]*=[^ \t\n\v\f\r;&|]*|env|exec|command|builtin|nohup|time|nice|stdbuf"
+    r"|xargs|timeout|then|do|else|!|-[^ \t\n\v\f\r;&|]*|[0-9][0-9.]*[smhd]?)" + WS + "+)*"
+    r"""(?:"(?:[^"]*/)?claude(?:\.exe)?"|'(?:[^']*/)?claude(?:\.exe)?'"""
+    r"""|(?:[^ \t\n\v\f\r;&|()`"']*/)?claude(?:\.exe)?)"""
+    r"""(?=[ \t\n\v\f\r;&|)`]|\Z)""", re.ASCII)
 
 CORE_SCRIPTS = ("scripts/ocr.sh", "scripts/sync-status.sh", "scripts/lint.sh",
                 "scripts/wiki-check.sh", "scripts/sources.sh", "scripts/decode-download.sh")
 LOOKALIKE_ENDS = tuple("/" + s for s in CORE_SCRIPTS)
-PROTECTED_WORDS = ["hooks.json", "claude plugin", "disableallhooks"]
 
 
 def block(msg):
@@ -573,6 +585,15 @@ def write_has_path(call, ctx):
     return None
 
 
+def nested_claude(call, ctx):
+    """A shell command that starts a nested claude session: it would run
+    without this guard's settings, or change the plugins."""
+    if call.kind == "shell" and _CLAUDE_CMD.search(norm(call.command)):
+        return ("starting a nested Claude session (claude) is not allowed in wiki sessions. "
+                "The user runs claude in a terminal.")
+    return None
+
+
 def agent_only_read(call, ctx):
     """A main-session Read, Grep or Glob on an agent_only root."""
     if call.kind != "read" or call.subagent or not ctx.wiki_root:
@@ -649,8 +670,7 @@ def protected_shell(call, ctx):
     cmd = norm(call.command)
     if ctx.shell_exempt(cmd):
         return None
-    hit = ctx.protected_hit(cmd) or contains_any(cmd, ctx.plugin_forms + PROTECTED_WORDS
-                                                 + ctx.sources.guard_words)
+    hit = ctx.protected_hit(cmd) or contains_any(cmd, ctx.plugin_forms + ctx.sources.guard_words)
     if not hit:
         return None
     if call.shell == "bash":
@@ -721,6 +741,7 @@ CHECKS = [
     no_push,
     shell_has_command,
     write_has_path,
+    nested_claude,
     agent_only_read,
     broken_sources,
     agent_only_ops,

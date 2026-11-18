@@ -400,7 +400,7 @@ CASES = [
     # Kelvin sign is not a k.
     ("non-ascii-root", 2, lambda w: inst(w, "ae", "local-folder", "roots:", "  - /home/u/Æble"),
      gbash("cat /home/u/Æble/x"), "/home/u/Æble"),
-    ("kelvin-sign", 0, None, gbash("cat x/hoo%ss.json" % KELVIN), None),
+    ("kelvin-sign", 0, None, gbash("boo%sish-cli list" % KELVIN), None),
     # JSON null is an absent field.
     ("null-path", 0, None, _bash_input("Grep", {"pattern": "x", "path": None, "glob": None}), None),
     ("null-agent-id", 2, None, _bash_input("Read", {"file_path": "/home/u/src/components/A.java"},
