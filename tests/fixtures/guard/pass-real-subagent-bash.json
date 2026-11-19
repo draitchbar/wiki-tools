@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","prompt_id":"p","permission_mode":"default","effort":{"level":"medium"},"hook_event_name":"PreToolUse","agent_id":"a02","agent_type":"general-purpose","tool_name":"Bash","tool_input":{"command":"ls","description":"List files in current directory"},"tool_use_id":"x"}

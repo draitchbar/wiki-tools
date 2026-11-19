@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","prompt_id":"p","permission_mode":"default","effort":{"level":"medium"},"hook_event_name":"PreToolUse","tool_name":"Agent","tool_input":{"description":"List folder files","prompt":"Run the Bash command ls in the current folder and report the output.","run_in_background":false},"tool_use_id":"x"}
