@@ -43,7 +43,7 @@ LIST_ETC = [
     ("catalog-gdrive", "- google-drive (standard, mcp): Google Drive", ["catalog"]),
     ("catalog-teams", "- ms-teams (standard, mcp): Microsoft Teams", ["catalog"]),
     ("catalog-jira", "- jira (standard, mcp): Jira", ["catalog"]),
-    ("settings-jira-allow", '"mcp__claude_ai_Atlassian__getJiraIssue"', ["settings", "jira"]),
+    ("settings-jira-allow", '"mcp__claude_ai_Atlassian_MCP__getJiraIssue"', ["settings", "jira"]),
     ("settings-jira-deny", '"mcp__claude_ai_Atlassian__editJiraIssue"', ["settings", "jira"]),
     ("settings-jira-deny2", '"mcp__claude_ai_Atlassian_MCP__executeWrite"', ["settings", "jira"]),
     ("list-research", '- code: type codebase (standard), research (/wiki:research code "<question>"; '

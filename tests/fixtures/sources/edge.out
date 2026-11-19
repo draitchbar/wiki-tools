@@ -297,12 +297,12 @@ rc=0
       "mcp__claude_ai_Gmail__list_labels",
       "mcp__claude_ai_Gmail__create_label",
       "mcp__claude_ai_Gmail__label_thread",
-      "mcp__claude_ai_Atlassian__getAccessibleAtlassianResources",
-      "mcp__claude_ai_Atlassian__atlassianUserInfo",
-      "mcp__claude_ai_Atlassian__getVisibleJiraProjects",
-      "mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql",
-      "mcp__claude_ai_Atlassian__getJiraIssue",
-      "mcp__claude_ai_Atlassian__getJiraIssueRemoteIssueLinks"
+      "mcp__claude_ai_Atlassian_MCP__getAccessibleAtlassianResources",
+      "mcp__claude_ai_Atlassian_MCP__atlassianUserInfo",
+      "mcp__claude_ai_Atlassian_MCP__searchJiraIssuesUsingJql",
+      "mcp__claude_ai_Atlassian_MCP__getJiraIssue",
+      "mcp__claude_ai_Atlassian_MCP__listJiraIssueComments",
+      "mcp__claude_ai_Atlassian_MCP__executeRead"
     ],
     "deny": [
       "mcp__claude_ai_Gmail__send_message",
@@ -353,12 +353,12 @@ rc=0
       "mcp__claude_ai_Gmail__list_labels",
       "mcp__claude_ai_Gmail__create_label",
       "mcp__claude_ai_Gmail__label_thread",
-      "mcp__claude_ai_Atlassian__getAccessibleAtlassianResources",
-      "mcp__claude_ai_Atlassian__atlassianUserInfo",
-      "mcp__claude_ai_Atlassian__getVisibleJiraProjects",
-      "mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql",
-      "mcp__claude_ai_Atlassian__getJiraIssue",
-      "mcp__claude_ai_Atlassian__getJiraIssueRemoteIssueLinks"
+      "mcp__claude_ai_Atlassian_MCP__getAccessibleAtlassianResources",
+      "mcp__claude_ai_Atlassian_MCP__atlassianUserInfo",
+      "mcp__claude_ai_Atlassian_MCP__searchJiraIssuesUsingJql",
+      "mcp__claude_ai_Atlassian_MCP__getJiraIssue",
+      "mcp__claude_ai_Atlassian_MCP__listJiraIssueComments",
+      "mcp__claude_ai_Atlassian_MCP__executeRead"
     ],
     "deny": [
       "mcp__claude_ai_Gmail__send_message",
