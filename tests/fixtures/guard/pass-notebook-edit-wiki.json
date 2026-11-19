@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"NotebookEdit","tool_input":{"notebook_path":"/home/u/wikis/mywiki/outputs/a.ipynb","new_source":"print(1)","cell_type":"code","edit_mode":"replace"},"tool_use_id":"x"}

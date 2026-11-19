@@ -88,7 +88,7 @@ Files: the marketplace/plugin manifests, `templates/project-settings.json`, `wik
 
 Files: `hooks/hooks.json`, `scripts/hookjson.py`, `guard.py`, `py-launch.sh`; fixtures and `test_guard.py`, `test_py_launch.py`, `test_contract_parity.py`.
 
-**Decision to take from the spike's numbers: how an unknown tool is handled.** Today a tool outside the matcher list never reaches the guard, and the guard allows a name it does not know. Adding Copilot's names to the list keeps that hole for every later tool. The options:
+**Decision to take from the spike's numbers: how an unknown tool is handled.** Claude Code's guard took option a in #24 (matcher `*`, tools classified in `hookjson.py`, unknown names refused); the question is whether Copilot's hook does the same. Adding Copilot's names to a fixed list would keep the hole for every later tool. The options:
 
 | Option | Effect | Cost |
 |---|---|---|
@@ -103,7 +103,7 @@ Then:
 3. Child identity: a missing or untrusted `agent_id` is treated as the main session, so it never grants `agent_only` access.
 4. Copilot on Windows is part C. Until then the guard refuses every shell call from Copilot on Windows (`COPILOT_CLI=1` on a Windows platform), because its PowerShell commands arrive as `tool_name: "Bash"` and must not be checked as Bash text. Claude's PowerShell refusal stays as it is.
 5. Preserve push blocking, root protection, wrapper lookalike/chaining checks, broken-contract behavior and diagnostics. Where Copilot cannot inherit Claude's permission denials, cover the contract-declared shell denials in the guard; combine denials, never client grants.
-6. Protected paths: **parity, not expansion.** Today the guard protects `.claude/sources`, `.claude/settings*` and `.claude/plugins/` (with the cached Python). Add only Copilot's direct equivalents, taken from the spike: its project settings and hook files (`.github/copilot/settings*.json`, `.github/hooks/`) and its registered plugin copy and data root, wherever `COPILOT_HOME` puts them. User-level profiles, extensions, MCP configuration and agent/skill folders are not added: the guard is a guardrail, not a security boundary. They are named in the docs as outside the supported configuration instead.
+6. Protected paths: **parity, not expansion.** Today the guard protects `.claude/sources`, `.claude/settings*`, `.claude/plugins` (with the cached Python), `.claude/skills`, `.claude/agents`, `.git/hooks`, `.git/config` and `.mcp.json`. Add only Copilot's direct equivalents, taken from the spike: its project settings and hook files (`.github/copilot/settings*.json`, `.github/hooks/`) and its registered plugin copy and data root, wherever `COPILOT_HOME` puts them. User-level profiles, extensions, MCP configuration and agent/skill folders are not added: the guard is a guardrail, not a security boundary. They are named in the docs as outside the supported configuration instead.
 7. Reply with Claude's JSON deny (`hookSpecificOutput.permissionDecision: "deny"` and the reason) so the reason reaches the model in both clients; keep a non-zero exit as the fallback when the JSON cannot be produced. Verify the launcher's unexpected-exit, missing-interpreter and timeout paths in each client.
 8. If plugin hooks are skipped in an untrusted folder, `wiki-check` and the session-start status say so for Copilot.
 
@@ -291,7 +291,7 @@ Channels, replies, chat-day fetching, SharePoint trees, resource URIs, auth scop
 
 - Repository mechanisms: [ADR 1-7 and 10](../adr.md), [development](../development.md), [setup](../setup.md), [guard](../guard.md), [skills](../skills.md), [layout](../layout.md).
 - Copilot hook tests: `docs/development.md`, "Agents"; `docs/adr.md`, "Two coding agents, one set of rules".
-- Guard dispatch: `plugins/wiki/hooks/hooks.json` (matcher), `plugins/wiki/scripts/guard.py` (`main`: unknown tools pass; PowerShell refusal), `hookjson.py` (required fields).
+- Guard dispatch: `plugins/wiki/hooks/hooks.json` (matcher), `plugins/wiki/scripts/guard.py` (`known_tool`: unknown tools refused; PowerShell refusal), `hookjson.py` (tool kinds, required fields).
 - Discovery defect: `plugins/wiki/skills/research/SKILL.md`, description frontmatter.
 - Test reuse: `tests/conftest.py`, `test_guard.py`, `test_py_launch.py`, `test_install.py`, `test_sources.py`, `test_sync_status.py`, `test_wiki_check.py`, `test_agent_files.py`, `.github/workflows/ci.yml`.
 - Client contracts: Copilot 1.0.112 shipped docs (Claude compatibility, environment aliases and `COPILOT_CLI`, project activation, plugin mounting, prompt-mode permissions, JSONL, resume, isolated configuration); Claude 2.1.325 command help.

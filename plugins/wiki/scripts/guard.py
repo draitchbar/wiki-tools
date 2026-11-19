@@ -1,16 +1,16 @@
-"""PreToolUse guard (Bash, PowerShell, Write, Edit, MultiEdit, Read, Grep,
-Glob): keep the sources read-only, keep Claude away from the guard
-machinery, and block git push. Run through py-launch.sh, which turns any
-exit other than 0 (allow) or 2 (block) into a block. Replaced guard.sh and
-block-push.sh (speed plan, step 2b).
+"""PreToolUse guard (every tool, matcher "*"): keep the sources read-only,
+keep Claude away from the guard machinery, and block git push. Run through
+py-launch.sh, which turns any exit other than 0 (allow) or 2 (block) into a
+block. Replaced guard.sh and block-push.sh (speed plan, step 2b).
 
 Structure: hookjson.parse turns the hook input into a HookCall (what kind
-of call: shell, write, read or other; its command, paths and contents).
-CHECKS lists the checks in order, one small function each, no_push first;
-each gets the call and a Context (the plugin folder, the wiki root and
-what the source files say, each loaded once, when first needed) and
-returns a reason to refuse or None. The first reason wins; a call no
-check refuses is allowed.
+of call: shell, write, read, harmless, mcp or unknown; its command, paths
+and contents). CHECKS lists the checks in order, one small function each,
+no_push first; each gets the call and a Context (the plugin folder, the
+wiki root and what the source files say, each loaded once, when first
+needed) and returns a reason to refuse or None. The first reason wins; a
+call no check refuses is allowed. Harmless and mcp tools pass; an unknown
+tool is refused (fail closed).
 
 What the guard knows about sources comes from the contracts at hook time:
 every standard type (plugins/wiki/sources/*/SOURCE.md), every local type of
@@ -19,26 +19,31 @@ this wiki (.claude/sources/types/*/SOURCE.md) and every instance
   guard words  blocked in shell commands and in non-Markdown files;
   scripts      wrapper scripts allowed as a plain `bash <path> <args>` call;
   roots        of filesystem instances: blocked in shell commands,
-               read-only for Write/Edit.
+               read-only for the write tools.
 A source file that can't be used (no frontmatter, unknown type, a
 filesystem instance without roots, a name that isn't a kebab-case key, a
-folder that can't be listed) blocks every shell command and Write/Edit call
-(fail closed), except read-only diagnostics: git status/log/diff/show and
+folder that can't be listed) blocks every shell and write call (fail
+closed), except read-only diagnostics: git status/log/diff/show and
 sources.sh list/show/contract. The message names the first such file.
 
-Bash and PowerShell:
+Shell tools (Bash, PowerShell, Monitor's command):
 - git push, checked first so no exception below can let one through. The
   user pushes. `git stash push` passes, but only written exactly so: "git"
   (or "git.exe") directly followed by "stash push"; `git -C stash push`
   could be a real push. Known false positive: a command naming both "git"
   and the word "push", e.g. in a commit message. Rephrase it.
-- then a protected path, a core keyword, a guard word or a filesystem root.
-  Exceptions (Bash only, since the scripts run in Git Bash): a plain call of
-  one of the plugin's core scripts, or of a script a contract lists, with no
-  ; & | < > ` $ and no "..". Wrappers outside the plugin don't count: the
-  wikis' settings allow them by wildcard.
-Write/Edit/MultiEdit: no protected path, nothing inside a filesystem root,
-no guard word in non-Markdown content (a helper script around a CLI).
+- a nested claude session: "claude" as a command word, never as text.
+- then a protected path (the plugin folder, .claude/sources, settings,
+  plugins, skills and agents, .git/hooks, .git/config, .mcp.json), a guard
+  word or a filesystem root. Exceptions (Bash and Monitor, since the
+  scripts run in Git Bash): a plain call of one of the plugin's core
+  scripts, or of a script a contract lists, with no ; & | < > ` $ and no
+  "..". Wrappers outside the plugin don't count: the wikis' settings allow
+  them by wildcard.
+Write tools (Write, Edit, MultiEdit, NotebookEdit): no protected path,
+nothing in the plugin folder, nothing inside a filesystem root (the path
+resolved first), no guard word in non-Markdown content (a helper script
+around a CLI).
 agent_only types (e.g. codebase): their roots are for subagents only. In
 the main session (hook input without agent_id) Read, Grep and Glob on them
 are blocked, and their wrappers run only the contract's main_ops, named as
@@ -94,11 +99,27 @@ _SCRIPT_NAME = re.compile(r"[a-z0-9_-]+\.sh", re.ASCII)
 # Contract lines may hold any Unicode whitespace (see contract.py).
 _AGENT_ONLY = re.compile(r"agent_only:\s*yes\s*")
 _OP = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
+# Protected path segments: the name followed by "/", a quote, whitespace, a
+# shell character or the end, not by another name character, so
+# ~/.claude/plugins is protected and .claude/plugins-notes is not.
+_SEGMENTS = re.compile(r"\.claude/plugins(?![a-z0-9_.-])", re.ASCII)
+# A nested claude session: "claude" (or a path ending in /claude, or
+# claude.exe, bare or in quotes) as a command word: at the start of the
+# command or of a segment (after ; & | ( $( or a backtick; hookjson turns
+# newlines into ;), after any number of VAR=value assignments, wrappers
+# (env, exec, command, nohup, timeout <n>, ...), their options and numbers.
+# Never as text: ~/.claude/x, claude-notes.md, a commit message.
+_CLAUDE_CMD = re.compile(
+    r"(?:\A|[;&|(`])" + WS + "*"
+    r"(?:(?:[a-z_][a-z0-9_]*=[^ \t\n\v\f\r;&|]*|env|exec|command|builtin|nohup|time|nice|stdbuf"
+    r"|xargs|timeout|then|do|else|!|-[^ \t\n\v\f\r;&|]*|[0-9][0-9.]*[smhd]?)" + WS + "+)*"
+    r"""(?:"(?:[^"]*/)?claude(?:\.exe)?"|'(?:[^']*/)?claude(?:\.exe)?'"""
+    r"""|(?:[^ \t\n\v\f\r;&|()`"']*/)?claude(?:\.exe)?)"""
+    r"""(?=[ \t\n\v\f\r;&|)`]|\Z)""", re.ASCII)
 
 CORE_SCRIPTS = ("scripts/ocr.sh", "scripts/sync-status.sh", "scripts/lint.sh",
                 "scripts/wiki-check.sh", "scripts/sources.sh", "scripts/decode-download.sh")
 LOOKALIKE_ENDS = tuple("/" + s for s in CORE_SCRIPTS)
-PROTECTED_WORDS = ["hooks.json", "claude plugin", "disableallhooks"]
 
 
 def block(msg):
@@ -213,7 +234,11 @@ class Context:
             if f:
                 self.protected_paths += [f + "/scripts", f + "/hooks", f + "/sources"]
         self.protected_paths += ["plugins/wiki/scripts", "plugins/wiki/hooks", "plugins/wiki/sources",
-                                 ".claude/sources", ".claude/settings", ".claude/plugins/"]
+                                 ".claude/sources", ".claude/settings",
+                                 # Files that run code later: git hooks and config, MCP
+                                 # servers, skills and agents (their frontmatter hooks).
+                                 ".git/hooks", ".git/config", ".mcp.json", ".claude/skills",
+                                 ".claude/agents"]
         self._wiki_root = None
         self._sources = None
         self._scripts = {}
@@ -311,6 +336,16 @@ class Context:
             if any(type_re.fullmatch(ln) for ln in C._lines(f)):
                 roots += self.root_forms(f)
         return roots
+
+    def protected_hit(self, text):
+        """The first protected path text (normalised) names, or "": a
+        protected path anywhere in it, or a protected segment
+        (.claude/plugins)."""
+        hit = contains_any(text, self.protected_paths)
+        if hit:
+            return hit
+        m = _SEGMENTS.search(text)
+        return m.group() if m else ""
 
     def under_root(self, path):
         for r in self.sources.roots:
@@ -555,7 +590,25 @@ def shell_has_command(call, ctx):
 def write_has_path(call, ctx):
     """A write call without file_path (fail closed)."""
     if call.kind == "write" and not call.paths:
-        return "%s call without file_path; refusing (fail closed)." % call.tool
+        field = "notebook_path" if call.tool == "NotebookEdit" else "file_path"
+        return "%s call without %s; refusing (fail closed)." % (call.tool, field)
+    return None
+
+
+def known_tool(call, ctx):
+    """A tool the guard doesn't classify (fail closed)."""
+    if call.kind == "unknown":
+        return ("tool '%s' is not known to the wiki guard; refusing (fail closed). If it is "
+                "safe, it is added to the guard's list in wiki-tools." % call.tool)
+    return None
+
+
+def nested_claude(call, ctx):
+    """A shell command that starts a nested claude session: it would run
+    without this guard's settings, or change the plugins."""
+    if call.kind == "shell" and _CLAUDE_CMD.search(norm(call.command)):
+        return ("starting a nested Claude session (claude) is not allowed in wiki sessions. "
+                "The user runs claude in a terminal.")
     return None
 
 
@@ -635,8 +688,7 @@ def protected_shell(call, ctx):
     cmd = norm(call.command)
     if ctx.shell_exempt(cmd):
         return None
-    hit = contains_any(cmd, ctx.protected_paths + ctx.plugin_forms + PROTECTED_WORDS
-                       + ctx.sources.guard_words)
+    hit = ctx.protected_hit(cmd) or contains_any(cmd, ctx.plugin_forms + ctx.sources.guard_words)
     if not hit:
         return None
     if call.shell == "bash":
@@ -669,20 +721,25 @@ def roots_shell(call, ctx):
 
 
 def protected_write(call, ctx):
-    """A write call on a protected path."""
+    """A write call on a protected path or anywhere in the plugin folder, as
+    for shell commands: its skills, schema and templates are what every
+    wiki session is told."""
     if call.kind != "write":
         return None
-    hit = contains_any(norm(call.paths[0]), ctx.protected_paths)
+    path = ctx.abs_path(call.paths[0])
+    hit = ctx.protected_hit(path) or contains_any(path, ctx.plugin_forms)
     if hit:
         return "'%s' is protected ('%s'). The user edits it themselves." % (call.paths[0], hit)
     return None
 
 
 def roots_write(call, ctx):
-    """A write call inside a filesystem instance's root."""
+    """A write call inside a filesystem instance's root. The path is made
+    absolute and its ".." resolved first, as for agent_only reads, so
+    <wiki>/../Scans/x can't get past."""
     if call.kind != "write":
         return None
-    hit = ctx.under_root(norm(call.paths[0]))
+    hit = ctx.under_root(ctx.abs_path(call.paths[0]))
     if hit:
         return "'%s' is inside the read-only source folder '%s'." % (call.paths[0], hit)
     return None
@@ -704,6 +761,8 @@ CHECKS = [
     no_push,
     shell_has_command,
     write_has_path,
+    known_tool,
+    nested_claude,
     agent_only_read,
     broken_sources,
     agent_only_ops,
