@@ -313,7 +313,7 @@ External plugin compatibility, registration/loading paths, read-only operation a
 
 Expected effort: medium-to-high.
 
-A Copilot-capable reader; compare JQL, fields, pagination, comment/link behavior and that reads leave "recently viewed" alone. Preserve named scopes, backfill completeness, cursor precision and citations. Since 2026-11-19 the type uses the claude.ai "Atlassian MCP" connector (`docs/adr.md`, 11); a Copilot reader must match its semantics.
+A Copilot-capable reader; compare JQL, fields, pagination, comment/link behavior and that reads leave "recently viewed" alone. Preserve named scopes, backfill completeness, cursor precision and citations. Since 2026-11-19 the type is tool-neutral (`access: tools`, `docs/adr.md`, 11), so a Copilot reader needs no new type if it does the contract's operations.
 
 ### Gmail
 

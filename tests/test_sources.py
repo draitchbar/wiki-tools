@@ -42,10 +42,9 @@ LIST_ETC = [
     ("settings-gdrive", '"mcp__claude_ai_Google_Drive__trash_file"', ["settings", "google-drive"]),
     ("catalog-gdrive", "- google-drive (standard, mcp): Google Drive", ["catalog"]),
     ("catalog-teams", "- ms-teams (standard, mcp): Microsoft Teams", ["catalog"]),
-    ("catalog-jira", "- jira (standard, mcp): Jira", ["catalog"]),
-    ("settings-jira-allow", '"mcp__claude_ai_Atlassian_MCP__getJiraIssue"', ["settings", "jira"]),
-    ("settings-jira-deny", '"mcp__claude_ai_Atlassian__editJiraIssue"', ["settings", "jira"]),
-    ("settings-jira-deny2", '"mcp__claude_ai_Atlassian_MCP__executeWrite"', ["settings", "jira"]),
+    # jira (access: tools): no tool rules; the reader is settled per wiki.
+    ("catalog-jira", "- jira (standard, tools): Jira", ["catalog"]),
+    ("settings-jira-note", "jira (access: tools) names no tools", ["settings", "jira"]),
     ("list-research", '- code: type codebase (standard), research (/wiki:research code "<question>"; '
                       'not ingested), valid', ["list"]),
     ("catalog-codebase", "- codebase (standard, filesystem): Codebase", ["catalog"]),
@@ -65,7 +64,7 @@ LIST_ETC = [
 ]
 COUNTS = [  # name, args, a regex no line may match
     ("settings-proton-no-allow", ["settings", "proton-files"], r"Bash\(bash|read\.sh|wiki-sources"),
-    ("settings-jira-no-cache", ["settings", "jira"], r"wiki-sources"),
+    ("settings-jira-no-tools", ["settings", "jira"], r"mcp__|Bash\(|wiki-sources"),
     ("settings-tools-empty", ["settings", "onenote"], r"mcp__|Bash\("),
     ("settings-tools-quiet", ["settings", "gmail"], r"access: tools"),
 ]

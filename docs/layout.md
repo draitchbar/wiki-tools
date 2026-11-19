@@ -22,7 +22,7 @@ plugins/wiki/
     gmail/SOURCE.md               Gmail via the claude.ai connector (MCP)
     google-drive/SOURCE.md        Google Drive folders via the claude.ai connector (MCP)
     ms-teams/{SOURCE.md,snapshot.sh,snapshot.py}  Teams channels, chats and SharePoint folders via the claude.ai Microsoft 365 connector (MCP)
-    jira/SOURCE.md                Jira issues selected by named scopes (team, component, epic/initiative, project, JQL) via the claude.ai Atlassian connector (MCP)
+    jira/SOURCE.md                Jira issues selected by named scopes (team, component, epic/initiative, project, JQL) through whatever Jira reader the machine supplies (tool-neutral)
     proton-files/SOURCE.md            Proton Drive through a reader (the proton plugin, aitchbar-ai-tools)
     local-folder/{SOURCE.md,read.sh}  folders outside the wiki, read-only
     codebase/{SOURCE.md,git.sh,gh.sh}  a git clone researched on demand by subagents (research type, agent_only); PR/issue context via gh

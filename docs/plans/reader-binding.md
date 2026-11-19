@@ -1,0 +1,35 @@
+# Plan: binding a tool-neutral source to its reader
+
+Status: planned, not started (2026-11-19). Roadmap item: "Reader binding".
+
+## The problem
+A tool-neutral type (`access: tools`: `onenote`, `proton-files`, `jira`) lists the operations it needs and names no tools. Today `/wiki:add-source` settles the reader with the user in conversation. The main session works out which tool does each operation and the allow and deny rules, and writes the result in prose in the instance's body. The work is manual, its quality depends on the session, and the output is free text that no script can check, so `sources.sh settings` gives these types no rules. When a reader changes (a new connector version, a different MCP server, a CLI), someone has to redo it by hand. The Jira move on 2026-11-19 is an example: a new connector, a dispatcher tool, different parameters, and a "recently viewed" behaviour that had to be checked against the live site.
+
+## The idea
+A plugin agent, `wiki:reader-binder`, does the discovery and probing, and returns a proposed binding: operation → tool and fixed arguments, with the allow and deny rules and what the probes found. The main session (`/wiki:add-source`, or a re-bind when Check finds the reader gone) shows the proposal, the user chooses, and the binding goes into the instance file. The user installs that file, as they install every source file.
+
+## What Claude Code allows (checked in the docs, 2026-11-19)
+- **Plugin agents** (`plugins/wiki/agents/*.md`, like `source-researcher`) support `name`, `description`, `model`, `effort`, `maxTurns`, `tools`, `disallowedTools`, `skills` and a few more. They don't support `hooks`, `mcpServers` or `permissionMode`; these fields are silently ignored. That's fine: the agent needs none of them.
+- **MCP tools:** a subagent inherits the session's MCP tools when `tools` is omitted, and `tools` and `disallowedTools` take whole-server wildcards (`mcp__<server>__*`). So the agent can call the connector's read tools to probe them.
+- **Deferred tools:** the docs don't say whether a subagent can use ToolSearch, or whether it sees the same deferred tool names as the main session. Spike item 1.
+- **Skills:** a subagent can invoke skills with the Skill tool, and can Read a user skill's `SKILL.md` (`~/.claude/skills/` is no longer guard-protected, #29). So it can find a skill's reader script and learn its commands.
+- **No questions:** a subagent can't use AskUserQuestion. Every choice stays with the main session, which suits the design: the agent proposes and the main session asks.
+- **Guard and permissions:** PreToolUse hooks fire for subagent calls, with `agent_id` in the input, and the subagent runs in the main session's permission mode. So probes prompt unless allowed, the guard applies, and the agent can't write the protected instance file: it returns a draft.
+- **Listing tools:** there is no model-callable list of the connected MCP tools. `claude mcp list` lists servers, not tools, and the guard blocks `claude` as a command anyway. The main session sees the deferred tool names in its own context and passes the candidates in the brief.
+
+## Design
+1. **The contract says what to probe.** Each tool-neutral contract already lists its operations and the properties they need (Jira: paging; no "recently viewed" update; the Team field returned). Add a short `## Bind` section per contract: one harmless probe per operation (e.g. **search** with a one-result JQL; **read issue** on a key the user names) and how to check each property (Jira: `issueHistory()` before and after a read). The agent stays source-neutral, as skills must (`AGENTS.md`); everything specific to one source stays in its `SOURCE.md`.
+2. **The agent** (`plugins/wiki/agents/reader-binder.md`; `tools` omitted, so it inherits MCP tools; `disallowedTools: Write, Edit, NotebookEdit`). Brief: the contract (`sources.sh contract <type>`), the instance's parameters, and the candidate tools and skills the main session sees. Work: read the candidates' schemas and skill files; map each operation to a tool and its fixed arguments; run the contract's probes with the smallest limits; sort the server's tools into read and write (by name, description and MCP read-only hints) for the deny list; note dispatcher tools and what they reach. Return: a binding draft, the allow and deny rules, each probe's result, and what couldn't be verified. Probe output stays in the agent's context, not the main session's.
+3. **The binding's format.** Phase 1: a fixed Markdown section in the instance's body (`## Reader`, one line per operation: `<operation>: <tool> <fixed arguments>`), which sessions already read. Phase 3: a frontmatter key (`reader:`) that `contract.py` validates. Then `sources.sh settings <type> --key <key>` can print the reader's allow and deny rules for `access: tools` types, which it can't today.
+4. **Re-binding.** When Check finds no tool for a required operation (a connector renamed or removed), it proposes running the binder again rather than stopping with no way forward.
+5. **The guard (phase 3, optional).** With a machine-readable binding, the guard could enforce what is prose today: a dispatcher tool called only with the operation names in the binding (the Jira `executeRead` limit, option (b) of 2026-11-19), and a reader's commands allowed as plain calls even under `~/.claude/plugins/cache/` (the parked "Readers from installed plugins", whose proposed `reader_commands:` key this replaces).
+
+## Phases
+1. **Spike** (about an hour, in a wiki session): can a plugin subagent use ToolSearch and call a claude.ai connector's deferred tools? Does it see the same tool names? Can the guard tell its calls apart (`agent_id`)? Do probe calls prompt in default mode? If deferred tools aren't reachable from a subagent, the main session loads the schemas and passes them in the brief.
+2. **Agent, `## Bind` sections, the add-source step:** the agent file; `## Bind` for `jira`, `onenote` and `proton-files`; `/wiki:add-source` dispatches the agent for `access: tools` types and writes the `## Reader` section. Tests: the agent file's frontmatter (like `test_agent_files.py`), and every `access: tools` contract has a `## Bind` section. Probing can't be tested without a live reader; record a live run in `tests/live/results.md`.
+3. **Machine-readable binding:** the `reader:` key in `contract.py`, settings rules from it, and optionally the guard checks in design point 5. Needs fixtures and a decision in `docs/adr.md`.
+
+## Open
+- Whether a binding belongs in the instance (per wiki) or in a per-machine file shared by all wikis (one connector serves every wiki on a machine; but instance files are where the guard trusts content today).
+- How far to trust a server's read-only hints when sorting tools into read and write. Allow-listing only the bound tools is the safe default: anything not bound prompts.
+- Copilot: the same agent file is a Copilot custom agent only if the wikis move to Copilot (`docs/plans/copilot-wiki-support.md`); out of scope here.
