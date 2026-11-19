@@ -377,6 +377,13 @@ def op_check_settings(w, args):
         return 1
     out("settings.json: valid JSON, %d permission rules" % len(have))
     bad = 0
+    typos = ["  %s (%s?)" % t for t in sourcelib.settings_key_typos(text)]
+    if typos:
+        bad = 1
+        out("misspelled keys (Claude Code may ignore the whole file, deny rules included):\n"
+            + "\n".join(typos))
+    else:
+        out("misspelled keys: none")
     hs = set(have)
     need = sourcelib.needed_rules(w.root, w.plugin)
     miss = ["  %s: %s" % m for m in sourcelib.missing_rules(need, have)]
