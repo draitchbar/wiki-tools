@@ -7,7 +7,8 @@ import re
 
 import pytest
 
-from conftest import PLUGIN
+import contract
+from conftest import PLUGIN, posix
 
 SOURCES = PLUGIN / "sources"
 SKILL = PLUGIN / "skills" / "bind-reader" / "SKILL.md"
@@ -41,7 +42,17 @@ def test_bind_section(t):
 def test_check_starts_binding(t):
     check = _section((SOURCES / t / "SOURCE.md").read_text(encoding="utf-8"), "Check")
     first = check.strip().split("\n")[0]
-    assert "## Reader" in first and "/wiki:bind-reader <key>" in first
+    assert "no `reader` list" in first and "/wiki:bind-reader <key>" in first
+
+
+@pytest.mark.parametrize("t", _tool_neutral())
+def test_operations_named_in_body(t):
+    """Each operation the frontmatter lists (what a binding names) is
+    one the body describes, in bold."""
+    text = (SOURCES / t / "SOURCE.md").read_text(encoding="utf-8")
+    body = text.split("\n---\n", 1)[1]
+    ops = [contract.operation(o)[0] for o in contract.list_(posix(SOURCES / t / "SOURCE.md"), "operations")]
+    assert ops and all("**%s**" % o in body for o in ops), ops
 
 
 def _frontmatter(path):
@@ -77,7 +88,7 @@ def test_skill_live_run_fixes():
     already named in prose, a safe item that can't serve every test."""
     text = SKILL.read_text(encoding="utf-8")
     hand = text[text.index("## 6. Hand over"):]
-    assert "**check the settings**" in hand and "allowed" in hand
+    assert "check-settings" in hand and "not allowed" in hand
     assert "**Already named in prose.**" in text
     assert "second safe item" in text
 

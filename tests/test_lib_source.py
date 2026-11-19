@@ -177,6 +177,10 @@ def test_tools_valid(ls, tmp_path):
         out.append(ln)
     text = "\n".join(out).replace("type: std", "type: tl", 1).replace("access: script", "access: tools", 1)
     f = write(tmp_path / "at/tl/SOURCE.md", text)
+    # access: tools lists its operations (docs/adr.md, 13).
+    assert "access: tools needs 'operations'" in vc(posix(f))[0]
+    text = text.replace("read_tools:", "operations:\n  - read (required)\n  - count (optional)\nread_tools:", 1)
+    write(f, text)
     assert vc(posix(f)) == ("", 0)
     write(f, text.replace("read_tools:", "read_tools:\n  - Read(~/.cache/wiki-sources/*/*/**)\n"
                                          "  - Edit(~/.cache/wiki-sources/*/*/**)", 1))

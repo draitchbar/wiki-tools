@@ -1,0 +1,1 @@
+wiki guard: mcp__claude_ai_Atlassian_MCP__executeRead may be called here only with name=listJiraIssueRemoteIssueLinks or name=listJiraProjects (the reader binding of tracker). Call it only for the operations the source's binding names.

@@ -118,30 +118,36 @@ def _parsed(path):
 @pytest.mark.parametrize("path,want", [
     pytest.param("guard/pass-ordinary-bash.json", dict(
         kind="shell", shell="bash", command="pdftotext -layout contract.pdf /tmp/c.txt", paths=(),
-        contents=("", ""), pattern=" ", subagent="", cwd="/home/u/wikis/mywiki", tool="Bash"),
+        contents=("", ""), pattern=" ", subagent="", cwd="/home/u/wikis/mywiki", tool="Bash", inputs={}),
         id="hookjson/parse-bash"),
     pytest.param("guard/block-powershell-multiline.json", dict(
         kind="shell", shell="powershell", command="Get-Date;proton-drive ls", paths=(),
         contents=("", ""), pattern=" ", subagent="", cwd="C:\\Users\\u\\wikis\\mywiki",
-        tool="PowerShell"),
+        tool="PowerShell", inputs={}),
         id="hookjson/parse-powershell"),
     pytest.param("guard/block-edit-helper-content.json", dict(
         kind="write", shell="", command="", paths=("/home/u/wikis/mywiki/tool.py",),
         contents=("", "", 'os.system("proton-drive fs trash /x")'), pattern=" ", subagent="",
-        cwd="/home/u/wikis/mywiki", tool="Edit"),
+        cwd="/home/u/wikis/mywiki", tool="Edit", inputs={}),
         id="hookjson/parse-edit"),
     pytest.param("guard/block-write-no-path.json", dict(
         kind="write", shell="", command="", paths=(), contents=("x", "", ""), pattern=" ",
-        subagent="", cwd="/home/u/wikis/mywiki", tool="Write"),
+        subagent="", cwd="/home/u/wikis/mywiki", tool="Write", inputs={}),
         id="hookjson/parse-write-no-path"),
     pytest.param("guard/block-codebase-grep-main.json", dict(
         kind="read", shell="", command="", paths=("/home/u/src/components",), contents=("", ""),
-        pattern="foo ", subagent="", cwd="/home/u/wikis/mywiki", tool="Grep"),
+        pattern="foo ", subagent="", cwd="/home/u/wikis/mywiki", tool="Grep", inputs={}),
         id="hookjson/parse-grep"),
     pytest.param("guard/pass-codebase-read-agent.json", dict(
         kind="read", shell="", command="", paths=("/home/u/src/components/app/A.java",),
-        contents=("", ""), pattern=" ", subagent="a1", cwd="/home/u/wikis/mywiki", tool="Read"),
+        contents=("", ""), pattern=" ", subagent="a1", cwd="/home/u/wikis/mywiki", tool="Read", inputs={}),
         id="hookjson/parse-read-subagent"),
+    # An MCP call: only its top-level string inputs, for the reader limits.
+    pytest.param("guard/block-mcp-reader-dispatch-other.json", dict(
+        kind="mcp", shell="", command="", paths=(), contents=(), pattern=" ", subagent="",
+        cwd="/home/u/wikis/mywiki", tool="mcp__claude_ai_Atlassian_MCP__executeRead",
+        inputs={"name": "getConfluencePage", "cloudId": "c1"}),
+        id="hookjson/parse-mcp"),
 ])
 def test_parse(path, want):
     assert _parsed(path) == want
@@ -340,7 +346,54 @@ BROKEN = {
     "contract-no-frontmatter": lambda w: write(w / ".claude/sources/types/bookish/SOURCE.md", "# no fm\n"),
     "filesystem-no-roots": lambda w: write(w / INST / "x.md", "---\nkey: x\ntype: local-folder\n---\n"),
     "first-of-two": lambda w: (write(w / INST / "a-x.md", "key: a\n"), write(w / INST / "b-x.md", "key: b\n")),
+    "reader-item": lambda w: inst(w, "x", "jira", "reader:", "  - search mcp__claude_ai_Atlassian_MCP__x"),
+    "reader-deny-item": lambda w: inst(w, "x", "jira", "reader_deny:", "  - executeWrite"),
 }
+
+
+# A reader binding that doesn't parse: the MCP tools it names are refused
+# too (their limits are unknown); other MCP tools pass.
+def _mcp(tool, **ti):
+    return _bash_input(tool, ti)
+
+
+@pytest.mark.parametrize("item,tool,want", [
+    pytest.param("  - find project mcp__claude_ai_Atlassian_MCP__executeRead name=listJiraProjects",
+                 "mcp__claude_ai_Atlassian_MCP__executeRead", 2, id="guard/reader-broken-named"),
+    pytest.param("  - find project: mcp__claude_ai_Atlassian_MCP__executeRead name=",
+                 "mcp__claude_ai_Atlassian_MCP__executeRead", 2, id="guard/reader-broken-limit"),
+    pytest.param("  - find project mcp__claude_ai_Atlassian_MCP__executeRead name=listJiraProjects",
+                 "mcp__claude_ai_Gmail__search_threads", 0, id="guard/reader-broken-other-tool"),
+])
+def test_reader_broken(item, tool, want, gw, guard_run):
+    inst(gw, "x", "jira", "reader:", item)
+    assert guard_run(_mcp(tool, name="listJiraProjects"), str(gw)).rc == want
+
+
+@pytest.mark.parametrize("lines,ti,agent,want", [
+    # Another instance binds the dispatcher without a limit: no limit applies.
+    pytest.param(("reader:", "  - search: mcp__claude_ai_Atlassian_MCP__executeRead"),
+                 {"name": "getConfluencePage"}, "", 0, id="guard/reader-free-elsewhere"),
+    # Another instance's limit adds its value.
+    pytest.param(("reader:", "  - search: mcp__claude_ai_Atlassian_MCP__executeRead name=searchJira"),
+                 {"name": "searchJira"}, "", 0, id="guard/reader-limit-union"),
+    # Values compare exactly.
+    pytest.param((), {"name": "listjiraprojects"}, "", 2, id="guard/reader-limit-case"),
+    # A subagent is held to the binding too.
+    pytest.param((), {"name": "getConfluencePage"}, "a1", 2, id="guard/reader-limit-subagent"),
+])
+def test_reader_limits(lines, ti, agent, want, gw, guard_run):
+    if lines:
+        inst(gw, "y", "jira", *lines)
+    data = _bash_input("mcp__claude_ai_Atlassian_MCP__executeRead", ti, extra={"agent_id": agent} if agent else None)
+    assert guard_run(data, str(gw)).rc == want
+
+
+@pytest.mark.checks("guard/reader-outside-wiki")
+def test_reader_outside_wiki(tmp_path, guard_run):
+    """Outside a wiki no binding applies."""
+    data = _mcp("mcp__claude_ai_Atlassian_MCP__executeWrite", name="createJiraIssue")
+    assert guard_run(data, str(tmp_path)).rc == 0
 
 
 @pytest.mark.parametrize("name", [pytest.param(n, id="guard/fail-closed-%s" % n) for n in BROKEN])

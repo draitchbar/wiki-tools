@@ -15,7 +15,8 @@ Every tool is classified (kind()):
   read      Read, Grep, Glob;
   harmless  the built-in tools in HARMLESS, which neither run commands nor
             write or read files;
-  mcp       any mcp__* tool (the contracts' settings rules govern them);
+  mcp       any mcp__* tool (settings rules govern them; the guard checks
+            only the reader bindings' limits and denies, docs/adr.md, 13);
   unknown   anything else, which the guard refuses.
 
 A HookCall says what the call does, whatever the tool:
@@ -29,7 +30,9 @@ A HookCall says what the call does, whatever the tool:
             new_string;
   pattern   Grep's/Glob's pattern and glob, joined by a space;
   subagent  the hook input's agent_id ("" in the main session);
-  cwd       the hook input's cwd.
+  cwd       the hook input's cwd;
+  inputs    an mcp call's top-level tool_input fields that are strings
+            (others left out), unchanged; {} for every other kind.
 
 - \\uXXXX escapes are decoded, and every MultiEdit new_string is read;
 - newlines and carriage returns in a value become ";" so a multi-line
@@ -81,7 +84,8 @@ def kind(tool):
 class HookCall:
     # A plain class, not a dataclass: dataclasses would add import time to
     # every tool call.
-    __slots__ = ("kind", "shell", "command", "paths", "contents", "pattern", "subagent", "cwd", "tool")
+    __slots__ = ("kind", "shell", "command", "paths", "contents", "pattern", "subagent", "cwd", "tool",
+                 "inputs")
 
 
 def _clean(s):
@@ -125,6 +129,9 @@ def parse(raw):
     h.pattern = " "
     h.subagent = top["agent_id"]
     h.cwd = top["cwd"]
+    h.inputs = {}
+    if h.kind == "mcp":
+        h.inputs = {k: v for k, v in ti.items() if isinstance(k, str) and isinstance(v, str)}
     if h.kind not in _CHECKED:
         return h
 

@@ -192,7 +192,7 @@ rc=0
   }
 }
 
-onenote (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). Allow the read tools this machine supplies for it yourself (this wiki's settings or your user settings; see its Caveats). How read-only is kept is in its Caveats, not in these settings.
+onenote (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). An instance's reader binding (its 'reader' list) adds the reader's rules (sources.sh settings onenote --key <key>). How read-only is kept is in its Caveats, not in these settings.
 -- err
 -- merged
 {
@@ -231,7 +231,7 @@ onenote (access: tools) names no tools, so it adds no tool rules here (only its 
   }
 }
 
-onenote (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). Allow the read tools this machine supplies for it yourself (this wiki's settings or your user settings; see its Caveats). How read-only is kept is in its Caveats, not in these settings.
+onenote (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). An instance's reader binding (its 'reader' list) adds the reader's rules (sources.sh settings onenote --key <key>). How read-only is kept is in its Caveats, not in these settings.
 == show -x
 rc=1
 -- out
@@ -322,7 +322,7 @@ rc=0
   }
 }
 
-jira (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). Allow the read tools this machine supplies for it yourself (this wiki's settings or your user settings; see its Caveats). How read-only is kept is in its Caveats, not in these settings.
+jira (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). An instance's reader binding (its 'reader' list) adds the reader's rules (sources.sh settings jira --key <key>). How read-only is kept is in its Caveats, not in these settings.
 -- err
 -- merged
 {
@@ -359,7 +359,7 @@ jira (access: tools) names no tools, so it adds no tool rules here (only its cac
   }
 }
 
-jira (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). Allow the read tools this machine supplies for it yourself (this wiki's settings or your user settings; see its Caveats). How read-only is kept is in its Caveats, not in these settings.
+jira (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). An instance's reader binding (its 'reader' list) adds the reader's rules (sources.sh settings jira --key <key>). How read-only is kept is in its Caveats, not in these settings.
 == list
 rc=0
 -- out
@@ -373,6 +373,7 @@ Sources of sw (platform: @HOST@):
 - proton: type proton-files (standard), valid, available here: yes, last checked: no last_checked_proton line
 - scans: type local-folder (standard), valid, available here: yes, last checked: no last_checked_scans line
 - teams: type ms-teams (standard), valid, available here: yes, last checked: no last_checked_teams line
+- tracker: type jira (standard), valid, available here: yes, last checked: no last_checked_tracker line
 - two: type ?: UNKNOWN TYPE
 - words: type ?: UNKNOWN TYPE
 - x_y: manual key (no source file; enters via raw/ or user statements; /wiki:ingest cannot read it), last checked: never
@@ -388,6 +389,7 @@ Sources of sw (platform: @HOST@):
 - proton: type proton-files (standard), valid, available here: yes, last checked: no last_checked_proton line
 - scans: type local-folder (standard), valid, available here: yes, last checked: no last_checked_scans line
 - teams: type ms-teams (standard), valid, available here: yes, last checked: no last_checked_teams line
+- tracker: type jira (standard), valid, available here: yes, last checked: no last_checked_tracker line
 - two: type ?: UNKNOWN TYPE
 - words: type ?: UNKNOWN TYPE
 - x_y: manual key (no source file; enters via raw/ or user statements; /wiki:ingest cannot read it), last checked: never
@@ -404,9 +406,9 @@ unknown source type 'nosuchtype' (looked in @PLUGIN@/sources/nosuchtype/SOURCE.m
 rc=1
 -- out
 -- err
-sources: no source 'two' in this wiki (no @TMP@/sw/.claude/sources/instances/two.md). Known: raw bad books code gmail odd proton scans teams two words. Add one with /wiki:add-source.
+sources: no source 'two' in this wiki (no @TMP@/sw/.claude/sources/instances/two.md). Known: raw bad books code gmail odd proton scans teams tracker two words. Add one with /wiki:add-source.
 -- merged
-sources: no source 'two' in this wiki (no @TMP@/sw/.claude/sources/instances/two.md). Known: raw bad books code gmail odd proton scans teams two words. Add one with /wiki:add-source.
+sources: no source 'two' in this wiki (no @TMP@/sw/.claude/sources/instances/two.md). Known: raw bad books code gmail odd proton scans teams tracker two words. Add one with /wiki:add-source.
 == settings
 rc=0
 -- out
@@ -435,7 +437,12 @@ rc=0
       "mcp__claude_ai_Microsoft_365__get_me",
       "mcp__claude_ai_Microsoft_365__get_granted_scopes",
       "Bash(bash */sources/ms-teams/snapshot.sh *)",
-      "Edit(~/.cache/wiki-sources/sw/teams/walk.tsv)"
+      "Edit(~/.cache/wiki-sources/sw/teams/walk.tsv)",
+      "mcp__claude_ai_Atlassian_MCP__getAccessibleAtlassianResources",
+      "mcp__claude_ai_Atlassian_MCP__executeRead",
+      "mcp__claude_ai_Atlassian_MCP__searchJiraIssuesUsingJql",
+      "mcp__claude_ai_Atlassian_MCP__getJiraIssue",
+      "mcp__claude_ai_Atlassian_MCP__listJiraIssueComments"
     ],
     "deny": [
       "mcp__claude_ai_Gmail__send_message",
@@ -477,14 +484,16 @@ rc=0
       "mcp__claude_ai_Microsoft_365__teams_reply_channel_message",
       "mcp__claude_ai_Microsoft_365__teams_send_chat_message",
       "mcp__claude_ai_Microsoft_365__teams_create_chat",
-      "mcp__claude_ai_Microsoft_365__outlook_create_event"
+      "mcp__claude_ai_Microsoft_365__outlook_create_event",
+      "mcp__claude_ai_Atlassian_MCP__executeWrite",
+      "mcp__claude_ai_Atlassian_MCP__executeDestructive"
     ]
   }
 }
 
 Cache rules are narrowed to this wiki and instance (~/.cache/wiki-sources/<wiki>/<key>/); a broader rule already in settings.json, e.g. Read(~/.cache/wiki-sources/**), covers them too.
 
-proton-files (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). Allow the read tools this machine supplies for it yourself (this wiki's settings or your user settings; see its Caveats). How read-only is kept is in its Caveats, not in these settings.
+proton-files (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). An instance's reader binding (its 'reader' list) adds the reader's rules; not bound yet: proton (/wiki:bind-reader <key> drafts it). How read-only is kept is in its Caveats, not in these settings.
 -- err
 -- merged
 {
@@ -512,7 +521,12 @@ proton-files (access: tools) names no tools, so it adds no tool rules here (only
       "mcp__claude_ai_Microsoft_365__get_me",
       "mcp__claude_ai_Microsoft_365__get_granted_scopes",
       "Bash(bash */sources/ms-teams/snapshot.sh *)",
-      "Edit(~/.cache/wiki-sources/sw/teams/walk.tsv)"
+      "Edit(~/.cache/wiki-sources/sw/teams/walk.tsv)",
+      "mcp__claude_ai_Atlassian_MCP__getAccessibleAtlassianResources",
+      "mcp__claude_ai_Atlassian_MCP__executeRead",
+      "mcp__claude_ai_Atlassian_MCP__searchJiraIssuesUsingJql",
+      "mcp__claude_ai_Atlassian_MCP__getJiraIssue",
+      "mcp__claude_ai_Atlassian_MCP__listJiraIssueComments"
     ],
     "deny": [
       "mcp__claude_ai_Gmail__send_message",
@@ -554,14 +568,16 @@ proton-files (access: tools) names no tools, so it adds no tool rules here (only
       "mcp__claude_ai_Microsoft_365__teams_reply_channel_message",
       "mcp__claude_ai_Microsoft_365__teams_send_chat_message",
       "mcp__claude_ai_Microsoft_365__teams_create_chat",
-      "mcp__claude_ai_Microsoft_365__outlook_create_event"
+      "mcp__claude_ai_Microsoft_365__outlook_create_event",
+      "mcp__claude_ai_Atlassian_MCP__executeWrite",
+      "mcp__claude_ai_Atlassian_MCP__executeDestructive"
     ]
   }
 }
 
 Cache rules are narrowed to this wiki and instance (~/.cache/wiki-sources/<wiki>/<key>/); a broader rule already in settings.json, e.g. Read(~/.cache/wiki-sources/**), covers them too.
 
-proton-files (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). Allow the read tools this machine supplies for it yourself (this wiki's settings or your user settings; see its Caveats). How read-only is kept is in its Caveats, not in these settings.
+proton-files (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). An instance's reader binding (its 'reader' list) adds the reader's rules; not bound yet: proton (/wiki:bind-reader <key> drafts it). How read-only is kept is in its Caveats, not in these settings.
 == catalog
 rc=0
 -- out
@@ -599,6 +615,7 @@ Sources of sw (platform: @HOST@):
 - proton: type proton-files (standard), valid, available here: yes, last checked: no sync-log
 - scans: type local-folder (standard), valid, available here: yes, last checked: no sync-log
 - teams: type ms-teams (standard), valid, available here: yes, last checked: no sync-log
+- tracker: type jira (standard), valid, available here: yes, last checked: no sync-log
 -- err
 -- merged
 Sources of sw (platform: @HOST@):
@@ -610,6 +627,7 @@ Sources of sw (platform: @HOST@):
 - proton: type proton-files (standard), valid, available here: yes, last checked: no sync-log
 - scans: type local-folder (standard), valid, available here: yes, last checked: no sync-log
 - teams: type ms-teams (standard), valid, available here: yes, last checked: no sync-log
+- tracker: type jira (standard), valid, available here: yes, last checked: no sync-log
 == show gmail
 rc=0
 -- out

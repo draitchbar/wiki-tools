@@ -201,6 +201,52 @@ def has_dots(p):
     return "/./" in s or "/../" in s
 
 
+# Reader bindings (docs/adr.md, 13). A tool-neutral contract (access: tools)
+# lists its operations as `<name> (required|recommended|optional)`; an
+# instance binds them in `reader:` items `<operation>: <rule>`, where the
+# rule is an MCP tool name, optionally with one `<field>=<value>` limit on
+# its input (a dispatcher's operation name), or a Bash(...) or
+# PowerShell(...) permission rule; `reader_deny:` lists rules of the same
+# forms, without limits, for the reader's write tools.
+
+_OPERATION = re.compile(r"([a-z][a-z0-9 ]*[a-z0-9]) \((required|recommended|optional)\)\Z", re.ASCII)
+_READER_OP = re.compile(r"[a-z][a-z0-9 ]*[a-z0-9]\Z", re.ASCII)
+_MCP_TOOL = re.compile(r"mcp__[A-Za-z0-9_-]+\Z", re.ASCII)
+_LIMIT = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)=([A-Za-z0-9_.:/-]+)\Z", re.ASCII)
+_SHELL_RULE = re.compile(r"(Bash|PowerShell)\(\S.*\)\Z", re.S)
+MCP_NAME = re.compile(r"mcp__[A-Za-z0-9_-]+", re.ASCII)
+
+
+def operation(item):
+    """A contract `operations` item as (name, level), or None."""
+    m = _OPERATION.fullmatch(item.strip())
+    return (m.group(1), m.group(2)) if m else None
+
+
+def rule_ok(r):
+    """A reader rule without a limit: an MCP tool name or a Bash(...) or
+    PowerShell(...) rule."""
+    return bool(_MCP_TOOL.match(r) or _SHELL_RULE.match(r))
+
+
+def reader_item(item):
+    """A `reader` item as (operation, rule, limit field, limit value), the
+    limit ("", "") when there is none; None if it doesn't parse."""
+    op, sep, rest = item.partition(": ")
+    rest = rest.strip()
+    if not sep or not _READER_OP.match(op):
+        return None
+    if _SHELL_RULE.match(rest):
+        return (op, rest, "", "")
+    tool, _, limit = rest.partition(" ")
+    if not _MCP_TOOL.match(tool):
+        return None
+    if not limit:
+        return (op, tool, "", "")
+    m = _LIMIT.match(limit.strip())
+    return (op, tool, m.group(1), m.group(2)) if m else None
+
+
 # Command line, for the tests.
 
 def _out(lines):

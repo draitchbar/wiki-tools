@@ -315,6 +315,10 @@ def op_settings(w, args):
             tr = sourcelib.type_rules(c)
             if key:
                 rules += sourcelib.narrow_rules(tr, basename(w.root), key)
+                f = "%s/%s.md" % (w.idir, key)
+                if (contract.field(c, "access") == "tools" and os.path.isfile(f)
+                        and contract.field(f, "type") == t):
+                    rules += sourcelib.reader_rules(f)
             else:
                 rules += ["%s\t%s\t%s" % (ln.split("\t")[0], _f(ln, 1), _f(ln, 1)) for ln in tr]
 
@@ -345,10 +349,20 @@ def op_settings(w, args):
             continue
         if contract.field(c, "access") != "tools":
             continue
+        # The whole wiki or one instance: only instances not bound yet need
+        # the note. A type alone: always, since its rules come per instance.
+        if key or not types:
+            keys = [key] if key else [k for k in sourcelib.words(contract.instances(w.root))
+                                      if contract.field("%s/%s.md" % (w.idir, k), "type") == t]
+            unbound = [k for k in keys if not contract.list_("%s/%s.md" % (w.idir, k), "reader")]
+            if not unbound:
+                continue
+            how = "; not bound yet: %s (/wiki:bind-reader <key> drafts it)" % ", ".join(unbound)
+        else:
+            how = " (sources.sh settings %s --key <key>)" % t
         out("\n%s (access: tools) names no tools, so it adds no tool rules here (only its cache rules, "
-            "if any). Allow the read tools this machine supplies for it yourself (this wiki's settings "
-            "or your user settings; see its Caveats). How read-only is kept is in its Caveats, not in "
-            "these settings." % t)
+            "if any). An instance's reader binding (its 'reader' list) adds the reader's rules%s. "
+            "How read-only is kept is in its Caveats, not in these settings." % (t, how))
     return 0
 
 
@@ -385,8 +399,14 @@ def op_check_settings(w, args):
     else:
         out("misspelled keys: none")
     hs = set(have)
-    need = sourcelib.needed_rules(w.root, w.plugin)
-    miss = ["  %s: %s" % m for m in sourcelib.missing_rules(need, have)]
+    reader = set()
+    need = sourcelib.needed_rules(w.root, w.plugin, reader)
+    user = sourcelib.user_rules() if reader else []
+    if reader:
+        out("reader rules (from the instances' reader bindings) count in your user settings too "
+            "(~/.claude/settings.json, %d permission rules)" % len(user))
+    missing, blocked = sourcelib.rules_check(need, reader, have, user)
+    miss = ["  %s: %s" % m for m in missing]
     if miss:
         bad = 1
         out("missing (rules your sources need):\n" + "\n".join(miss))
@@ -410,7 +430,7 @@ def op_check_settings(w, args):
         out("in both allow and deny (deny wins):\n" + "\n".join(both))
     else:
         out("conflicts: none")
-    blocked = ["  allow: %s (deny: %s)" % m for m in sourcelib.blocked_rules(need, have)]
+    blocked = ["  allow: %s (deny: %s)" % m for m in blocked]
     if blocked:
         bad = 1
         out("blocked by deny (rules your sources need; deny wins):\n" + "\n".join(blocked))
