@@ -35,6 +35,7 @@ Verify sub-agent claims against the source before putting them in a page or repo
 - Paths under `.claude/` (settings, `.claude/sources/`) are protected by guard hooks; you never write them. Hand them to the user as in **Protected files** below.
 - The guard reads whole command lines. A commit message (or any other command) that names `.claude/sources`, the wiki-tools plugin folders or a source's CLI (its guard words, e.g. `proton-drive`) is blocked, so write "instance files", "Proton" and the like instead.
 - Run wiki-tools scripts (`${CLAUDE_PLUGIN_ROOT}/scripts/*.sh`, source wrappers) one per call, with no `;`, `&&`, pipes, `echo` around them or redirection; the guard blocks anything else. Don't `ls` or `cat` the plugin folders either: `sources.sh catalog` and `sources.sh contract <type>` show the source types.
+- A multi-line script (a Python edit across pages, say) goes into a file in your scratchpad and runs from there (`python -I <file>`), never inline in a heredoc or `-c`: nested quotes and triple-quoted strings break the shell's parsing, notably in Git Bash on Windows.
 
 ## Protected files
 `.claude/settings.json` and everything under `.claude/sources/` are written by the user, never by you, not even as a draft in a Bash heredoc (the guard blocks any command that names `.claude/sources`).

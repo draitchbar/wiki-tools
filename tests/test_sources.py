@@ -117,6 +117,13 @@ MISSING_CODE = "allow: Edit(~/.cache/wiki-sources/sw/code/**)"
 SCK = [  # name, exit, text, change to the settings `settings` prints
     ("ok", 0, "missing: none", None),
     ("ok-json", 0, "settings.json: valid JSON", None),
+    ("ok-keys", 0, "misspelled keys: none", None),
+    # A misspelled key once made Claude Code ignore the whole file, deny rules included.
+    ("typo-key", 1, "misspelled keys (Claude Code may ignore the whole file",
+     lambda t: t.replace("{\n", '{\n  "hoooks": {},\n', 1)),
+    ("typo-permissions", 1, "permissions.alow (allow?)", lambda t: t.replace('"allow"', '"alow"', 1)),
+    ("unknown-key-far", 0, "misspelled keys: none",
+     lambda t: t.replace("{\n", '{\n  "spinnerTipsEnabled": true,\n', 1)),
     ("trailing", 1, "NOT valid JSON: comma before ]",
      _seq(_first(r'",$', '",\n'), _first(r'^      "[^"]*"$', lambda m: m.group(0) + ","))),
     ("no-comma", 1, "NOT valid JSON: expected , or ] (a missing comma?)", _first(r'",$', '"')),

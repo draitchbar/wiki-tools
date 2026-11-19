@@ -48,6 +48,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import re  # noqa: E402
 import subprocess  # noqa: E402
+import difflib  # noqa: E402
+import json  # noqa: E402
 
 import contract  # noqa: E402
 
@@ -442,6 +444,44 @@ def settings_check(root, plugin, sf):
         if lst and '"%s"' % r not in text and '"%s"' % orig not in text:
             missing.append((lst, r))
     return missing, []
+
+
+# Settings keys a wiki's settings.json uses, at the top level and under
+# "permissions". A key one or two letters off one of these is almost
+# certainly a typo; an unknown key once made Claude Code ignore the whole
+# file, deny rules included, without an error (2026-11-19). Keys far from
+# all of these pass: Claude Code adds settings faster than a list could.
+SETTINGS_KEYS = ("$schema", "permissions", "hooks", "env", "enabledPlugins", "extraKnownMarketplaces",
+                 "model", "statusLine", "sandbox", "disableAllHooks", "outputStyle", "includeCoAuthoredBy",
+                 "cleanupPeriodDays", "enableAllProjectMcpServers", "enabledMcpjsonServers",
+                 "disabledMcpjsonServers")
+PERMISSION_KEYS = ("allow", "deny", "ask", "defaultMode", "additionalDirectories",
+                   "disableBypassPermissionsMode")
+
+
+def settings_key_typos(text):
+    """[(key path, the known key it is close to)] for keys of a settings
+    file that look like misspellings; [] when text isn't a JSON object."""
+    try:
+        d = json.loads(text)
+    except ValueError:
+        return []
+    if not isinstance(d, dict):
+        return []
+    found = []
+
+    def scan(obj, known, where):
+        for k in obj:
+            if k in known:
+                continue
+            m = difflib.get_close_matches(k, known, n=1, cutoff=0.75)
+            if m:
+                found.append((where + k, m[0]))
+
+    scan(d, SETTINGS_KEYS, "")
+    if isinstance(d.get("permissions"), dict):
+        scan(d["permissions"], PERMISSION_KEYS, "permissions.")
+    return found
 
 
 def settings_rules(text):

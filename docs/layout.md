@@ -14,7 +14,7 @@ plugins/wiki/
   templates/project-settings.json core of a wiki's .claude/settings.json (source rules come from the types)
   templates/source-type/SOURCE.md the source contract template
   templates/pages/entity.md       shared page template for people and organisations
-  skills/{init,add-source,ingest,research,sync-status,commit-themes,lint,audit}/SKILL.md
+  skills/{init,add-source,bind-reader,ingest,research,sync-status,commit-themes,lint,audit}/SKILL.md
   agents/{source-researcher,critic}.md  subagents /wiki:research dispatches (read-only research; independent critic)
   skills/ingest/reading-files.md  core rules for reading fetched files (pdftotext, LibreOffice, OCR)
   hooks/hooks.json                PreToolUse guard + SessionStart schema and status

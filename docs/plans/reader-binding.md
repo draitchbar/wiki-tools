@@ -1,6 +1,6 @@
 # Plan: binding a tool-neutral source to its reader
 
-Status: phase 1 done (2026-11-19); phase 2 not started. Roadmap item: "Reader binding". An earlier version planned a plugin agent. A review on 2026-11-19 found that most of its open questions came from running in a subagent, so the binder is now a skill (see **Why a skill**); a second review of the skill version is folded in.
+Status: phases 1 and 2 done (2026-11-19; the skill, `docs/adr.md`, 12); phase 3 not started. Roadmap item: "Reader binding". An earlier version planned a plugin agent. A review on 2026-11-19 found that most of its open questions came from running in a subagent, so the binder is now a skill (see **Why a skill**); a second review of the skill version is folded in.
 
 ## The problem
 A tool-neutral type (`access: tools`: `onenote`, `proton-files`, `jira`) lists the operations it needs and names no tools. Today `/wiki:add-source` settles the reader with the user in conversation. The main session works out which tool does each operation and the allow and deny rules, and writes the result in prose in the instance's body. The work is manual, its quality depends on the session, and the output is free text that no script can check, so `sources.sh settings` gives these types no rules. When a reader changes (a new connector version, a different MCP server, a CLI), someone has to redo it by hand. The Jira move on 2026-11-19 is an example: a new connector, a dispatcher tool, different parameters, and a "recently viewed" behaviour that had to be checked against the live site.
