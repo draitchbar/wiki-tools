@@ -1,56 +1,76 @@
 # Plan: binding a tool-neutral source to its reader
 
-Status: planned, not started (2026-11-19). Roadmap item: "Reader binding". The plan was reviewed on 2026-11-19 (a second-opinion subagent with the docs and the code); its findings are folded in below.
+Status: planned, not started (2026-11-19). Roadmap item: "Reader binding". An earlier version planned a plugin agent. A review on 2026-11-19 found that most of its open questions came from running in a subagent, so the binder is now a skill (see **Why a skill**); a second review of the skill version is folded in.
 
 ## The problem
 A tool-neutral type (`access: tools`: `onenote`, `proton-files`, `jira`) lists the operations it needs and names no tools. Today `/wiki:add-source` settles the reader with the user in conversation. The main session works out which tool does each operation and the allow and deny rules, and writes the result in prose in the instance's body. The work is manual, its quality depends on the session, and the output is free text that no script can check, so `sources.sh settings` gives these types no rules. When a reader changes (a new connector version, a different MCP server, a CLI), someone has to redo it by hand. The Jira move on 2026-11-19 is an example: a new connector, a dispatcher tool, different parameters, and a "recently viewed" behaviour that had to be checked against the live site.
 
 ## The idea
-A plugin agent, `wiki:reader-binder`, does the discovery and probing, and returns a proposed binding: operation → tool and fixed arguments, with the allow and deny rules and what the probes found. The main session shows the proposal, the user chooses, and the binding goes into the instance file. The user installs that file, as they install every source file.
+A skill, `/wiki:bind-reader <key>`, binds an instance of a tool-neutral type to the tools on this machine. It runs in the main session. It reads the contract's `## Bind` section, finds candidate tools, has the user deny the reader's write tools, tests each operation with one small read-only call, asks the user to confirm, and drafts the instance file with a `## Reader` section. It writes nothing itself; the user installs the file and changes the settings.
 
-## What Claude Code allows
-From the docs (2026-11-19), unless marked otherwise:
-- **Plugin agents** (`plugins/wiki/agents/*.md`) support `name`, `description`, `model`, `effort`, `maxTurns`, `tools`, `disallowedTools`, `skills` and a few more. They don't support `hooks`, `mcpServers` or `permissionMode`; these fields are silently ignored.
-- **The wiki's agents can't probe today.** `source-researcher` and `critic` list fixed tools (`Read, Grep, Glob, Bash, Write`; `Agent, Read, Bash, Write`), with no MCP tools. A wiki session can't add an agent: the guard protects the plugin folder. The binder must be a new agent with `tools` omitted, which inherits the session's MCP tools.
-- **MCP tools:** a subagent inherits the session's MCP tools when `tools` is omitted; `tools` and `disallowedTools` take whole-server wildcards (`mcp__<server>__*`).
-- **Deferred tools:** the docs list ToolSearch among the tools a background subagent keeps. Seen once (2026-11-19, a general-purpose subagent in a wiki-tools session, no guard): the Atlassian connector's tool names were listed as deferred, and `ToolSearch select:<name>` loaded their schemas. A keyword query found nothing, so names taken from the session's context are the dependable route. Not yet seen: a plugin agent, inside a wiki, actually calling a tool.
-- **Read-only hints aren't visible.** The loaded schemas held name, description and parameters only; MCP annotations such as `readOnlyHint` are used by Claude Code, not shown to the model. Sorting a server's tools into read and write therefore rests on names and descriptions. So the binding allows only the tools it binds, and everything else prompts.
-- **Skills:** a subagent can invoke skills with the Skill tool and Read their files. The guard never blocks Read outside agent_only roots; Claude Code may still prompt for a read outside the working directory. A reader under `~/.claude/plugins/cache/` stays blocked for shell calls (`docs/guard.md`).
-- **No questions:** a subagent can't use AskUserQuestion; every choice stays with the main session.
-- **Guard:** PreToolUse hooks fire for subagent calls, with `agent_id` (recorded in `tests/live/results.md`) and `agent_type`. The guard passes every `mcp__*` call without reading its input, and uses `agent_id` only for agent_only types. A guard check on a dispatcher's operation name needs the real payload of such a call, which nobody has captured yet.
-- **Permissions:** a subagent runs in the main session's permission mode. At bind time no allow rule exists yet (the binder is what produces them), so every probe prompts, or in auto mode goes to the classifier. A background subagent's prompts surface in the main session. A "don't ask again" answer may save a standing allow rule outside the install flow; where it is stored for MCP tools is unverified. Settings can't limit a dispatcher's arguments (`mcp__` rules take no parentheses), so only the guard could.
-- **Listing tools:** there is no model-callable list of connected MCP tools; `claude mcp list` lists servers only, and the guard blocks `claude` as a command. The main session passes the candidate tool names it sees in its context.
+## Why a skill
+The main session already has what a binder needs; a subagent lacks it or would need testing for each item (docs and sessions, 2026-11-19):
+- **Tools.** The main session sees the connected MCP tools' names in its context, loads their schemas with ToolSearch and calls them; that's how the Jira connector was checked for #30. A plugin subagent would need a new agent with `tools` omitted (the wiki's agents list fixed tools without MCP), and whether it can load and call deferred tools was undocumented.
+- **Questions.** A skill can ask the user in the same flow; a subagent can't use AskUserQuestion.
+- **Skill and CLI readers** (OneNote, Proton) already run from the main session.
+
+The cost: test output lands in the main session's context. With the `## Bind` tests kept tiny (one result, named fields, one item the user names), that is a few KB per source. If a reader proves verbose, one step can be handed to a general-purpose subagent later.
 
 ## Design
-1. **When binding happens.** `/wiki:add-source` says: "Don't call the source's tools before the instance exists." Binding needs live calls, so it runs after the instance is installed: at the first ingest's Check, or by an explicit re-bind. Check finds no binding (or a tool missing), dispatches the binder, and proposes the `## Reader` section as a new instance file. Add-source only records the user's choice of reader, untested.
-2. **The contract says what to probe.** Each tool-neutral contract gets a short `## Bind` section: one harmless probe per operation and how to check each property (Jira: **search** with one result and the fields `key`, `summary`, `updated`; **read issue** on a key the user names; `issueHistory()` before and after a read). The agent stays source-neutral, as skills must (`AGENTS.md`).
-3. **The agent** (`plugins/wiki/agents/reader-binder.md`): `tools` omitted, so it inherits MCP tools; `disallowedTools: Write, Edit, NotebookEdit` (it returns a draft and writes nothing; Bash remains, and the guard's protected paths are what stop shell writes to source files). Brief: the contract (`sources.sh contract <type>`), the instance's parameters, the candidate tool and skill names the main session sees, and one item the user named as safe to read. Work: load the candidates' schemas, map each operation to a tool and fixed arguments, run the `## Bind` probes with the smallest limits, and list the server's other tools as likely writes (by name and description) for the deny list. It never uses a detailed view or a user-info tool (they return people's emails). Return: the binding draft, allow and deny rules, each probe's result, and what couldn't be verified.
-4. **The binding's format.** Phase 2: a `## Reader` section in the instance's body, one line per operation: `<operation>: <tool>, <fixed arguments>`, written without `<…>` pairs, which the instance validator takes for placeholders. Phase 3: a frontmatter key (`reader:`) validated by `contract.py`, from which `sources.sh settings <type> --key <key>` prints the reader's allow and deny rules.
-5. **The guard (phase 3, optional).** With a machine-readable binding, the guard could limit a dispatcher tool to the operation names in the binding (the Jira `executeRead` limit), and allow a reader's commands as plain calls even under `~/.claude/plugins/cache/` (the parked "Readers from installed plugins").
+1. **When binding happens.** `/wiki:add-source` says: "Don't call the source's tools before the instance exists." Binding needs live calls, so it runs after the instance is installed: on demand (`/wiki:bind-reader <key>`), or when Check at an ingest finds no `## Reader` section or a tool it names gone. Add-source records only which reader the user means to use, untested, and says to bind it before the first ingest. When binding starts from Check, **the ingest stops** once the skill has handed over its drafts, and resumes in a new `/wiki:ingest <key>` after the user has installed the instance file and changed the settings. The installed file stays the one record of the binding: a later session reads only that, so an ingest never runs on a binding that exists only in the conversation. Installing the file changes the instance, so `sources.sh show` then reports "Check needed", which that ingest's Check clears.
+2. **Invocation: decided in phase 1.** Two options:
+   - **Model-invocable** (no `disable-model-invocation`): Check starts it itself. `Skill` is a harmless tool to the guard, and `disable-model-invocation` on `/wiki:ingest` doesn't stop it starting another skill. Unverified: whether a model-started skill inside a manual-only run prompts, and whether its `allowed-tools` apply. It would also be the only model-startable skill that makes live source calls, and its description would sit in every wiki session's context.
+   - **Manual-only** (the fallback, like `/wiki:ingest` and `/wiki:add-source`): Check stops and says "type `/wiki:bind-reader <key>`", as add-source hands over to ingest. Since the ingest stops either way, this costs one command.
+3. **The contract says what to test.** Each tool-neutral contract gets a short `## Bind` section: one harmless call per operation, with the fields to ask for, and how to check each property. The skill stays source-neutral, as skills must (`AGENTS.md`); everything specific to one source stays in its `SOURCE.md`. Jira:
+   - **search** with one result and the fields `key`, `summary` and `updated`;
+   - **read issue** on a key the user names as safe, with the fields `summary` and `updated` only (default views may include people);
+   - the "recently viewed" property by **search** for `key = <the safe key>` with the field `lastViewed`, before and after that read. Unlike `issue in issueHistory()`, this doesn't put the user's viewing history in the transcript. Unverified that every reader returns `lastViewed`.
+   - **Dispatcher operations.** Where an operation is reachable only through a dispatcher (the Atlassian connector's find project and list remote links, behind `executeRead`), the `## Bind` section gives the known operation names per reader. If they're missing or wrong, the skill may make one `discover`-style lookup per unmapped operation, with the user's yes.
+4. **The skill's steps.**
+   1. Read the contract (`sources.sh contract <type>`) and the instance (`sources.sh show <key>`), including any existing `## Reader` section. Make every `sources.sh` call here: an `allowed-tools` grant lasts only until the user's next message, and the skill asks questions.
+   2. Candidates: the MCP tools whose names fit (from the session's context), the user's skills whose description fits (Read their `SKILL.md`), and any reader the instance or the user names. Ask the user which to use when there is more than one. Reading a skill under `~/.claude/` and running a CLI or skill reader will prompt; `allowed-tools` can't cover them.
+   3. Load the chosen tools' schemas and map each operation to a tool and its fixed arguments.
+   4. **Deny first.** List the server's tools that look like writes, by name and description (MCP read-only hints aren't shown to the model, unverified). Have the user add deny rules for them before any test call. The guard doesn't read MCP call input, so a deny rule or a prompt is all that stops a write; "never call a write tool" alone is only an instruction.
+   5. Ask for the item that is safe to read, then run the `## Bind` tests with the smallest limits. At each prompt, tell the user to choose a plain "Yes": a "don't ask again" answer saves a standing rule to `.claude/settings.local.json`, outside the install flow and unchecked by `check-settings`. Never use a detailed view or a user-info tool (they return people's emails); never call a dispatcher with a name the binding doesn't use.
+   6. Hand over the drafts:
+      - **the binding report:** one row per operation (tool and fixed arguments, the test's outcome), then what couldn't be verified and any warning (a required operation missing, access broader than read-only);
+      - **the instance file:** its full content, frontmatter unchanged, with the `## Reader` section added or replaced, and the `install-source-file.sh instances/<key>.md` command, as `/wiki:add-source` hands over files;
+      - **the settings lines:** allow only the bound tools; the deny rules from step 4 if not yet added; remove allow rules for a previous reader that are no longer bound.
+5. **The binding's format.** First: a `## Reader` section in the instance's body, one line per operation, `<operation>: <tool>, <fixed arguments>`. The instance validator checks placeholders only in the frontmatter's parameter values, so the body passes either way. Later: a frontmatter key (`reader:`) validated by `contract.py`. Frontmatter is flat, so it is a list of `- <operation>: <tool>, <arguments>` items, kept in step with the bash parser by the parity test. From it, `sources.sh settings <type> --key <key>` prints the reader's allow and deny rules.
+6. **The guard (later, optional).** With a machine-readable binding, the guard could limit a dispatcher tool to the operation names in the binding (the Jira `executeRead` limit; settings files can't, since they skip `mcp__` rules with arguments), and allow a reader's commands as plain calls even under `~/.claude/plugins/cache/` (the parked "Readers from installed plugins"). The guard passes `mcp__*` calls without reading their input today, so this needs the real payload of an `executeRead` call (phase 1, item 6).
 
-## Phase 1: the spike
-In a work wiki with a Jira instance, after the tool-neutral `jira` contract is in (#31). U = the user only; S = the wiki session. For every item, record the Claude Code version, the model, the permission mode, foreground or background, and the result. Results go into "What Claude Code allows" above, scrubbed: no site host, cloud id, issue keys, team or people names.
-
-0. **U, setup.**
+## Phase 1: a live run by hand
+In a work wiki with a Jira instance; it doubles as the end-to-end test of the tool-neutral `jira` contract. U = the user only; S = the wiki session.
+1. **U, setup.**
    - Note the Claude Code version (the session can't run `claude`).
-   - Deny the connector's write tools in the wiki's settings (`executeWrite`, `executeDestructive`, `showConfluenceEditor`).
-   - Name one issue key that is safe to read.
-   - In the wiki-tools clone the wiki runs from, add an uncommitted stub agent, `plugins/wiki/agents/spike-probe.md`, with `tools` omitted. Then reload plugins in the wiki session.
-1. **S: names.** Dispatch the stub and ask which `mcp__…` names it sees and whether it has ToolSearch. Yes = the same names as the main session.
-2. **S: schema.** The stub runs `ToolSearch select:<the search tool>`. Yes = the schema is returned. Note whether any read-only annotation is visible.
-3. **S: call.** The stub runs **search** with a one-result JQL and the three fields. Yes = a result. If no, repeat with the schema pasted into the brief, to test that fallback. If that fails too, the main session must probe, and the design changes.
-4. **S+U: prompts.** For item 3: did a prompt appear, where, and what did "don't ask again" offer? The user declines it. Repeat once with the stub in the background and once in auto mode: is a probe blocked mid-way, or the report flagged?
-5. **S: plugin agent or not.** Repeat items 1 to 3 with the general-purpose agent, to see whether a plugin agent behaves differently.
-6. **S: guard.** The stub tries to Write an instance file: the guard must refuse it. The stub Reads a skill file under `~/.claude/skills/`: does it prompt?
-7. **U, optional, needed only for design point 5.** Add a temporary logging PreToolUse hook to user settings and capture one subagent `executeRead` payload (`agent_id`, `agent_type`, the shape of `tool_input`). Then remove the hook.
-8. **S: a property probe.** The stub runs the "recently viewed" check on the named issue (`issueHistory()` before and after one read, key field only). Does it work from a subagent?
-9. **S, optional: a CLI or skill reader.** One read-only operation of a OneNote or Proton reader (`status` or similar) from the stub.
-10. **S: record.** Write the scrubbed results here and confirm or change design point 1, the timing. Remove the stub agent.
+   - Name one Jira issue that is safe to read.
+   - Add a temporary logging PreToolUse hook to user settings for item 6.
+2. **S, bind by hand.** Follow design point 4 without the skill: list the write-looking tools, the user adds the deny rules, then run the tests.
+3. **S drafts, U installs.** The instance file with the `## Reader` section, and the settings changes. Record whether `sources.sh show` reports "Check needed" after the install.
+4. **U, the ingest:** type `/wiki:ingest <key>`. Check, List new, Fetch and Write run on the installed binding.
+5. **S, a proxy test for design point 2.** During the ingest, start `wiki:sync-status` (model-invocable) and record whether it prompts.
+6. **U, the payload.** From the logging hook, capture one `executeRead` call's input (`tool_input` shape, where the operation name sits). Then remove the hook.
+7. **Record** in a "Reader binding" section of `tests/live/results.md`, separate from the Copilot spike's table. Per operation: tool, fixed arguments, output bytes. Also:
+   - each prompt's exact options, and where "don't ask again" would save;
+   - behaviour in default and in auto mode;
+   - whether the dispatcher needed a lookup;
+   - whether `sources.sh` prompted after the first turn;
+   - the proxy test's result;
+   - which contract lines were wrong.
 
-## Phases after the spike
-2. **The agent, `## Bind` sections, Check's re-bind step:** the agent file; `## Bind` for `jira`, `onenote` and `proton-files`; Check dispatches the agent when the binding is missing or broken. Tests: a new test for `plugins/wiki/agents/*.md` frontmatter (none exists; `test_agent_files.py` covers the coding agents' files), and every `access: tools` contract has a `## Bind` section. Probing needs a live reader: record a live run in `tests/live/results.md`.
-3. **A machine-readable binding:** the `reader:` key in `contract.py`, settings rules from it, and optionally the guard checks in design point 5 (needs the payload from spike item 7). Fixtures and a decision in `docs/adr.md`.
+   The repo is public: leave out site, cloud ids, team ids, JQL, project and issue keys, and names, and run `scripts/pii-check.sh` before committing.
+
+**Decision rules.** Phase 2's skill is model-invocable only if the proxy test passed without friction; otherwise it is manual-only. Phase 3's guard work is worth doing only if the dispatcher is actually needed and its payload exposes the operation name.
+
+## Phases after the run
+2. **The skill and the `## Bind` sections.**
+   - `plugins/wiki/skills/bind-reader/SKILL.md`, and `## Bind` for `jira`, `onenote` and `proton-files`.
+   - Check in each tool-neutral contract points to the skill when the binding is missing or broken.
+   - The texts that say add-source settles the reader move to the skill: `/wiki:add-source` step 4, item 2; `jira/SOURCE.md` (the intro, Check, Caveats); `onenote/SOURCE.md`, which says "use whichever available tool" and doesn't mention the instance body; `docs/adr.md` section 11; `docs/skills.md`.
+   - Optionally `sources.sh show` prints "Reader: missing" for an `access: tools` instance without a `## Reader` section (a script change: fixture needed).
+   - Tests: every `access: tools` contract has a `## Bind` section; the skill's frontmatter.
+3. **A machine-readable binding:** the `reader:` key in `contract.py`, settings rules from it, and optionally the guard checks in design point 6. Fixtures, and a decision in `docs/adr.md`.
 
 ## Open
-- Whether a binding belongs in the instance (per wiki) or in a per-machine file shared by all wikis (one connector serves every wiki on a machine; but instance files are where the guard trusts content today).
-- Copilot: the same agent file is a Copilot custom agent only if the wikis move to Copilot (`docs/plans/copilot-wiki-support.md`); out of scope here.
+- Whether a binding belongs in the instance (per wiki) or in a per-machine file shared by all wikis. One connector serves every wiki on a machine, and connector tool names are per account (`mcp__claude_ai_<server>__…`); but instance files are where the guard trusts content today.
+- Copilot: wikis run only in Claude Code; a Copilot port would need its own check of these assumptions (`docs/plans/copilot-wiki-support.md`).
