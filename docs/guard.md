@@ -27,12 +27,15 @@ What the guard hooks block in a wiki session, the exceptions, and the known fals
   - A reader that comes from a plugin installed with `claude plugin install` runs from `~/.claude/plugins/cache/…`, and every command naming `.claude/plugins` is blocked, so a wiki can't use it (found 2026-11-07 with the `onenote` plugin from `aitchbar-ai-tools`; the same holds for its `proton` plugin, fixture `block-proton-reader-from-cache`). Load such a plugin from a local clone instead: add its marketplace as a directory (`claude plugin marketplace add <clone>`) and enable the plugin in `enabledPlugins` (`"<plugin>@<marketplace>": true` in `~/.claude/settings.json`) without `claude plugin install`, which copies it into the cache. Claude Code then runs it from the clone, as it does `wiki` from this repo (observed behaviour, not documented). Check in a session that the skill's folder is the clone. A guard exception for declared read-only plugin commands is parked in `docs/roadmap.md` ("Readers from installed plugins").
 - **Sources outside the wikis:** calls from other directories are unguarded, by design.
 
+## Checked against Claude Code
+
+Headless runs (`claude -p`) in a throwaway folder (not a wiki, plugin off), 2026-11-19: Linux on Claude Code 2.1.326, Windows (Git Bash) on 2.1.328.
+- **Bash deny rules fall short:** a `Bash(git push *)` deny rule doesn't catch `eval "git push origin HEAD"` (it pushed on both), nor, on Windows, `Git push origin HEAD` (Windows finds `git.exe` whatever the case; it pushed). Bash rules are case-sensitive. The guard refuses all of these (`tests/fixtures/push/block-eval-push`, `block-git-capitalized-push`, `block-git-upper-push`), which is why `git push` stays guarded although the wikis also deny it by rule.
+- **Read and Edit rules** resolve `..` (`Read(./locked/**)` denies `sub/../locked/a.txt`) and, on Windows, a rule written `~/…` also denies `C:\Users\…`, an upper-case folder name and `c:/users/…` with forward slashes.
+- **What the hook sees:** `file_path` arrives absolute with `..` resolved, even when the model sent a relative path with `..` (on Windows `C:\Users\…`, with backslashes). A Bash call denied by a rule still reaches PreToolUse hooks; a Read or Write denied by a rule doesn't. Hook matchers are case-sensitive (`bash` doesn't match Bash).
+- **Payloads, as `hookjson.py` expects:** Monitor sends `command` (with `description`, `timeout_ms`), or `ws: {url}` and no command; its command also reaches a `Bash` matcher, as `tool_name: Bash` with `command` and `description` only. NotebookEdit sends `notebook_path`, `cell_id`, `new_source`; Skill `skill`; Agent `description`, `prompt`, `run_in_background`; EnterWorktree `{}`; ExitWorktree `action`; TaskCreate `subject`, `description`. A subagent's calls carry `agent_id` and `agent_type`. Neither LSP nor MultiEdit is offered in 2.1.326; both stay classified for other versions (LSP refused, MultiEdit a write). The `pass-real-*` fixtures in `tests/fixtures/guard/` have these shapes, extra top-level fields (`prompt_id`, `effort`) included.
+
 ## Open checks
 
-From the 2026-11-18 review (#24), for an interactive test by the user in a throwaway folder (not a wiki, plugin off):
-- whether a `Bash(git push *)` deny rule catches `eval "git push"`, and `GIT PUSH`/`Git push` (case of Bash rules);
-- whether `Edit(...)`/`Read(...)` rules are case-sensitive (on Windows, `C:\Users\U\…` against a rule written `~/…`), and how they treat `..` in a requested path;
-- whether hook matchers are case-sensitive;
-- a real `PreToolUse` payload, logged by a hook with matcher `*`, for: a `Monitor` call with a command and one with `ws` (and, with a `Bash` matcher, what `tool_name` and fields the Monitor call arrives with), `NotebookEdit`, `LSP`, `Skill`, `Agent`, `EnterWorktree`, a `Task*` call, and whether `MultiEdit` still appears; the guard's tool list and field names come from the docs, not from such payloads;
-- whether `file_path` arrives with `..` resolved (Write to `<folder>/../x`);
-- which Claude Code version the wiki machines run (Monitor's commands reach a `Bash` matcher only from v2.1.314; with `*` the guard sees Monitor itself).
+- A real `LSP` payload, from a session with an LSP plugin, in case it should be checked like Read rather than refused.
+- The rule checks above in an interactive session, if the headless results are ever in doubt.

@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","prompt_id":"p","permission_mode":"default","effort":{"level":"medium"},"hook_event_name":"PreToolUse","tool_name":"Monitor","tool_input":{"description":"counting 1 to 3","timeout_ms":30000,"command":"for i in 1 2 3; do echo $i; sleep 1; done"},"tool_use_id":"x"}
