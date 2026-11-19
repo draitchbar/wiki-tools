@@ -35,7 +35,7 @@ plugins/wiki/
     lib-source.sh                 jq-free instance reading for the source wrappers and the wikis' local types; validation runs in sourcelib.py
     py-run.sh                     runs a Python script (not a hook) with its arguments and exit code; sourced, the bridge lib-source.sh calls
     sourcelib.py                  validation, needed rules and settings parsing for the scripts and lib-source.sh
-    sources.sh                    read-only view of a wiki's sources (list, show, catalog, contract, settings, check-settings); a launcher for sources.py
+    sources.sh                    read-only view of a wiki's sources (list, show, due, catalog, contract, settings, check-settings); a launcher for sources.py
     sources.py                    the work of sources.sh
     install-source-file.sh        the user (never Claude) checks and installs one file into .claude/sources/; keeps the terminal (paste, diff, prompt)
     install_source.py             its checks and the writing

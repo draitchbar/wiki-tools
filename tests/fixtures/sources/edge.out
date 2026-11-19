@@ -2,16 +2,16 @@
 rc=1
 -- out
 -- err
-sources: usage: sources.sh <list|show <key>|catalog|contract <type>|settings [<type>... [--key <key>]]|check-settings>
+sources: usage: sources.sh <list|show <key>|due|catalog|contract <type>|settings [<type>... [--key <key>]]|check-settings>
 -- merged
-sources: usage: sources.sh <list|show <key>|catalog|contract <type>|settings [<type>... [--key <key>]]|check-settings>
+sources: usage: sources.sh <list|show <key>|due|catalog|contract <type>|settings [<type>... [--key <key>]]|check-settings>
 == bogus
 rc=1
 -- out
 -- err
-sources: usage: sources.sh <list|show <key>|catalog|contract <type>|settings [<type>... [--key <key>]]|check-settings>
+sources: usage: sources.sh <list|show <key>|due|catalog|contract <type>|settings [<type>... [--key <key>]]|check-settings>
 -- merged
-sources: usage: sources.sh <list|show <key>|catalog|contract <type>|settings [<type>... [--key <key>]]|check-settings>
+sources: usage: sources.sh <list|show <key>|due|catalog|contract <type>|settings [<type>... [--key <key>]]|check-settings>
 == list extra
 rc=1
 -- out

@@ -278,6 +278,8 @@ def validate_instance(root, k, plugin):
         ie("key must be kebab-case")
     if k == "raw":
         ie("'raw' is built in and can't be an instance")
+    if k == "all":
+        ie("'all' is reserved (/wiki:ingest all) and can't be an instance")
     key = contract.field(f, "key")
     if key != k:
         ie("key '%s' doesn't match the file name" % key)
