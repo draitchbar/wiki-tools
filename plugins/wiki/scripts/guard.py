@@ -21,7 +21,7 @@ this wiki (.claude/sources/types/*/SOURCE.md) and every instance
   roots        of filesystem instances: blocked in shell commands,
                read-only for the write tools.
   readers      the reader bindings of access: tools instances (their
-               reader and reader_deny lists, docs/adr.md, 13).
+               reader lists, docs/adr.md, 13).
 A source file that can't be used (no frontmatter, unknown type, a
 filesystem instance without roots, a reader binding that doesn't parse, a
 name that isn't a kebab-case key, a folder that can't be listed) blocks
@@ -29,11 +29,13 @@ every shell and write call (fail closed), except read-only diagnostics:
 git status/log/diff/show and sources.sh list/show/contract. The message
 names the first such file.
 
-MCP tools pass, except as the reader bindings say: a tool in a reader_deny
-list is refused; a tool bound only with a limit (`<field>=<value>`, a
-dispatcher's operation name) runs only with one of its bindings' values in
-that input field. While a source file can't be used, an MCP tool named in
-any reader binding is refused too.
+MCP tools pass, except as the reader bindings say: a tool bound only with
+a limit (`<field>=<value>`, a dispatcher's operation name) runs only with
+one of its bindings' values in that input field, which no settings rule
+can express (docs/adr.md, 3 and 13). While a source file can't be used, an
+MCP tool named in any reader list is refused too, since its limits are
+unknown. Denying a reader's write tools (reader_deny) is left to the deny
+rules sources.sh settings gives, as for forbidden_tools.
 
 Shell tools (Bash, PowerShell, Monitor's command):
 - git push, checked first so no exception below can let one through. The
@@ -537,11 +539,11 @@ class Sources:
     """Every source file, read once per call: the contracts' guard words,
     the roots of filesystem instances (and of agent_only ones among them),
     the reader bindings (limits: {tool: {(field, value): [keys]}}, free:
-    tools bound without a limit, denied: {tool: [keys]}, named: every MCP
-    tool a binding names, even one that doesn't parse), and broken, the
+    tools bound without a limit, named: every MCP tool a reader list names,
+    even in an item that doesn't parse), and broken, the
     message for the first file that can't be used ("" if none)."""
 
-    __slots__ = ("broken", "guard_words", "roots", "agent_roots", "limits", "free", "denied", "named")
+    __slots__ = ("broken", "guard_words", "roots", "agent_roots", "limits", "free", "named")
 
     def __init__(self, ctx):
         self.broken = ""
@@ -550,7 +552,6 @@ class Sources:
         self.agent_roots = []
         self.limits = {}
         self.free = set()
-        self.denied = {}
         self.named = set()
         plugin, wiki_root = ctx.plugin, ctx.wiki_root
         # A folder that can't be listed is broken, not empty.
@@ -599,9 +600,10 @@ class Sources:
                 self.agent_roots += ctx.root_forms(f)
 
     def add_reader(self, f, k):
-        """An access: tools instance's reader binding."""
-        items, deny = C.list_(f, "reader"), C.list_(f, "reader_deny")
-        for s in items + deny:
+        """An access: tools instance's reader list (reader_deny becomes deny
+        rules, not a guard check)."""
+        items = C.list_(f, "reader")
+        for s in items:
             self.named.update(C.MCP_NAME.findall(s))
         for s in items:
             p = C.reader_item(s)
@@ -615,11 +617,6 @@ class Sources:
                 self.limits.setdefault(tool, {}).setdefault((fld, val), []).append(k)
             else:
                 self.free.add(tool)
-        for s in deny:
-            if not C.rule_ok(s):
-                self.set_broken(f, "reader_deny item '%s' doesn't parse" % s)
-            elif s.startswith("mcp__"):
-                self.denied.setdefault(s, []).append(k)
 
     def set_broken(self, f, reason):
         if self.broken:
@@ -743,16 +740,13 @@ def agent_only_ops(call, ctx):
 
 
 def reader_tools(call, ctx):
-    """An MCP call against the reader bindings: a denied tool, or a tool
-    bound only with limits called with none of their values."""
+    """An MCP call to a tool the reader bindings name only with limits,
+    with none of their values."""
     if call.kind != "mcp" or not ctx.wiki_root:
         return None
     s, tool = ctx.sources, call.tool
     if s.broken and tool in s.named:
         return s.broken
-    if tool in s.denied:
-        return ("%s is denied for this wiki's sources (reader_deny of %s): it can write. Sources are "
-                "read only, as their bindings say." % (tool, ", ".join(s.denied[tool])))
     lim = s.limits.get(tool)
     if not lim or tool in s.free:
         return None

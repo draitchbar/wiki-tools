@@ -347,7 +347,6 @@ BROKEN = {
     "filesystem-no-roots": lambda w: write(w / INST / "x.md", "---\nkey: x\ntype: local-folder\n---\n"),
     "first-of-two": lambda w: (write(w / INST / "a-x.md", "key: a\n"), write(w / INST / "b-x.md", "key: b\n")),
     "reader-item": lambda w: inst(w, "x", "jira", "reader:", "  - search mcp__claude_ai_Atlassian_MCP__x"),
-    "reader-deny-item": lambda w: inst(w, "x", "jira", "reader_deny:", "  - executeWrite"),
 }
 
 
@@ -392,7 +391,7 @@ def test_reader_limits(lines, ti, agent, want, gw, guard_run):
 @pytest.mark.checks("guard/reader-outside-wiki")
 def test_reader_outside_wiki(tmp_path, guard_run):
     """Outside a wiki no binding applies."""
-    data = _mcp("mcp__claude_ai_Atlassian_MCP__executeWrite", name="createJiraIssue")
+    data = _mcp("mcp__claude_ai_Atlassian_MCP__executeRead", name="getConfluencePage")
     assert guard_run(data, str(tmp_path)).rc == 0
 
 
