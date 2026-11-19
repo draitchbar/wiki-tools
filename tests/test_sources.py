@@ -45,6 +45,13 @@ LIST_ETC = [
     # jira (access: tools): no tool rules; the reader is settled per wiki.
     ("catalog-jira", "- jira (standard, tools): Jira", ["catalog"]),
     ("settings-jira-note", "jira (access: tools) names no tools", ["settings", "jira"]),
+    ("settings-jira-note-key", "(sources.sh settings jira --key <key>)", ["settings", "jira"]),
+    # tracker's reader binding: its tools allowed, its write tools denied,
+    # a dispatcher once whatever its limits.
+    ("settings-reader-allow", '"mcp__claude_ai_Atlassian_MCP__getJiraIssue",', ["settings"]),
+    ("settings-reader-deny", '"mcp__claude_ai_Atlassian_MCP__executeWrite",', ["settings"]),
+    ("settings-reader-key", '"mcp__claude_ai_Atlassian_MCP__executeRead",', ["settings", "jira", "--key", "tracker"]),
+    ("show-reader-valid", "Source tracker: valid", ["show", "tracker"]),
     ("list-research", '- code: type codebase (standard), research (/wiki:research code "<question>"; '
                       'not ingested), valid', ["list"]),
     ("catalog-codebase", "- codebase (standard, filesystem): Codebase", ["catalog"]),
@@ -67,6 +74,12 @@ COUNTS = [  # name, args, a regex no line may match
     ("settings-jira-no-tools", ["settings", "jira"], r"mcp__|Bash\(|wiki-sources"),
     ("settings-tools-empty", ["settings", "onenote"], r"mcp__|Bash\("),
     ("settings-tools-quiet", ["settings", "gmail"], r"access: tools"),
+    # Bound: no note for jira; executeRead once.
+    ("settings-reader-no-note", ["settings"], r"^jira \(access: tools\)"),
+    ("settings-reader-key-quiet", ["settings", "jira", "--key", "tracker"], r"access: tools"),
+]
+COUNT_ONE = [  # name, args, a regex exactly one line matches
+    ("settings-reader-once", ["settings"], r'"mcp__claude_ai_Atlassian_MCP__executeRead"'),
 ]
 NOTES = [
     ("show-tools-instance", "Source notes: valid", ["show", "notes"]),
@@ -161,7 +174,7 @@ EDGE_ARGS = [a.split() for a in ("", "bogus", "list extra", "show", "show a?b", 
 EDGE_ARGS += [["show", ""], ["show", "a b"], ["contract", "bad name"], ["settings", ""], ["settings", "gmail jira"]]
 
 NAMES = (["sources/" + n for n, _, _ in LIST_ETC + NOTES + SHADOW] + ["sources/contract-root-filled"]
-         + ["sources/" + n for n, _, _ in COUNTS] + ["sources/check-settings-" + n for n, _, _, _ in SCK]
+         + ["sources/" + n for n, _, _ in COUNTS + COUNT_ONE] +["sources/check-settings-" + n for n, _, _, _ in SCK]
          + ["sources/check-settings-none"] + ["contract/%s-valid" % t for t in CONTRACTS]
          + ["sources/check-uncommitted", "sources/check-same-commit", "sources/check-committed-after",
             "sources/check-not-needed", "sources/check-not-for-never"]
@@ -191,6 +204,8 @@ def story(tmp_path_factory, cli, request):
     st.check("sources/contract-root-filled", "${CLAUDE_PLUGIN_ROOT}" not in srun("contract", "local-folder"))
     for n, args, rx in COUNTS:
         st.eq("sources/" + n, 0, sum(bool(re.search(rx, ln)) for ln in srun(*args).split("\n")))
+    for n, args, rx in COUNT_ONE:
+        st.eq("sources/" + n, 1, sum(bool(re.search(rx, ln)) for ln in srun(*args).split("\n")))
     write(inst / "notes.md", "---\nkey: notes\ntype: onenote\nsections:\n  - Book > Tab\nstate:\n"
           "  - last_checked\n  - cursor\n---\n")
     expect(NOTES)

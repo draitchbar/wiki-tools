@@ -20,11 +20,22 @@ this wiki (.claude/sources/types/*/SOURCE.md) and every instance
   scripts      wrapper scripts allowed as a plain `bash <path> <args>` call;
   roots        of filesystem instances: blocked in shell commands,
                read-only for the write tools.
+  readers      the reader bindings of access: tools instances (their
+               reader lists, docs/adr.md, 13).
 A source file that can't be used (no frontmatter, unknown type, a
-filesystem instance without roots, a name that isn't a kebab-case key, a
-folder that can't be listed) blocks every shell and write call (fail
-closed), except read-only diagnostics: git status/log/diff/show and
-sources.sh list/show/contract. The message names the first such file.
+filesystem instance without roots, a reader binding that doesn't parse, a
+name that isn't a kebab-case key, a folder that can't be listed) blocks
+every shell and write call (fail closed), except read-only diagnostics:
+git status/log/diff/show and sources.sh list/show/contract. The message
+names the first such file.
+
+MCP tools pass, except as the reader bindings say: a tool bound only with
+a limit (`<field>=<value>`, a dispatcher's operation name) runs only with
+one of its bindings' values in that input field, which no settings rule
+can express (docs/adr.md, 3 and 13). While a source file can't be used, an
+MCP tool named in any reader list is refused too, since its limits are
+unknown. Denying a reader's write tools (reader_deny) is left to the deny
+rules sources.sh settings gives, as for forbidden_tools.
 
 Shell tools (Bash, PowerShell, Monitor's command):
 - git push, checked first so no exception below can let one through. The
@@ -282,7 +293,7 @@ class Context:
 
     @property
     def sources(self):
-        """Every source file, for shell and write calls (Sources)."""
+        """Every source file, for shell, write and MCP calls (Sources)."""
         if self._sources is None:
             self._sources = Sources(self)
         return self._sources
@@ -527,16 +538,21 @@ class Context:
 class Sources:
     """Every source file, read once per call: the contracts' guard words,
     the roots of filesystem instances (and of agent_only ones among them),
-    and broken, the message for the first file that can't be used ("" if
-    none)."""
+    the reader bindings (limits: {tool: {(field, value): [keys]}}, free:
+    tools bound without a limit, named: every MCP tool a reader list names,
+    even in an item that doesn't parse), and broken, the
+    message for the first file that can't be used ("" if none)."""
 
-    __slots__ = ("broken", "guard_words", "roots", "agent_roots")
+    __slots__ = ("broken", "guard_words", "roots", "agent_roots", "limits", "free", "named")
 
     def __init__(self, ctx):
         self.broken = ""
         self.guard_words = []
         self.roots = []
         self.agent_roots = []
+        self.limits = {}
+        self.free = set()
+        self.named = set()
         plugin, wiki_root = ctx.plugin, ctx.wiki_root
         # A folder that can't be listed is broken, not empty.
         folders = [plugin + "/sources"]
@@ -571,7 +587,10 @@ class Sources:
             except C.ContractError as e:
                 self.set_broken(f, str(e))
                 continue
-            if C.field(c, "access") != "filesystem":
+            access = C.field(c, "access")
+            if access == "tools":
+                self.add_reader(f, k)
+            if access != "filesystem":
                 continue
             if not C.values(f, "roots"):
                 self.set_broken(f, "a filesystem instance (type %s) with no roots" % t)
@@ -579,6 +598,25 @@ class Sources:
             self.roots += ctx.root_forms(f)
             if C.field(c, "agent_only") == "yes":
                 self.agent_roots += ctx.root_forms(f)
+
+    def add_reader(self, f, k):
+        """An access: tools instance's reader list (reader_deny becomes deny
+        rules, not a guard check)."""
+        items = C.list_(f, "reader")
+        for s in items:
+            self.named.update(C.MCP_NAME.findall(s))
+        for s in items:
+            p = C.reader_item(s)
+            if p is None:
+                self.set_broken(f, "reader item '%s' doesn't parse" % s)
+                continue
+            _, tool, fld, val = p
+            if not tool.startswith("mcp__"):
+                continue
+            if fld:
+                self.limits.setdefault(tool, {}).setdefault((fld, val), []).append(k)
+            else:
+                self.free.add(tool)
 
     def set_broken(self, f, reason):
         if self.broken:
@@ -701,6 +739,26 @@ def agent_only_ops(call, ctx):
             % (wop or "?", name, " ".join(ops)))
 
 
+def reader_tools(call, ctx):
+    """An MCP call to a tool the reader bindings name only with limits,
+    with none of their values."""
+    if call.kind != "mcp" or not ctx.wiki_root:
+        return None
+    s, tool = ctx.sources, call.tool
+    if s.broken and tool in s.named:
+        return s.broken
+    lim = s.limits.get(tool)
+    if not lim or tool in s.free:
+        return None
+    if any(call.inputs.get(fld) == val for fld, val in lim):
+        return None
+    allowed = sorted(set(lim), key=lambda p: C._bytes_key(p[0] + "=" + p[1]))
+    keys = sorted({k for ks in lim.values() for k in ks}, key=C._bytes_key)
+    return ("%s may be called here only with %s (the reader binding of %s). Call it only for the "
+            "operations the source's binding names." % (
+                tool, " or ".join("%s=%s" % p for p in allowed), ", ".join(keys)))
+
+
 def lookalike_script(call, ctx):
     """A core-script name or */sources/*/*.sh outside the plugin (Bash): the
     wikis' settings allow wrappers by wildcard, so a lookalike must not
@@ -804,6 +862,7 @@ CHECKS = [
     agent_only_read,
     broken_sources,
     agent_only_ops,
+    reader_tools,
     lookalike_script,
     protected_shell,
     roots_shell,

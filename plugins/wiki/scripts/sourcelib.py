@@ -210,6 +210,20 @@ def validate_contract(f):
                 ce("access: tools names no tools, so '%s' must be empty" % k)
         if any(not _CACHE_RULE.fullmatch(r) for r in lst("read_tools")):
             ce("access: tools names no tools, so 'read_tools' may hold only Read/Edit rules on ~/.cache/wiki-sources/")
+        ops = lst("operations")
+        if not ops:
+            ce("access: tools needs 'operations': the operations an instance's reader binds")
+        seen = set()
+        for o in ops:
+            p = contract.operation(o)
+            if p is None:
+                ce("operations item '%s' must be '<name> (required|recommended|optional)'" % o)
+            elif p[0] in seen:
+                ce("operation '%s' is listed twice" % p[0])
+            else:
+                seen.add(p[0])
+    elif lst("operations"):
+        ce("only access: tools lists 'operations'")
     p = lst("platforms")
     if not p:
         ce("no platforms listed")
@@ -286,12 +300,66 @@ def validate_instance(root, k, plugin):
         hit = [v for v in contract.values(f, p) if PLACEHOLDER_RE.search(v)]
         if hit:
             ie("parameter '%s' holds a placeholder ('%s'); put in the real value" % (p, hit[0]))
+    for m in reader_errors(f, c):
+        ie(m)
     for r in contract.values(f, "roots"):
         if not contract.is_abs(r):
             ie("root '%s' isn't an absolute path" % r)
         if contract.has_dots(r):
             ie("root '%s' contains '.' or '..'" % r)
     return not bad
+
+
+def reader_errors(f, c):
+    """What is wrong with an instance's reader binding (`reader`,
+    `reader_deny`; docs/adr.md, 13), given its contract c."""
+    items, deny = contract.list_(f, "reader"), contract.list_(f, "reader_deny")
+    if contract.field(c, "access") != "tools":
+        return (["only an access: tools instance has a reader binding ('reader', 'reader_deny')"]
+                if items or deny else [])
+    res = []
+    ops = dict(p for p in map(contract.operation, contract.list_(c, "operations")) if p)
+    bound, limited, free = set(), set(), set()
+    for it in items:
+        p = contract.reader_item(it)
+        if p is None:
+            res.append("reader item '%s' must be '<operation>: <tool or rule>' (an MCP tool, optionally "
+                       "with one <field>=<value> limit, or a Bash(...) or PowerShell(...) rule)" % it)
+            continue
+        op, rule, fld, _ = p
+        if op not in ops:
+            res.append("reader binds '%s', which isn't an operation of the contract (%s)"
+                       % (op, ", ".join(ops)))
+        elif op in bound:
+            res.append("reader binds '%s' twice" % op)
+        bound.add(op)
+        (limited if fld else free).add(rule)
+    for t in sorted(limited & free, key=contract._bytes_key):
+        res.append("reader binds %s both with and without a limit; the limit would have no effect" % t)
+    if items:
+        for op in [o for o, lvl in ops.items() if lvl == "required" and o not in bound]:
+            res.append("reader doesn't bind '%s', a required operation" % op)
+    rules = limited | free
+    for r in deny:
+        if not contract.rule_ok(r):
+            res.append("reader_deny item '%s' must be an MCP tool or a Bash(...) or PowerShell(...) rule" % r)
+        elif r in rules:
+            res.append("reader_deny denies %s, which reader binds" % r)
+    return res
+
+
+def reader_rules(f):
+    """An instance's binding as needed_rules lines: allow each bound rule
+    (an MCP tool once, whatever its limits), deny each reader_deny rule."""
+    res = []
+    for it in contract.list_(f, "reader"):
+        p = contract.reader_item(it)
+        if p:
+            res.append("allow\t%s\t%s" % (p[1], p[1]))
+    for r in contract.list_(f, "reader_deny"):
+        if contract.rule_ok(r):
+            res.append("deny\t%s\t%s" % (r, r))
+    return res
 
 
 def codebase_instance(root, k, plugin):
@@ -348,21 +416,52 @@ def narrow_rules(lines, w, k):
     return res
 
 
-def needed_rules(root, plugin):
-    """src_needed_rules: the rules the wiki's instances need, no repeats."""
+def needed_rules(root, plugin, reader=None):
+    """src_needed_rules: the rules the wiki's instances need, no repeats:
+    their contracts' rules, then the reader bindings of access: tools
+    instances. A set passed as reader gets the lines that come from a
+    binding (they may live in the user's settings too)."""
     w = root.rstrip("/").rsplit("/", 1)[-1] or "/"
     d = contract.instance_dir(root)
     seen, res = set(), []
     for k in words(contract.instances(root)):
+        f = "%s/%s.md" % (d, k)
         try:
-            c = contract.contract(root, contract.field("%s/%s.md" % (d, k), "type"), plugin)
+            c = contract.contract(root, contract.field(f, "type"), plugin)
         except contract.ContractError:
             continue
-        for ln in narrow_rules(type_rules(c), w, k):
+        bound = reader_rules(f) if contract.field(c, "access") == "tools" else []
+        for ln in narrow_rules(type_rules(c), w, k) + bound:
             if ln not in seen:
                 seen.add(ln)
                 res.append(ln)
+        if reader is not None:
+            reader.update(bound)
     return res
+
+
+def user_rules():
+    """The permission rules in the user's settings (~/.claude/settings.json),
+    as settings_rules lines; [] when the file is missing or not valid JSON.
+    Only reader rules may be met there (docs/adr.md, 13)."""
+    sf = contract._home() + "/.claude/settings.json"
+    try:
+        with open(native(sf), "rb") as fh:
+            text = fh.read().decode("utf-8", errors="surrogateescape")
+    except OSError:
+        return []
+    have, e = settings_rules(text)
+    return have if e is None else []
+
+
+def rules_check(need, reader, have, user):
+    """(missing, blocked) for the needed rules: a rule from a reader binding
+    (in reader) may be met, or denied, by the user's settings too."""
+    own = [ln for ln in need if ln not in reader]
+    bound = [ln for ln in need if ln in reader]
+    both = have + user
+    return (missing_rules(own, have) + missing_rules(bound, both),
+            blocked_rules(own, have) + blocked_rules(bound, both))
 
 
 _PATH_RULE = re.compile(r"(Read|Edit)\((.*)\)\Z", re.S)
@@ -431,18 +530,24 @@ def settings_check(root, plugin, sf):
     for a settings.json that isn't valid JSON, reported elsewhere, a rule
     counts if it is quoted in it) and blocked_rules ([] when sf is missing or
     invalid)."""
-    need = needed_rules(root, plugin)
+    reader = set()
+    need = needed_rules(root, plugin, reader)
+    user = user_rules() if reader else []
     if not os.path.isfile(sf):
-        return missing_rules(need, []), []
+        return rules_check(need, reader, [], user)[0], []
     with open(sf, "rb") as fh:
         text = fh.read().decode("utf-8", errors="surrogateescape")
     have, e = settings_rules(text)
     if e is None:
-        return missing_rules(need, have), blocked_rules(need, have)
+        return rules_check(need, reader, have, user)
     missing = []
-    for lst, r, orig in map(_fields, need):
-        if lst and '"%s"' % r not in text and '"%s"' % orig not in text:
-            missing.append((lst, r))
+    for ln in need:
+        lst, r, orig = _fields(ln)
+        if not lst or '"%s"' % r in text or '"%s"' % orig in text:
+            continue
+        if ln in reader and "%s\t%s" % (lst, r) in user:
+            continue
+        missing.append((lst, r))
     return missing, []
 
 

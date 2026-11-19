@@ -111,7 +111,7 @@ With the guard on, every refusal came from the guard, and the session took as lo
 So Copilot 1.0.112 enforces `disable-model-invocation` at its `skill` tool, for plugin and project skills, in every approval mode. It doesn't stop a model from reading the skill file and following it by hand, which happened once in autopilot with allow-all.
 
 ## Reader binding, phase 1 (2026-11-19)
-`docs/plans/reader-binding.md`, phase 1: the tool-neutral `jira` contract bound by hand to the claude.ai "Atlassian MCP" connector in a work wiki, installed, then ingested. Claude Code 2.1.328, Windows 11 (Git Bash), auto mode throughout. Site, keys, project and component names left out.
+The reader-binding plan, phase 1 (its decisions: `docs/adr.md`, 12 and 13): the tool-neutral `jira` contract bound by hand to the claude.ai "Atlassian MCP" connector in a work wiki, installed, then ingested. Claude Code 2.1.328, Windows 11 (Git Bash), auto mode throughout. Site, keys, project and component names left out.
 
 | Operation | Tool and arguments | Output |
 |---|---|---|
