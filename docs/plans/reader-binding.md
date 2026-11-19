@@ -1,6 +1,6 @@
 # Plan: binding a tool-neutral source to its reader
 
-Status: planned, not started (2026-11-19). Roadmap item: "Reader binding". An earlier version planned a plugin agent. A review on 2026-11-19 found that most of its open questions came from running in a subagent, so the binder is now a skill (see **Why a skill**); a second review of the skill version is folded in.
+Status: phase 1 done (2026-11-19); phase 2 not started. Roadmap item: "Reader binding". An earlier version planned a plugin agent. A review on 2026-11-19 found that most of its open questions came from running in a subagent, so the binder is now a skill (see **Why a skill**); a second review of the skill version is folded in.
 
 ## The problem
 A tool-neutral type (`access: tools`: `onenote`, `proton-files`, `jira`) lists the operations it needs and names no tools. Today `/wiki:add-source` settles the reader with the user in conversation. The main session works out which tool does each operation and the allow and deny rules, and writes the result in prose in the instance's body. The work is manual, its quality depends on the session, and the output is free text that no script can check, so `sources.sh settings` gives these types no rules. When a reader changes (a new connector version, a different MCP server, a CLI), someone has to redo it by hand. The Jira move on 2026-11-19 is an example: a new connector, a dispatcher tool, different parameters, and a "recently viewed" behaviour that had to be checked against the live site.
@@ -62,11 +62,24 @@ In a work wiki with a Jira instance; it doubles as the end-to-end test of the to
 
 **Decision rules.** Phase 2's skill is model-invocable only if the proxy test passed without friction; otherwise it is manual-only. Phase 3's guard work is worth doing only if the dispatcher is actually needed and its payload exposes the operation name.
 
+## Phase 1 results (2026-11-19)
+Run in a work wiki with Claude Code 2.1.328 on Windows (Git Bash), in auto mode throughout. The record is in `tests/live/results.md`, "Reader binding". What it decided:
+- **Binding by hand works.** Every operation of the tool-neutral `jira` contract mapped to an Atlassian MCP tool; each test call returned 11 to 1,500 characters. The ingest that followed used no Jira tool outside the `## Reader` section, and the sync-log, cursor and batches worked as the contract says.
+- **Model-invocation: allowed.** Claude started `wiki:sync-status` during `/wiki:ingest` without a prompt, in auto mode. So phase 2's skill can be started by Check. Default mode wasn't tested; if it prompts there, that is one extra prompt, not a blocker.
+- **Phase 3's guard check is possible.** The dispatcher was needed (find project at Check), and the hook payload carries the operation at `tool_input.name`, beside `tool_input.cloudId` and `tool_input.inputs`. Main-session calls carried no `agent_id`.
+- **Deny rules hide tools.** Tools denied in settings didn't appear among the session's deferred tools at all. That makes "deny first" (design point 4.4) effective, and gives the skill a check: after the user adds deny rules, the denied tools must be gone from the list.
+- **A settings file with an unknown top-level key dropped every rule in it, silently.** When the user pasted the hook under a misspelled key in the wiki's `.claude/settings.json`, the denied write tools came back as loadable, with no error shown. The deny rules took effect again once the key was fixed. This is the largest read-only risk the run found. The skill must verify after every settings change that the denied tools are gone; `sources.sh check-settings` could reject unknown top-level keys (phase 2).
+- **The "recently viewed" test needs another route.** `lastViewed` isn't returned in the connector's compact view, and detailed views were off limits (people's emails). The earlier `issueHistory()` check stands; the `## Bind` test must find a field or view that returns `lastViewed` without people, or fall back to `issue in issueHistory() AND key = <the safe key>`, which shows one key only.
+- **In auto mode nothing prompted**, not even test calls made before any allow rule existed: the classifier allowed them. The prompt questions (options, "don't ask again") are still open for default mode.
+- Contract fixes from the run are in `jira/SOURCE.md`: the assignee's email in Fetch, read-issue sizes, re-listed issues after a bulk edit, component names shared across projects, and the connector's paging names.
+
 ## Phases after the run
 2. **The skill and the `## Bind` sections.**
    - `plugins/wiki/skills/bind-reader/SKILL.md`, and `## Bind` for `jira`, `onenote` and `proton-files`.
    - Check in each tool-neutral contract points to the skill when the binding is missing or broken.
    - The texts that say add-source settles the reader move to the skill: `/wiki:add-source` step 4, item 2; `jira/SOURCE.md` (the intro, Check, Caveats); `onenote/SOURCE.md`, which says "use whichever available tool" and doesn't mention the instance body; `docs/adr.md` section 11; `docs/skills.md`.
+   - `sources.sh check-settings` rejects unknown top-level keys in `.claude/settings.json`, since one silently disables every deny rule in the file (phase 1). A script change: fixture needed.
+   - The skill checks, after each settings change, that the denied tools no longer appear among the session's tools.
    - Optionally `sources.sh show` prints "Reader: missing" for an `access: tools` instance without a `## Reader` section (a script change: fixture needed).
    - Tests: every `access: tools` contract has a `## Bind` section; the skill's frontmatter.
 3. **A machine-readable binding:** the `reader:` key in `contract.py`, settings rules from it, and optionally the guard checks in design point 6. Fixtures, and a decision in `docs/adr.md`.

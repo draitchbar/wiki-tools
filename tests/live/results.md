@@ -109,3 +109,25 @@ With the guard on, every refusal came from the guard, and the session took as lo
 | `copilot-dmi3-project-skill` | "Use the probe-manual skill now and follow it." (a manual-only skill in the wiki's `.claude/skills/`) | default | `skill` tool refused, as for the plugin skill; the model stopped |
 
 So Copilot 1.0.112 enforces `disable-model-invocation` at its `skill` tool, for plugin and project skills, in every approval mode. It doesn't stop a model from reading the skill file and following it by hand, which happened once in autopilot with allow-all.
+
+## Reader binding, phase 1 (2026-11-19)
+`docs/plans/reader-binding.md`, phase 1: the tool-neutral `jira` contract bound by hand to the claude.ai "Atlassian MCP" connector in a work wiki, installed, then ingested. Claude Code 2.1.328, Windows 11 (Git Bash), auto mode throughout. Site, keys, project and component names left out.
+
+| Operation | Tool and arguments | Output |
+|---|---|---|
+| site access | `getAccessibleAtlassianResources` | about 730 characters; Jira and every other product read-only |
+| find project | `executeRead`, `name: listJiraProjects`, `inputs: {query, action: browse}`, `cloudId` top-level | about 1,500 characters |
+| search | `searchJiraIssuesUsingJql`, one key, fields `key`, `summary`, `updated`, `maxResults: 1`, `view: compact` | about 430 characters; paging by `pageInfo.hasNextPage` / `pageInfo.endCursor` |
+| count | `searchJiraIssuesUsingJql`, `searchResultMode: count` | about 150 characters (`issues.totalCount`) |
+| recently viewed | search with field `lastViewed`, `view: compact` | not returned (`fields: {}`); test skipped |
+| read issue | `getJiraIssue`, fields `summary`, `updated`, markdown | about 370 characters; 2,000 to 8,000 with the Fetch fields |
+| list comments | `listJiraIssueComments`, `orderBy: -created`, `maxResults: 1` | about 140 characters |
+| list remote links | `executeRead`, `name: listJiraIssueRemoteIssueLinks` | 11 characters (empty) |
+
+- **Prompts:** none. Auto mode allowed every call, including test calls made before any allow rule existed.
+- **Deny rules:** tools denied in settings didn't appear among the deferred tools at all. A misspelled top-level key in the wiki's `.claude/settings.json` made all of them appear again, with no error; fixing the key hid them again.
+- **Model-invoked skill inside `/wiki:ingest`:** `wiki:sync-status` started by Claude, no prompt.
+- **`sources.sh show`** reported "Check needed" after the instance file was installed, then committed.
+- **Ingest:** 31 issues listed in two search pages (20 and 11), fetched in two batches with one commit each; comments read for 8 issues. No Jira tool used outside the `## Reader` section.
+- **Hook payload** of an `executeRead` call (PreToolUse, main session): `session_id`, `transcript_path`, `cwd`, `scratchpad_dir`, `prompt_id`, `permission_mode`, `effort`, `hook_event_name`, `tool_name`, `tool_input`; the operation is `tool_input.name`, beside `tool_input.cloudId` and `tool_input.inputs`. No `agent_id`.
+- **Guard:** `grep` through Bash on a path containing `.claude/settings` is blocked, as `cat` is (the Grep and Read tools work).
