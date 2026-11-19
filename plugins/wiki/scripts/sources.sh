@@ -3,6 +3,7 @@
 #
 #   bash <plugin>/scripts/sources.sh list
 #   bash <plugin>/scripts/sources.sh show <key>
+#   bash <plugin>/scripts/sources.sh due
 #   bash <plugin>/scripts/sources.sh catalog
 #   bash <plugin>/scripts/sources.sh contract <type>
 #   bash <plugin>/scripts/sources.sh settings [<type>... [--key <key>]]
@@ -10,6 +11,8 @@
 #
 # list      the wiki's instances: key, type, standard/local, platform, state
 # show      one instance: checks, its instance file and its type's contract
+# due       what /wiki:ingest all ingests: sources last checked before today,
+#           oldest first; the others under Not due or Skipped, with why
 # catalog   every source type this wiki can use (standard and local)
 # contract  one type's SOURCE.md
 # settings  the permission rules (allow, deny) for the given types, or for

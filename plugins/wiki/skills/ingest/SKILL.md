@@ -1,7 +1,7 @@
 ---
 name: ingest
-description: Ingest new material from one source of the current wiki (an instance key from .claude/sources/, or raw), following the source's contract, the wiki's CLAUDE.md and the shared wiki layout.
-argument-hint: "<source key, e.g. gmail, proton, raw> [filter, e.g. a sender name or folder]"
+description: Ingest new material from one source of the current wiki (an instance key from .claude/sources/, or raw), or from every due source with all, following the source's contract, the wiki's CLAUDE.md and the shared wiki layout.
+argument-hint: "<source key, e.g. gmail, proton, raw; or all> [filter, e.g. a sender name or folder]"
 disable-model-invocation: true
 allowed-tools:
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/sync-status.sh)
@@ -28,12 +28,24 @@ Sources of this wiki:
 
 ## Before you start
 1. Read the wiki's CLAUDE.md (project facts, sources, page templates) and `raw/sync-log.md`.
-2. Parse the arguments: the first word is the source key (`raw`, or an instance key listed above); anything after it is a filter. If the key is missing, stop and ask.
+2. Parse the arguments: the first word is the source key (`raw`, or an instance key listed above); anything after it is a filter. If the key is missing, stop and ask. The key `all` ingests every due source: follow **Ingest all** below.
 3. For any key other than `raw`, run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh show <key>`. It prints the instance file (parameters, agreed state fields) and the type's contract (`SOURCE.md`). If it refuses (unknown key, invalid, not available on this platform), stop and show the user the message. For an unknown key, suggest `/wiki:add-source`. Don't try another route to the source. If the contract says `mode: research` (e.g. a codebase), the source isn't ingested: stop and suggest `/wiki:research <key> "<question>"`.
 4. From here on, the contract's sections (**Check**, **List new**, **Fetch**, **Mark ingested**, **Cite**, **Resolve citation**, **Caveats**) say exactly how to reach this source. Use only the tools and commands they name, in the forms they give (wrapper scripts: one command per call, no `;`, `&&`, pipes or redirection).
 5. Ingest **one source at a time**. If the user named several, do them in turn, each with its own commit.
 6. If the instance's `last_checked_<key>` is `never`, or the source has no line yet, follow **First ingest of a source** below before anything else. If `sources.sh show` prints **Check needed** (the instance file changed since the last ingest, e.g. new roots or labels, or a tool-neutral instance has no reader binding yet), run step 1 of that section (**Check the source**) before listing, but keep the existing `last_checked` as the starting point.
 7. When something in the material is unclear (who someone is, which offer or version is meant, an unstated VAT or tax basis where amounts matter), ask the user rather than guess, and cite the answer as `"User statement (YYYY-MM-DD)"`.
+
+## Ingest all
+`/wiki:ingest all` ingests every source that is due, one after another, each exactly as a single key would be.
+1. `all` takes no filter: if anything follows it, stop and say so (a filter belongs to one source: `/wiki:ingest <key> <filter>`).
+2. Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh due`. It lists the due sources (last checked before today, oldest first; `raw` only when there is something new in `raw/`), and those not due or skipped, with the reason: research sources, sources at `never` (first ingest), with **Check needed**, invalid or not available on this platform, manual keys. Show the user the list. If no source is due, report that and stop.
+3. Ingest each due source in the order listed, from step 3 of **Before you start** on, with its own commit. Questions (step 7) and a data-model proposal are asked as for a single key.
+4. **Nothing new**: when **List new** finds no items, update the state as **State** says, add a history row `nothing new`, and commit it as `Ingest <key>: nothing new` (so the source isn't due again tomorrow).
+5. **A source fails** where a single key would "stop and show the user the message" (a `show` refusal, a wrapper refusal, an unreachable reader, **Check needed** after all):
+   - if you haven't written any file for it yet, note the failure with the message and go on with the next source;
+   - if you have (pages, `wiki/index.md`, `wiki/log.md`, the sync-log), stop the whole run: the next source's commit would take in those edits. Report the uncommitted paths.
+   A guard refusal stops the whole run too.
+6. **Summary** at the end, one line per key in the `due` list: ingested (pages changed, commit), nothing new, not due or skipped (the reason `due` gave), failed (the message), not reached (after a stop).
 
 ## First ingest of a source
 A source at `never` has not been checked against reality yet. Before ingesting it:

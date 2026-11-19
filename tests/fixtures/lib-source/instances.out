@@ -31,6 +31,11 @@ rc=1
 -- out
 -- err
 @TMP@/edge-w/.claude/sources/instances/raw.md: 'raw' is built in and can't be an instance
+== src_validate_instance @TMP@/edge-w all
+rc=1
+-- out
+-- err
+@TMP@/edge-w/.claude/sources/instances/all.md: 'all' is reserved (/wiki:ingest all) and can't be an instance
 == src_validate_instance @TMP@/edge-w Upper
 rc=1
 -- out

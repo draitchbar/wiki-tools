@@ -21,6 +21,7 @@ INSTANCES = {
     "ellipsis": "---\nkey: ellipsis\ntype: local-folder\nroots:\n  - \u2026\n---\n",
     "notodo": "---\nkey: notodo\ntype: local-folder\nroots:\n  - /data/todolist\n  - /data/xxxl\n---\n",
     "raw": "---\nkey: raw\ntype: local-folder\nroots:\n  - /x\n---\n",
+    "all": "---\nkey: all\ntype: local-folder\nroots:\n  - /x\n---\n",
     "Upper": "---\nkey: Upper\ntype: local-folder\nroots:\n  - /x\n---\n",
     "notype": "---\nkey: notype\nroots:\n  - /x\n---\n",
     "badtype": "---\nkey: badtype\ntype: ../gmail\n---\n",
@@ -65,7 +66,7 @@ def edge(tmp_path_factory, cli):
     w = posix(dw)
     contract_out = case("validate-contract", w + "/.claude/sources/types/loc/SOURCE.md")
     inst_out = "".join(case("validate-instance", w, k) for k in
-                       ["tbd", "slot", "dots", "ellipsis", "notodo", "raw", "Upper", "notype", "badtype",
+                       ["tbd", "slot", "dots", "ellipsis", "notodo", "raw", "all", "Upper", "notype", "badtype",
                         "nofm", "local", "two words", "nosuch"])
     inst_out += case("needed-rules", w)
     settings_out = "".join(case("settings-rules", posix(t / "edge-json" / ("%d.json" % i)))

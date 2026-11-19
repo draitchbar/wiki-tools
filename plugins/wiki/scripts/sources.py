@@ -7,6 +7,7 @@ dual run's edge cases are kept in tests/fixtures/sources/edge.out):
 
   sources.py [--plugin DIR] list
   sources.py [--plugin DIR] show <key>
+  sources.py [--plugin DIR] due
   sources.py [--plugin DIR] catalog
   sources.py [--plugin DIR] contract <type>
   sources.py [--plugin DIR] settings [<type>... [--key <key>]]
@@ -24,6 +25,7 @@ key and catalog order is C order; a key is matched literally in
 raw/sync-log.md (sed took it as a regex).
 """
 
+import datetime
 import os
 import re
 import sys
@@ -33,9 +35,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import contract  # noqa: E402
 import sourcelib  # noqa: E402
+import sync_status  # noqa: E402
 from sourcelib import err, git, out  # noqa: E402
 
-USAGE = ("usage: sources.sh <list|show <key>|catalog|contract <type>|"
+USAGE = ("usage: sources.sh <list|show <key>|due|catalog|contract <type>|"
          "settings [<type>... [--key <key>]]|check-settings>")
 _DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", re.ASCII)
 _MANUAL = re.compile(r"last_checked_([A-Za-z0-9_-]*):", re.ASCII)
@@ -178,15 +181,14 @@ def unbound(c, f):
 
 def check_needed(w, k, f):
     """The instance file changed since the last ingest (a new root or
-    label): its parameters haven't met reality yet."""
+    label): its parameters haven't met reality yet. The message, or None."""
     last = w.state_of(k)
     if not _DATE.fullmatch(last):
-        return
+        return None
     rel = f[len(w.root) + 1:] if f.startswith(w.root + "/") else f
     _, st = git(w.root, "status", "--porcelain", "--", rel)
     if st.rstrip("\n"):
-        out("Check needed: the instance file has uncommitted changes since the last ingest (%s)." % last)
-        return
+        return "Check needed: the instance file has uncommitted changes since the last ingest (%s)." % last
     # Exact commit times: the instance file vs the last commit that changed
     # its last_checked line; by date if that line was never committed.
     _, changed = git(w.root, "log", "-1", "--format=%ct %cs", "--", rel)
@@ -194,7 +196,7 @@ def check_needed(w, k, f):
                      "--", "raw/sync-log.md")
     changed, stamped = changed.rstrip("\n"), stamped.rstrip("\n")
     if not changed:
-        return
+        return None
     ct, _, cs = changed.partition(" ")
     if stamped:
         try:
@@ -204,7 +206,8 @@ def check_needed(w, k, f):
     else:
         need = not cs < last
     if need:
-        out("Check needed: the instance file changed (%s) since the last ingest (%s)." % (cs, last))
+        return "Check needed: the instance file changed (%s) since the last ingest (%s)." % (cs, last)
+    return None
 
 
 def op_show(w, args):
@@ -230,7 +233,9 @@ def op_show(w, args):
         raise Die("source '%s' (type %s) isn't available on %s; it supports: %s."
                   % (k, t, w.plat, " ".join(contract.list_(c, "platforms"))))
     out("Source %s: valid, available on %s, last checked: %s" % (k, w.plat, w.state_of(k)))
-    check_needed(w, k, f)
+    msg = check_needed(w, k, f)
+    if msg:
+        out(msg)
     if unbound(c, f):
         # Without a reader binding, Check (its step 1) must stop the ingest,
         # whatever the instance file's history.
@@ -242,6 +247,79 @@ def op_show(w, args):
     out("")
     out("===== Contract %s =====" % c)
     w.print_contract(c)
+    return 0
+
+
+def _due_state(w, k):
+    """last_checked of k as sync-status reads it: (value, date or None)."""
+    v = w.state_of(k)
+    if v in ("no sync-log", "no last_checked_%s line" % k):
+        return "never", None
+    v = sync_status._SPACE.sub("", v)
+    return v, sync_status.day(v)
+
+
+def _due_skip(w, k):
+    """Why /wiki:ingest all skips instance k, or None. Reasons in a fixed
+    order: research, invalid, platform, then the state (in op_due)."""
+    f = "%s/%s.md" % (w.idir, k)
+    t = contract.field(f, "type")
+    try:
+        c = w.contract(t)
+    except contract.ContractError:
+        return "unknown type %s (sources.sh show %s)" % (t or "?", k)
+    if contract.field(c, "mode") == "research":
+        return 'research (/wiki:research %s "<question>")' % k
+    valid, _ = sourcelib.quietly(sourcelib.validate_instance, w.root, k, w.plugin)
+    if not valid:
+        return "invalid (sources.sh show %s)" % k
+    if not w.platform_ok(c):
+        return "not available on %s (only %s)" % (w.plat, ",".join(contract.list_(c, "platforms")))
+    return None
+
+
+def op_due(w, args):
+    """What /wiki:ingest all ingests: every source last checked before
+    today, oldest first; raw only when sync-status doesn't find it
+    unchanged. The rest, with the reason, under Not due or Skipped."""
+    if len(args) != 0:
+        raise Die("usage: sources.sh due")
+    today = datetime.date.today()
+    due, quiet, skipped = [], [], []
+    for k in ["raw"] + sourcelib.words(contract.instances(w.root)):
+        f = "%s/%s.md" % (w.idir, k)
+        why = None if k == "raw" else _due_skip(w, k)
+        if why:
+            skipped.append((k, why))
+            continue
+        v, d = _due_state(w, k)
+        if v == "never":
+            skipped.append((k, "never checked (first ingest: /wiki:ingest %s)" % k))
+        elif d is None:
+            skipped.append((k, "unreadable date '%s'" % v))
+        elif d >= today:
+            quiet.append((k, "checked today"))
+        elif k == "raw" and sync_status.raw_unchanged(w.root, d):
+            quiet.append((k, "nothing new in raw/ since %s" % v))
+        elif k != "raw" and (check_needed(w, k, f) or unbound(w.contract(contract.field(f, "type")), f)):
+            skipped.append((k, "Check needed (/wiki:ingest %s)" % k))
+        else:
+            due.append((d, k))
+    for k in sourcelib.words(w.manual_keys()):
+        skipped.append((k, "manual key (enters via raw/ or user statements)"))
+    due.sort(key=lambda x: x[0])  # stable: raw first, then C order
+
+    def section(title, rows):
+        out(title)
+        for k, why in rows:
+            out("- %s: %s" % (k, why))
+        if not rows:
+            out("- none")
+
+    section("Due for ingest (today %s), oldest first:" % today.isoformat(),
+            [(k, "last checked %s" % d.isoformat()) for d, k in due])
+    section("Not due:", quiet)
+    section("Skipped (need the user or another skill):", skipped)
     return 0
 
 
@@ -463,7 +541,7 @@ def op_check_settings(w, args):
     return bad
 
 
-OPS = {"list": op_list, "show": op_show, "catalog": op_catalog, "contract": op_contract,
+OPS = {"list": op_list, "show": op_show, "due": op_due, "catalog": op_catalog, "contract": op_contract,
        "settings": op_settings, "check-settings": op_check_settings}
 
 

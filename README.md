@@ -40,7 +40,7 @@ Then run `/wiki:init <what the wiki is for>`. It agrees the wiki's purpose, page
 | Command | What it does |
 |---|---|
 | `/wiki:sync-status` | How stale each source is, and what to ingest next (also shown at session start) |
-| `/wiki:ingest <source>` | Bring new material from a source into the pages |
+| `/wiki:ingest <source>` | Bring new material from a source into the pages; `/wiki:ingest all` does every due source in turn |
 | `/wiki:add-source <type> [key]` | Add a source; you install the files it drafts with `install-source-file.sh`, in a separate terminal |
 | `/wiki:research <source> "<question>"` | Research a codebase (or another research source) with parallel agents |
 | `/wiki:lint`, `/wiki:audit <page>` | Check the wiki's health; fact-check a page against its sources |

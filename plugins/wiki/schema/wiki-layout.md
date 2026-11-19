@@ -13,7 +13,7 @@ For wikis that follow the raw/wiki pattern. Each wiki's CLAUDE.md names its fold
 - `work/` (optional): work in progress that is neither a source nor a page (decks being edited, diagram generators, handoff notes). Never cited as a source, not linted; CLAUDE.md says what goes there and which parts are gitignored.
 - `templates/`: one `<type>.md` per page type that has a template; new pages start from it.
 - `.claude/sources/`: the wiki's sources (guard-protected; the user installs each file with `${CLAUDE_PLUGIN_ROOT}/scripts/install-source-file.sh` and commits them):
-  - `instances/<key>.md`: one per source instance: its type, parameters and agreed state fields. The key is the `/wiki:ingest <key>` argument and names its state lines in `raw/sync-log.md`.
+  - `instances/<key>.md`: one per source instance: its type, parameters and agreed state fields. The key is the `/wiki:ingest <key>` argument and names its state lines in `raw/sync-log.md`; `raw` and `all` are reserved.
   - `types/<type>/SOURCE.md`: wiki-local source types (contract plus optional wrapper scripts). Standard types live in `${CLAUDE_PLUGIN_ROOT}/sources/`.
 - Fetched source files are cached outside the repo in `~/.cache/wiki-sources/<wiki>/<key>/`. Don't copy them into the repo.
 
@@ -40,7 +40,7 @@ Page types that hold decisions or statuses carry `status_as_of`, so a superseded
 An analysis or research page written at a point in time (e.g. before a contract was signed) can carry `as_of:` instead of being rewritten when events overtake it. It then opens with a banner, `> Written YYYY-MM-DD, before <event>. Since then: <one line, with a [[link]] to the current page>.` Lint treats such pages as historical: no stale or superseded findings.
 
 ## Ingest workflow
-Use `/wiki:ingest <key> [filter]` (`raw` or an instance key). Add sources with `/wiki:add-source <type>`. Ingest:
+Use `/wiki:ingest <key> [filter]` (`raw` or an instance key), or `/wiki:ingest all` for every source last checked before today (`sources.sh due` lists them). Add sources with `/wiki:add-source <type>`. Ingest:
 1. reads the instance and its type's contract, and `raw/sync-log.md` for its state;
 2. lists and fetches what's new as the contract says;
 3. creates or updates pages (templates as CLAUDE.md names them, verbatim-figures rule);
