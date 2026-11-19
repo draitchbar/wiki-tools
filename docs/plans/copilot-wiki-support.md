@@ -313,7 +313,7 @@ External plugin compatibility, registration/loading paths, read-only operation a
 
 Expected effort: medium-to-high.
 
-A Copilot-capable reader; compare JQL, fields, pagination, comment/link behavior and `updateHistory: false`. Preserve named scopes, backfill completeness, cursor precision and citations. Replace the "different MCP means different type" caveat only with a verified same-semantics reader.
+A Copilot-capable reader; compare JQL, fields, pagination, comment/link behavior and that reads leave "recently viewed" alone. Preserve named scopes, backfill completeness, cursor precision and citations. Since 2026-11-19 the type uses the claude.ai "Atlassian MCP" connector (`docs/adr.md`, 11); a Copilot reader must match its semantics.
 
 ### Gmail
 
