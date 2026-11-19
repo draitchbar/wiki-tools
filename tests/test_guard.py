@@ -437,6 +437,34 @@ def test_codebase_windows(data, home, want, gc, guard_run):
     assert guard_run(data, str(gc), home=home).rc == want
 
 
+def _win_bash(cmd, tool="Bash"):
+    return _bash_input(tool, {"command": cmd}, cwd="C:\\Users\\u\\wikis\\mywiki")
+
+
+# The user's ~/.claude/skills in every home spelling passes (a skill's
+# reader script); the wiki's own .claude/skills stays protected.
+@pytest.mark.parametrize("data,home,want", [
+    pytest.param(_win_bash("bash /c/Users/u/.claude/skills/x/read.sh list"), "C:\\Users\\u", 0,
+                 id="guard/user-skill-slash-form"),
+    pytest.param(_win_bash("bash C:/Users/u/.claude/skills/x/read.sh list"), "/c/Users/u", 0,
+                 id="guard/user-skill-drive-form"),
+    pytest.param(_win_bash("& C:\\Users\\u\\.claude\\skills\\x\\Read.ps1 sections", "PowerShell"),
+                 "C:\\Users\\u", 0, id="guard/user-skill-native-form"),
+    pytest.param(_win_bash("pwsh -File $HOME/.claude/skills/x/Read.ps1 sections"), "C:\\Users\\u", 0,
+                 id="guard/user-skill-home-var"),
+    pytest.param(_win_bash("cp x C:/Users/u/wikis/mywiki/.claude/skills/y"), "C:\\Users\\u", 2,
+                 id="guard/wiki-skill-under-home"),
+    pytest.param(_bash_input("Write", {"file_path": "C:\\Users\\u\\.claude\\skills\\x\\SKILL.md",
+                                       "content": "x"}, cwd="C:\\Users\\u\\wikis\\mywiki"),
+                 "C:\\Users\\u", 0, id="guard/user-skill-write-native"),
+    pytest.param(_bash_input("Write", {"file_path": ".claude\\skills\\x\\SKILL.md", "content": "x"},
+                             cwd="C:\\Users\\u\\wikis\\mywiki"),
+                 "C:\\Users\\u", 2, id="guard/wiki-skill-write-relative"),
+])
+def test_user_skills_windows(data, home, want, gw, guard_run):
+    assert guard_run(data, str(gw), home=home).rc == want
+
+
 # Edge cases (most from the review of guard.py), each on a fresh copy.
 EM = "\u2003"
 KELVIN = "\u212a"
