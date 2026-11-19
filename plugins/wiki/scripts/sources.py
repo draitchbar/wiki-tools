@@ -225,6 +225,12 @@ def op_show(w, args):
                   % (k, t, w.plat, " ".join(contract.list_(c, "platforms"))))
     out("Source %s: valid, available on %s, last checked: %s" % (k, w.plat, w.state_of(k)))
     check_needed(w, k, f)
+    if contract.field(c, "access") == "tools" and not contract.list_(f, "reader"):
+        # A tool-neutral type is read only through the instance's reader
+        # binding: without one, Check (its step 1) must stop the ingest,
+        # whatever the instance file's history.
+        out("Check needed: %s names no tools (access: tools) and this instance has no reader "
+            "binding yet; /wiki:bind-reader %s drafts it." % (t, k))
     out("")
     out("===== Instance file %s =====" % (f[len(w.root) + 1:] if f.startswith(w.root + "/") else f))
     raw(read_bytes(f).replace(b"\r", b""))
