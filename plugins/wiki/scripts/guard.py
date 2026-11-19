@@ -34,7 +34,8 @@ Shell tools (Bash, PowerShell, Monitor's command):
   and the word "push", e.g. in a commit message. Rephrase it.
 - a nested claude session: "claude" as a command word, never as text.
 - then a protected path (the plugin folder, .claude/sources, settings,
-  plugins, skills and agents, .git/hooks, .git/config, .mcp.json), a guard
+  plugins, skills and agents, .git/hooks, .git/config, .mcp.json; skills
+  only the wiki's own, not the user's ~/.claude/skills), a guard
   word or a filesystem root. Exceptions (Bash and Monitor, since the
   scripts run in Git Bash): a plain call of one of the plugin's core
   scripts, or of a script a contract lists, with no ; & | < > ` $ and no
@@ -103,6 +104,15 @@ _OP = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
 # shell character or the end, not by another name character, so
 # ~/.claude/plugins is protected and .claude/plugins-notes is not.
 _SEGMENTS = re.compile(r"\.claude/plugins(?![a-z0-9_.-])", re.ASCII)
+# The wiki's own skills run code later and are protected; the user's
+# (~/.claude/skills) are not: their scripts are readers some sources use
+# (onenote's), which a session must be able to run. An occurrence is the
+# user's when a home spelling directly precedes it, at the start of the
+# text or after whitespace, a quote or a shell character, and the path
+# after it holds no "..".
+_SKILLS = ".claude/skills"
+_SKILLS_BEFORE = " \t\n\v\f\r\"'=(;&|<>`"
+_PATH_END = re.compile(r"[ \t\n\v\f\r\"';&|<>()`]")
 # A nested claude session: "claude" (or a path ending in /claude, or
 # claude.exe, bare or in quotes) as a command word: at the start of the
 # command or of a segment (after ; & | ( $( or a backtick; hookjson turns
@@ -211,8 +221,8 @@ class Context:
     spelling, the wiki root and what the source files say. Each part is
     loaded once, when a check first needs it."""
 
-    __slots__ = ("call", "plugin", "plugin_forms", "protected_paths", "_wiki_root", "_sources",
-                 "_scripts")
+    __slots__ = ("call", "plugin", "plugin_forms", "protected_paths", "home_prefixes",
+                 "_wiki_root", "_sources", "_scripts")
 
     def __init__(self, call):
         self.call = call
@@ -220,6 +230,7 @@ class Context:
         p = norm(self.plugin)
         forms = [p, drive_form(p) or "", slash_form(p) or ""]
         home = norm(C._home())
+        homes = []
         if home:
             homes = [home, drive_form(home) or "", slash_form(home) or ""]
             tilde = []
@@ -229,6 +240,8 @@ class Context:
                         tilde.append("~/" + f[len(hf) + 1:])
             forms += tilde
         self.plugin_forms = forms
+        self.home_prefixes = [h + "/" for h in homes if h] + [
+            "~/", "$home/", "${home}/", "$env:userprofile/", "${env:userprofile}/"]
         self.protected_paths = []
         for f in forms:
             if f:
@@ -237,8 +250,8 @@ class Context:
                                  ".claude/sources", ".claude/settings",
                                  # Files that run code later: git hooks and config, MCP
                                  # servers, skills and agents (their frontmatter hooks).
-                                 ".git/hooks", ".git/config", ".mcp.json", ".claude/skills",
-                                 ".claude/agents"]
+                                 # .claude/skills: the wiki's own only, see wiki_skills.
+                                 ".git/hooks", ".git/config", ".mcp.json", ".claude/agents"]
         self._wiki_root = None
         self._sources = None
         self._scripts = {}
@@ -345,7 +358,32 @@ class Context:
         if hit:
             return hit
         m = _SEGMENTS.search(text)
-        return m.group() if m else ""
+        if m:
+            return m.group()
+        return _SKILLS if self.wiki_skills(text) else ""
+
+    def wiki_skills(self, text):
+        """True if text names .claude/skills other than the user's
+        ~/.claude/skills (in any home spelling, with no ".." after it)."""
+        i = text.find(_SKILLS)
+        while i >= 0:
+            if not self._user_skills(text, i):
+                return True
+            i = text.find(_SKILLS, i + 1)
+        return False
+
+    def _user_skills(self, text, i):
+        rest = text[i + len(_SKILLS):]
+        m = _PATH_END.search(rest)
+        if ".." in (rest[:m.start()] if m else rest):
+            return False
+        before = text[:i]
+        for h in self.home_prefixes:
+            if before.endswith(h):
+                j = len(before) - len(h)
+                if j == 0 or text[j - 1] in _SKILLS_BEFORE:
+                    return True
+        return False
 
     def under_root(self, path):
         for r in self.sources.roots:
