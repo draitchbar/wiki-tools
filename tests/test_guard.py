@@ -16,9 +16,11 @@ import os
 import shutil
 from pathlib import Path
 
+import guard
+import hookjson
 import pytest
 
-from conftest import (BASH, IS_WIN, PLUGIN, PLUGIN_BASH, PLUGIN_P, TESTS, copytree,
+from conftest import (BASH, IS_WIN, PLUGIN, PLUGIN_BASH, PLUGIN_P, TESTS, call_main, copytree,
                       hooks_guard_command, norm, write)
 
 FIXTURES = TESTS / "fixtures"
@@ -72,6 +74,156 @@ def test_message_has_fixture(msg):
     assert msg.with_suffix(".json").is_file()
 
 
+# --- the checks: an ordered list, each one tested -------------------------
+
+@pytest.mark.checks("guard/no-push-first")
+def test_no_push_first():
+    """git push is checked before anything else can decide."""
+    assert guard.CHECKS[0] is guard.no_push
+
+
+def _deciding_check(data, wiki):
+    """The name of the check that refuses the hook input data, "" if none
+    (in-process, on the test wiki, with HOME=/home/u as the fixtures)."""
+    got = []
+
+    def run():
+        call = hookjson.parse(data.encode("utf-8"))
+        if call is not None:
+            check = guard.decide(call)[0]
+            got.append(check.__name__ if check else "")
+    call_main(run, None, env={"HOME": "/home/u", "USERPROFILE": None, "CLAUDE_PROJECT_DIR": wiki})
+    return got[0] if got else ""
+
+
+@pytest.mark.checks("guard/every-check-has-a-fixture")
+def test_every_check_has_a_fixture(gw):
+    """Each check in CHECKS refuses at least one block- fixture (the broken
+    source files of test_fail_closed for broken_sources), so a removed or
+    reordered check shows in the fixtures."""
+    wiki = str(gw).replace("\\", "/")
+    hit = {_deciding_check(subst(f.read_text(encoding="utf-8"), wiki), wiki)
+           for f in sorted(FIXTURES.glob("*/block-*.json"))}
+    BROKEN["instance-no-frontmatter"](gw)
+    hit.add(_deciding_check(ORDINARY, wiki))
+    missing = [c.__name__ for c in guard.CHECKS if c.__name__ not in hit]
+    assert not missing
+
+
+def _parsed(path):
+    call = hookjson.parse((FIXTURES / path).read_bytes())
+    return {k: getattr(call, k) for k in hookjson.HookCall.__slots__}
+
+
+@pytest.mark.parametrize("path,want", [
+    pytest.param("guard/pass-ordinary-bash.json", dict(
+        kind="shell", shell="bash", command="pdftotext -layout contract.pdf /tmp/c.txt", paths=(),
+        contents=("", ""), pattern=" ", subagent="", cwd="/home/u/wikis/mywiki", tool="Bash"),
+        id="hookjson/parse-bash"),
+    pytest.param("guard/block-powershell-multiline.json", dict(
+        kind="shell", shell="powershell", command="Get-Date;proton-drive ls", paths=(),
+        contents=("", ""), pattern=" ", subagent="", cwd="C:\\Users\\u\\wikis\\mywiki",
+        tool="PowerShell"),
+        id="hookjson/parse-powershell"),
+    pytest.param("guard/block-edit-helper-content.json", dict(
+        kind="write", shell="", command="", paths=("/home/u/wikis/mywiki/tool.py",),
+        contents=("", "", 'os.system("proton-drive fs trash /x")'), pattern=" ", subagent="",
+        cwd="/home/u/wikis/mywiki", tool="Edit"),
+        id="hookjson/parse-edit"),
+    pytest.param("guard/block-write-no-path.json", dict(
+        kind="write", shell="", command="", paths=(), contents=("x", "", ""), pattern=" ",
+        subagent="", cwd="/home/u/wikis/mywiki", tool="Write"),
+        id="hookjson/parse-write-no-path"),
+    pytest.param("guard/block-codebase-grep-main.json", dict(
+        kind="read", shell="", command="", paths=("/home/u/src/components",), contents=("", ""),
+        pattern="foo ", subagent="", cwd="/home/u/wikis/mywiki", tool="Grep"),
+        id="hookjson/parse-grep"),
+    pytest.param("guard/pass-codebase-read-agent.json", dict(
+        kind="read", shell="", command="", paths=("/home/u/src/components/app/A.java",),
+        contents=("", ""), pattern=" ", subagent="a1", cwd="/home/u/wikis/mywiki", tool="Read"),
+        id="hookjson/parse-read-subagent"),
+])
+def test_parse(path, want):
+    assert _parsed(path) == want
+
+
+@pytest.mark.checks("hookjson/parse-multiedit")
+def test_parse_multiedit():
+    data = _bash_input("MultiEdit", {"file_path": "/home/u/wikis/mywiki/a.py", "edits": [
+        {"old_string": "a", "new_string": "b\tc"}, {"old_string": "d", "new_string": "e\nf"}]})
+    call = hookjson.parse(data.encode("utf-8"))
+    assert (call.kind, call.paths, call.contents) == ("write", ("/home/u/wikis/mywiki/a.py",),
+                                                      ("", "", "", "b c", "e;f"))
+
+
+@pytest.mark.parametrize("path", [pytest.param(p, id="hookjson/parse-none-" + p.split("/")[1][:-5])
+                                  for p in ("push/block-non-string-command.json",
+                                            "push/block-malformed.json")])
+def test_parse_none(path):
+    assert hookjson.parse((FIXTURES / path).read_bytes()) is None
+
+
+@pytest.mark.parametrize("tool,ti,want", [
+    pytest.param("WebFetch", {"url": "https://example.com"}, ("harmless", "", ""),
+                 id="hookjson/parse-harmless"),
+    pytest.param("mcp__example__search", {"query": "x"}, ("mcp", "", ""), id="hookjson/parse-mcp"),
+    pytest.param("LSP", {"file_path": "/home/u/src/components/A.java"}, ("unknown", "", ""),
+                 id="hookjson/parse-unknown"),
+    pytest.param("Monitor", {"command": "tail -f log.txt", "timeout_ms": 1000},
+                 ("shell", "bash", "tail -f log.txt"), id="hookjson/parse-monitor"),
+    pytest.param("Monitor", {"ws": {"url": "wss://example.com/x", "protocols": ["a"]}},
+                 ("harmless", "", ""), id="hookjson/parse-monitor-ws"),
+    pytest.param("Monitor", {"description": "x"}, ("shell", "bash", ""),
+                 id="hookjson/parse-monitor-neither"),
+])
+def test_parse_kind(tool, ti, want):
+    call = hookjson.parse(_bash_input(tool, ti).encode())
+    assert (call.kind, call.shell, call.command) == want
+
+
+@pytest.mark.checks("hookjson/parse-notebook-edit")
+def test_parse_notebook_edit():
+    call = hookjson.parse(_bash_input("NotebookEdit", {
+        "notebook_path": "/home/u/wikis/mywiki/a.ipynb", "new_source": "x = 1", "cell_id": "c1",
+        "cell_type": "code", "edit_mode": "replace"}).encode())
+    assert (call.kind, call.paths, call.contents) == ("write", ("/home/u/wikis/mywiki/a.ipynb",),
+                                                      ("", "x = 1", ""))
+
+
+# Tools the guard doesn't check may carry any JSON under the keys it reads
+# for the others; tools it checks may not.
+ODD_INPUT = {"content": [{"type": "text", "text": "x"}], "path": 3, "command": {"a": 1},
+             "pattern": None, "new_string": ["x"]}
+
+
+@pytest.mark.parametrize("tool,parsed", [
+    pytest.param("mcp__example__write_page", True, id="hookjson/parse-mcp-non-string"),
+    pytest.param("TodoWrite", True, id="hookjson/parse-harmless-non-string"),
+    pytest.param("NoSuchTool", True, id="hookjson/parse-unknown-non-string"),
+    pytest.param("Bash", False, id="hookjson/parse-shell-non-string"),
+    pytest.param("Write", False, id="hookjson/parse-write-non-string"),
+    pytest.param("Grep", False, id="hookjson/parse-read-non-string"),
+])
+def test_parse_non_string(tool, parsed):
+    assert (hookjson.parse(_bash_input(tool, ODD_INPUT).encode()) is not None) == parsed
+
+
+@pytest.mark.parametrize("tool,want", [
+    pytest.param("mcp__example__write_page", 0, id="guard/mcp-non-string-input"),
+    pytest.param("TodoWrite", 0, id="guard/harmless-non-string-input"),
+    pytest.param("NoSuchTool", 2, id="guard/unknown-non-string-input"),
+])
+def test_non_string_input(tool, want, gw, guard_run):
+    assert guard_run(_bash_input(tool, ODD_INPUT), str(gw)).rc == want
+
+
+@pytest.mark.checks("hookjson/harmless-list")
+def test_harmless_list():
+    """No tool that runs commands, writes or reads files is on the list."""
+    assert not hookjson.HARMLESS & {"Bash", "PowerShell", "Monitor", "Write", "Edit", "MultiEdit",
+                                    "NotebookEdit", "Read", "Grep", "Glob", "LSP"}
+
+
 # --- hooks.json: one guard command, run as Claude Code runs it ------------
 
 HOOKS = (PLUGIN / "hooks" / "hooks.json").read_text()
@@ -85,7 +237,23 @@ def test_hooks_json_guard():
 @pytest.mark.checks("py-launch/hooks-json-matcher")
 def test_hooks_json_matcher():
     matchers = [h["matcher"] for h in json.loads(HOOKS)["hooks"]["PreToolUse"]]
-    assert matchers == ["Bash|PowerShell|Write|Edit|MultiEdit|Read|Grep|Glob"]
+    assert matchers == ["*"]
+
+
+@pytest.mark.parametrize("tool,ti,want", [
+    pytest.param("Monitor", {"command": "git push"}, 2, id="py-launch/hooks-json-monitor-push"),
+    pytest.param("Monitor", {"ws": {"url": "wss://example.com/x"}}, 0, id="py-launch/hooks-json-monitor-ws"),
+    pytest.param("NotebookEdit", {"notebook_path": "/home/u/Scans/a.ipynb", "new_source": "x"}, 2,
+                 id="py-launch/hooks-json-notebook-edit-root"),
+    pytest.param("mcp__example__search", {"query": ["x"]}, 0, id="py-launch/hooks-json-mcp"),
+    pytest.param("WebSearch", {"query": "x"}, 0, id="py-launch/hooks-json-harmless"),
+    pytest.param("LSP", {"file_path": "/home/u/src/components/A.java"}, 2,
+                 id="py-launch/hooks-json-unknown"),
+])
+def test_hooks_json_every_tool(tool, ti, want, gw, guard_run):
+    """The matcher sends every tool to the guard; through hooks.json's
+    command, whatever --e2e says."""
+    assert guard_run(_bash_input(tool, ti), str(gw), e2e_only=True).rc == want
 
 
 @pytest.mark.checks("py-launch/hooks-json-guard-once")
@@ -303,7 +471,7 @@ CASES = [
     # Kelvin sign is not a k.
     ("non-ascii-root", 2, lambda w: inst(w, "ae", "local-folder", "roots:", "  - /home/u/Æble"),
      gbash("cat /home/u/Æble/x"), "/home/u/Æble"),
-    ("kelvin-sign", 0, None, gbash("cat x/hoo%ss.json" % KELVIN), None),
+    ("kelvin-sign", 0, None, gbash("boo%sish-cli list" % KELVIN), None),
     # JSON null is an absent field.
     ("null-path", 0, None, _bash_input("Grep", {"pattern": "x", "path": None, "glob": None}), None),
     ("null-agent-id", 2, None, _bash_input("Read", {"file_path": "/home/u/src/components/A.java"},

@@ -51,7 +51,7 @@ File-reading guidance describes capabilities, not Claude-only API parameters. Ex
 
 **One policy, with small measured runtime normalization.** Reuse `guard.py`, `hookjson.py`, `contract.py` and `py-launch.sh`.
 
-Coverage comes before parsing: every enabled command, file mutation or protected-source read must reach the guard or remain outside the supported configuration. This includes input to running shells, multi-file patches, relevant MCP calls and child-agent tools. Validate all affected targets. Today the hook matches a fixed tool list and the guard allows a tool name it does not know, so a differently named tool is never checked; the plan's step 3 decides how unknown tools are handled (recommended: a catch-all matcher and a classified list, unknown names refused).
+Coverage comes before parsing: every enabled command, file mutation or protected-source read must reach the guard or remain outside the supported configuration. This includes input to running shells, multi-file patches, relevant MCP calls and child-agent tools. Validate all affected targets. In Claude Code the hook now matches every tool and the guard refuses a name it does not classify (#24); for Copilot, the plan's step 3 decides how unknown tools are handled (recommended: the same catch-all matcher and classified list).
 
 Preserve push blocking, protected paths/roots, wrapper lookalike/chaining checks, broken-contract behavior and diagnostics. PowerShell stays refused for wiki scripts until part C; then an invocation is recognized as an approved Bash-wrapper call only in the exact validated form.
 

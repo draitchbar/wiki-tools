@@ -50,7 +50,7 @@ The review added these:
 
 - **Version skew.** After a plugin update, the old version's folder stays for 14 days, and running sessions keep the old plugin root. So two plugin versions with different locks can share one data folder. The fix is to name the venv after its lock, `venv-<first 12 hex of the lock's hash>/`. Each plugin version then finds its own venv, and `setup-venv.sh --prune` deletes the ones no installed version names. The venv is never invalidated automatically.
 - **The guard is weaker than the first draft claimed:**
-  - `guard.py` protects `.claude/plugins/` as a literal substring of the command or path. A `cd ~/.claude/plugins && …` followed by relative paths doesn't contain it.
+  - `guard.py` protects `.claude/plugins` as a path segment of the command or path. A `cd ~/.claude && …` followed by relative paths (`plugins/data/…`) doesn't contain it.
   - A data folder moved by `CLAUDE_CONFIG_DIR` or `CLAUDE_CODE_PLUGIN_CACHE_DIR` isn't covered either.
   - Today one cached path sits behind that match. A venv would put a tree of executable code there.
   - Before any venv ships, the guard needs to protect the resolved data folder (`$CLAUDE_PLUGIN_DATA`, as the hook sees it), with fixtures for the `cd` form and a relocated config directory. That gap exists today for the interpreter cache too, so it is worth a GitHub issue on its own.

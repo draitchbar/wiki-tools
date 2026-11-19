@@ -27,8 +27,8 @@ plugins/wiki/
     local-folder/{SOURCE.md,read.sh}  folders outside the wiki, read-only
     codebase/{SOURCE.md,git.sh,gh.sh}  a git clone researched on demand by subagents (research type, agent_only); PR/issue context via gh
   scripts/
-    guard.py                      the PreToolUse hook: source/guard protection and no git push (Bash, PowerShell, Write/Edit/MultiEdit, Read/Grep/Glob), rules from the contracts
-    hookjson.py                   hook-input parsing for guard.py (fails closed)
+    guard.py                      the PreToolUse hook: source/guard protection and no git push (every tool; unknown tools refused), rules from the contracts
+    hookjson.py                   hook-input parsing and tool classification for guard.py (fails closed)
     contract.py                   parsing of source contracts and instances for guard.py (the Python side of lib-source.sh)
     py-launch.sh                  runs a Python hook: cached interpreter, probe, fails closed
     py_version.py                 prints the interpreter the launcher finds (wiki-check)
