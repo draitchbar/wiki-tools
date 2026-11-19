@@ -52,6 +52,10 @@ LIST_ETC = [
     ("settings-reader-deny", '"mcp__claude_ai_Atlassian_MCP__executeWrite",', ["settings"]),
     ("settings-reader-key", '"mcp__claude_ai_Atlassian_MCP__executeRead",', ["settings", "jira", "--key", "tracker"]),
     ("show-reader-valid", "Source tracker: valid", ["show", "tracker"]),
+    # An access: tools instance without a reader binding: Check is needed
+    # at every ingest until it is bound, not only after the file changed.
+    ("show-unbound-check", "Check needed: proton-files names no tools (access: tools) and this instance "
+     "has no reader binding yet; /wiki:bind-reader proton drafts it.", ["show", "proton"]),
     ("list-research", '- code: type codebase (standard), research (/wiki:research code "<question>"; '
                       'not ingested), valid', ["list"]),
     ("catalog-codebase", "- codebase (standard, filesystem): Codebase", ["catalog"]),
@@ -76,6 +80,7 @@ COUNTS = [  # name, args, a regex no line may match
     ("settings-tools-quiet", ["settings", "gmail"], r"access: tools"),
     # Bound: no note for jira; executeRead once.
     ("settings-reader-no-note", ["settings"], r"^jira \(access: tools\)"),
+    ("show-bound-no-check", ["show", "tracker"], r"^Check needed"),
     ("settings-reader-key-quiet", ["settings", "jira", "--key", "tracker"], r"access: tools"),
 ]
 COUNT_ONE = [  # name, args, a regex exactly one line matches

@@ -170,6 +170,12 @@ def op_list(w, args):
     return 0
 
 
+def unbound(c, f):
+    """A tool-neutral type (access: tools, contract c) is read only through
+    the instance's reader binding; True when instance file f has none."""
+    return contract.field(c, "access") == "tools" and not contract.list_(f, "reader")
+
+
 def check_needed(w, k, f):
     """The instance file changed since the last ingest (a new root or
     label): its parameters haven't met reality yet."""
@@ -225,6 +231,11 @@ def op_show(w, args):
                   % (k, t, w.plat, " ".join(contract.list_(c, "platforms"))))
     out("Source %s: valid, available on %s, last checked: %s" % (k, w.plat, w.state_of(k)))
     check_needed(w, k, f)
+    if unbound(c, f):
+        # Without a reader binding, Check (its step 1) must stop the ingest,
+        # whatever the instance file's history.
+        out("Check needed: %s names no tools (access: tools) and this instance has no reader "
+            "binding yet; /wiki:bind-reader %s drafts it." % (t, k))
     out("")
     out("===== Instance file %s =====" % (f[len(w.root) + 1:] if f.startswith(w.root + "/") else f))
     raw(read_bytes(f).replace(b"\r", b""))
@@ -354,10 +365,10 @@ def op_settings(w, args):
         if key or not types:
             keys = [key] if key else [k for k in sourcelib.words(contract.instances(w.root))
                                       if contract.field("%s/%s.md" % (w.idir, k), "type") == t]
-            unbound = [k for k in keys if not contract.list_("%s/%s.md" % (w.idir, k), "reader")]
-            if not unbound:
+            nob = [k for k in keys if unbound(c, "%s/%s.md" % (w.idir, k))]
+            if not nob:
                 continue
-            how = "; not bound yet: %s (/wiki:bind-reader <key> drafts it)" % ", ".join(unbound)
+            how = "; not bound yet: %s (/wiki:bind-reader <key> drafts it)" % ", ".join(nob)
         else:
             how = " (sources.sh settings %s --key <key>)" % t
         out("\n%s (access: tools) names no tools, so it adds no tool rules here (only its cache rules, "
