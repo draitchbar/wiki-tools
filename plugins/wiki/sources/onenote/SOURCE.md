@@ -45,7 +45,7 @@ The page text must keep the targets of its links (URLs), not only the link text:
 **Snapshots.** For each page ingested, keep the page text as read at that ingest in `<cache>/ingested/<section>/<created YYYY-MM-DD> <page title>.md` (write it with Write; replace `/`, `\` and `:` in names with `-`). List new compares against it. For each page **skipped** (by the user's choice at an ingest, the starting point, or a `skip` rule), keep its text the same way in `<cache>/ingested/_skipped/<section>/<created YYYY-MM-DD> <page title>.md`, with a first line `Skipped YYYY-MM-DD: <reason>`. Snapshots are a cache, never part of the repo.
 
 ## Bind
-For `/wiki:bind-reader`. The safe item is one page the user names, in one of the instance's sections, with no personal notes; ideally one with a link and an attachment. One call each, in this order:
+For `/wiki:bind-reader`. The safe item is one page the user names, in one of the instance's sections, with no personal notes; ideally one with a link and an attachment. If it has neither, a second safe page with a link or a file may serve tests 5 (the link check only) and 6. One call each, in this order:
 1. **show scope**, if a tool can. Expect `Notes.Read` or `Notes.Read.All`.
 2. **list notebooks.** The instance's notebooks must be there.
 3. **list sections** of the safe page's notebook. Note that section groups appear with their path, and that each section has a modified time.
@@ -64,9 +64,9 @@ Don't rely on a page's modified time: OneNote often reports it equal to the crea
 
 1. **list sections** and pick the instance's sections whose modified time is later than `cursor_<key>`. Leave the others alone.
 2. For each picked section, **list pages** and read every page fresh (**read section** if the reader has it, else **read page** per page). A page is
-   - **skipped before** if it has a snapshot in `_skipped/`: leave it out and don't report it as new. If its text differs from that snapshot, mention it in one line ("skipped page X changed") and ingest it only if the user asks;
+   - **skipped before** if it has a snapshot in `_skipped/`: leave it out and don't report it as new. If its text differs from that snapshot (compare without the snapshot's first `Skipped …` line, ignoring blank lines and whitespace, e.g. `diff -B -w`: older snapshots differ in those alone), mention it in one line ("skipped page X changed") and ingest it only if the user asks;
    - **new** if no wiki page cites it yet (its title and created date, see **Cite**);
-   - **edited** if its text differs from its snapshot (compare the files, e.g. with `diff`); for a cited page with no snapshot, compare with what the citing wiki pages say and treat it as edited only if the page holds something they don't;
+   - **edited** if its text differs from its snapshot (compare the files ignoring blank lines and whitespace, e.g. `diff -B -w`); for a cited page with no snapshot, compare with what the citing wiki pages say and treat it as edited only if the page holds something they don't;
    - otherwise unchanged; skip it.
    Apply the instance's `skip` rules and the user's filter to the new pages; propose the pages they leave out as skipped (ask about borderline ones). For an edited page, update the wiki pages that cite it rather than adding a second account of the same page.
 3. **Empty cursor** (the first ingest under this type, also after moving from an older OneNote type or after a Check that saw no notebooks): pick every section, and don't trust `last_checked_<key>`. Pages already cited count as ingested: write their snapshots now, so later edits are found, and report them. Pages not cited are new; at a first ingest (`never`), ask the user for a starting point by created date. If the user states a rule for leaving out a kind of page (not a one-off choice), propose adding it to the instance's `skip` (an instance file the user installs), so the next ingest knows it.

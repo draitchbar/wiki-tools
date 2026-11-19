@@ -32,7 +32,9 @@ Candidates, in this order:
 - the user's skills whose description fits (Read their `SKILL.md`; reading under `~/.claude/` may prompt);
 - a reader the contract's Caveats list under readers seen working.
 
-If there is more than one, ask the user which to use. If none can do the contract's **required** operations, say so and stop: the prerequisite in the Caveats is missing. A reader that is only instructions for ad-hoc code (an SDK or `curl` written per call) can't be allowed safely (see the Caveats); say so and propose making it a script with fixed read-only commands.
+**Already named in prose.** If the instance's body already describes a reader and its commands in prose (no `## Reader` section), typically an instance from before this skill, and that reader is available: take it and its mapping from the prose, and say so instead of asking. Skip the choice here and the questions in step 3; still deny its write tools (step 4) if it has any, and run every test (step 5): they prove the prose still holds. The draft then turns the prose into the `## Reader` section.
+
+If there is more than one candidate, ask the user which to use. If none can do the contract's **required** operations, say so and stop: the prerequisite in the Caveats is missing. A reader that is only instructions for ad-hoc code (an SDK or `curl` written per call) can't be allowed safely (see the Caveats); say so and propose making it a script with fixed read-only commands.
 
 ## 3. Map the operations
 Load the chosen tools' schemas (ToolSearch `select:<name>`). For each operation in the contract, pick the tool and its fixed arguments. Use the `## Bind` section's known names for a dispatcher. For an operation it doesn't map, you may look the operation up once, with the user's yes. Note each operation you can't map, and whether it is required.
@@ -45,6 +47,8 @@ Then **verify** that they took effect. A tool denied in settings disappears from
 ## 5. Test each operation
 Ask the user for the item that is safe to read (the `## Bind` section says what kind: an issue, a page, a file), one with no customer or personal data. Before the first test, tell the user: "At each permission prompt, choose a plain Yes, not 'don't ask again'." A "don't ask again" answer saves a standing rule to `.claude/settings.local.json`, outside this flow.
 
+If the safe item can't serve a test (the `## Bind` section says which need something particular, such as a page with a link or an attachment), ask for a second safe item for those tests only; if there is none, note them as not verified.
+
 Run the `## Bind` tests in its order, one call each, with the smallest limits. For each, note: the tool and arguments, whether it worked, the rough output size, and the property it checks (paging fields, a time field present, nothing marked as viewed, and so on). Stop at the first failure of a required operation and report.
 
 ## 6. Hand over
@@ -53,4 +57,4 @@ Show, in this order:
 2. **The instance file**, as wiki-conventions **Protected files** says: its full content, frontmatter unchanged, with the `## Reader` section added or replaced in the body. The section names the reader and the date, then has one line per operation, `<operation>: <tool>, <fixed arguments in words>`, and ends with the rules that limit it, e.g. which operation names a dispatcher may be called with. Write the draft to your scratchpad and give the `install-source-file.sh instances/$ARGUMENTS.md` command.
 3. **The settings lines:** allow only the bound tools; the deny lines from step 4 if not yet added; and allow rules for a previous reader that are no longer bound, to remove.
 
-After the user says it's installed, run nothing more. If you were started from Check, say: "Binding done. Type `/wiki:ingest $ARGUMENTS` to continue." `sources.sh show` will report **Check needed** for the changed instance file; that ingest's Check clears it.
+After the user says it's installed, **check the settings**: Read `.claude/settings.json` (and `~/.claude/settings.json` if they put rules there; that read may prompt) and confirm that every tool the `## Reader` section names is allowed and every deny line from step 4 is there. `check-settings` can't do this for a tool-neutral type, whose contract names no tools. Name each missing line and wait until it's added. Then run nothing more. If you were started from Check, say: "Binding done. Type `/wiki:ingest $ARGUMENTS` to continue." `sources.sh show` will report **Check needed** for the changed instance file; that ingest's Check clears it.

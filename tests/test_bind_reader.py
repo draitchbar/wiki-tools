@@ -69,3 +69,24 @@ def test_skill_rules():
     assert "check-settings" in text[deny:test]
     assert "plain Yes" in text
     assert "**stops**" in text
+
+
+@pytest.mark.checks("bind-reader/live-run-fixes")
+def test_skill_live_run_fixes():
+    """The first live run (2026-11-19): a missed allow line, a reader
+    already named in prose, a safe item that can't serve every test."""
+    text = SKILL.read_text(encoding="utf-8")
+    hand = text[text.index("## 6. Hand over"):]
+    assert "**check the settings**" in hand and "allowed" in hand
+    assert "**Already named in prose.**" in text
+    assert "second safe item" in text
+
+
+@pytest.mark.checks("bind-reader/contract-live-run-fixes")
+def test_contract_live_run_fixes():
+    jira = (SOURCES / "jira" / "SOURCE.md").read_text(encoding="utf-8")
+    assert "**Moved issues.**" in _section(jira, "List new")
+    assert "same scope name" in _section(jira, "Check")
+    assert "does not exist for the field" in _section(jira, "Check")
+    onenote = (SOURCES / "onenote" / "SOURCE.md").read_text(encoding="utf-8")
+    assert _section(onenote, "List new").count("diff -B -w") == 2
