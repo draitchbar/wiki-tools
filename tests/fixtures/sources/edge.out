@@ -296,13 +296,7 @@ rc=0
       "mcp__claude_ai_Gmail__get_message",
       "mcp__claude_ai_Gmail__list_labels",
       "mcp__claude_ai_Gmail__create_label",
-      "mcp__claude_ai_Gmail__label_thread",
-      "mcp__claude_ai_Atlassian_MCP__getAccessibleAtlassianResources",
-      "mcp__claude_ai_Atlassian_MCP__atlassianUserInfo",
-      "mcp__claude_ai_Atlassian_MCP__searchJiraIssuesUsingJql",
-      "mcp__claude_ai_Atlassian_MCP__getJiraIssue",
-      "mcp__claude_ai_Atlassian_MCP__listJiraIssueComments",
-      "mcp__claude_ai_Atlassian_MCP__executeRead"
+      "mcp__claude_ai_Gmail__label_thread"
     ],
     "deny": [
       "mcp__claude_ai_Gmail__send_message",
@@ -323,25 +317,12 @@ rc=0
       "mcp__claude_ai_Gmail__update_label",
       "mcp__claude_ai_Gmail__update_message_labels",
       "mcp__claude_ai_Gmail__unlabel_message",
-      "mcp__claude_ai_Gmail__unlabel_thread",
-      "mcp__claude_ai_Atlassian__createJiraIssue",
-      "mcp__claude_ai_Atlassian__editJiraIssue",
-      "mcp__claude_ai_Atlassian__transitionJiraIssue",
-      "mcp__claude_ai_Atlassian__addCommentToJiraIssue",
-      "mcp__claude_ai_Atlassian__addWorklogToJiraIssue",
-      "mcp__claude_ai_Atlassian__createIssueLink",
-      "mcp__claude_ai_Atlassian__createConfluencePage",
-      "mcp__claude_ai_Atlassian__updateConfluencePage",
-      "mcp__claude_ai_Atlassian__createConfluenceFooterComment",
-      "mcp__claude_ai_Atlassian__createConfluenceInlineComment",
-      "mcp__claude_ai_Atlassian__createCompassComponent",
-      "mcp__claude_ai_Atlassian__createCompassComponentRelationship",
-      "mcp__claude_ai_Atlassian__createCompassCustomFieldDefinition",
-      "mcp__claude_ai_Atlassian_MCP__executeWrite",
-      "mcp__claude_ai_Atlassian_MCP__executeDestructive"
+      "mcp__claude_ai_Gmail__unlabel_thread"
     ]
   }
 }
+
+jira (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). Allow the read tools this machine supplies for it yourself (this wiki's settings or your user settings; see its Caveats). How read-only is kept is in its Caveats, not in these settings.
 -- err
 -- merged
 {
@@ -352,13 +333,7 @@ rc=0
       "mcp__claude_ai_Gmail__get_message",
       "mcp__claude_ai_Gmail__list_labels",
       "mcp__claude_ai_Gmail__create_label",
-      "mcp__claude_ai_Gmail__label_thread",
-      "mcp__claude_ai_Atlassian_MCP__getAccessibleAtlassianResources",
-      "mcp__claude_ai_Atlassian_MCP__atlassianUserInfo",
-      "mcp__claude_ai_Atlassian_MCP__searchJiraIssuesUsingJql",
-      "mcp__claude_ai_Atlassian_MCP__getJiraIssue",
-      "mcp__claude_ai_Atlassian_MCP__listJiraIssueComments",
-      "mcp__claude_ai_Atlassian_MCP__executeRead"
+      "mcp__claude_ai_Gmail__label_thread"
     ],
     "deny": [
       "mcp__claude_ai_Gmail__send_message",
@@ -379,25 +354,12 @@ rc=0
       "mcp__claude_ai_Gmail__update_label",
       "mcp__claude_ai_Gmail__update_message_labels",
       "mcp__claude_ai_Gmail__unlabel_message",
-      "mcp__claude_ai_Gmail__unlabel_thread",
-      "mcp__claude_ai_Atlassian__createJiraIssue",
-      "mcp__claude_ai_Atlassian__editJiraIssue",
-      "mcp__claude_ai_Atlassian__transitionJiraIssue",
-      "mcp__claude_ai_Atlassian__addCommentToJiraIssue",
-      "mcp__claude_ai_Atlassian__addWorklogToJiraIssue",
-      "mcp__claude_ai_Atlassian__createIssueLink",
-      "mcp__claude_ai_Atlassian__createConfluencePage",
-      "mcp__claude_ai_Atlassian__updateConfluencePage",
-      "mcp__claude_ai_Atlassian__createConfluenceFooterComment",
-      "mcp__claude_ai_Atlassian__createConfluenceInlineComment",
-      "mcp__claude_ai_Atlassian__createCompassComponent",
-      "mcp__claude_ai_Atlassian__createCompassComponentRelationship",
-      "mcp__claude_ai_Atlassian__createCompassCustomFieldDefinition",
-      "mcp__claude_ai_Atlassian_MCP__executeWrite",
-      "mcp__claude_ai_Atlassian_MCP__executeDestructive"
+      "mcp__claude_ai_Gmail__unlabel_thread"
     ]
   }
 }
+
+jira (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). Allow the read tools this machine supplies for it yourself (this wiki's settings or your user settings; see its Caveats). How read-only is kept is in its Caveats, not in these settings.
 == list
 rc=0
 -- out
@@ -607,7 +569,7 @@ Source types (platform: @HOST@):
 - codebase (standard, filesystem): Codebase (git clone, researched on demand)
 - gmail (standard, mcp): Gmail
 - google-drive (standard, mcp): Google Drive
-- jira (standard, mcp): Jira
+- jira (standard, tools): Jira
 - local-folder (standard, filesystem): Local folder
 - ms-teams (standard, mcp): Microsoft Teams
 - onenote (standard, tools): OneNote
@@ -619,7 +581,7 @@ Source types (platform: @HOST@):
 - codebase (standard, filesystem): Codebase (git clone, researched on demand)
 - gmail (standard, mcp): Gmail
 - google-drive (standard, mcp): Google Drive
-- jira (standard, mcp): Jira
+- jira (standard, tools): Jira
 - local-folder (standard, filesystem): Local folder
 - ms-teams (standard, mcp): Microsoft Teams
 - onenote (standard, tools): OneNote
