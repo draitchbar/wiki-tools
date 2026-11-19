@@ -1,0 +1,15 @@
+{
+  "hook_event_name": "PreToolUse",
+  "session_id": "00000000-0000-4000-8000-000000000013",
+  "timestamp": "2026-01-01T00:00:00.000Z",
+  "cwd": "@WIKI@",
+  "agent_id": "00000000-0000-4000-8000-000000000013",
+  "agent_type": "general-purpose",
+  "parent_agent_id": "00000000-0000-4000-8000-000000000014",
+  "tool_use_id": "toolu_0000000000000000000018",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git -C @WIKI@ log -1 --oneline",
+    "description": "<description>"
+  }
+}

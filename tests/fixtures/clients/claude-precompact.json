@@ -1,0 +1,9 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000007",
+  "transcript_path": "/home/u/.claude/projects/-home-u-wiki/00000000-0000-4000-8000-000000000007.jsonl",
+  "cwd": "@WIKI@",
+  "prompt_id": "00000000-0000-4000-8000-000000000008",
+  "hook_event_name": "PreCompact",
+  "trigger": "manual",
+  "custom_instructions": null
+}

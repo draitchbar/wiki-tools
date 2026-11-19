@@ -1,0 +1,9 @@
+{
+  "hook_event_name": "PreToolUse",
+  "session_id": "00000000-0000-4000-8000-000000000018",
+  "timestamp": "2026-01-01T00:00:00.000Z",
+  "cwd": "@WIKI@",
+  "tool_use_id": "custom_call_0001",
+  "tool_name": "Edit",
+  "tool_input": "*** Begin Patch\n*** Update File: @WIKI@/wiki/log.md\n@@\n+Patched.\n*** End of File\n*** Update File: @WIKI@/templates/entity.md\n*** Move to: @WIKI@/templates/person.md\n@@\n*** End Patch\n"
+}
