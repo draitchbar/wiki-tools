@@ -43,6 +43,7 @@ Then run `/wiki:init <what the wiki is for>`. It agrees the wiki's purpose, page
 | `/wiki:ingest <source>` | Bring new material from a source into the pages; `/wiki:ingest all` does every due source in turn; `--unattended` never asks, and leaves questions for `/wiki:clarify` |
 | `/wiki:add-source <type> [key]` | Add a source; you install the files it drafts with `install-source-file.sh`, in a separate terminal |
 | `/wiki:research <source> "<question>"` | Research a codebase (or another research source) with parallel agents |
+| `/wiki:clarify` | Answer or dismiss the questions an unattended ingest left in `open-questions.md` |
 | `/wiki:lint`, `/wiki:audit <page>` | Check the wiki's health; fact-check a page against its sources |
 | `/wiki:commit-themes` | Commit the changes as one commit per theme |
 

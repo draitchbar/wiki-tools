@@ -257,3 +257,10 @@ def test_questions_undated(tmp_path, cli):
 def test_questions_no_sync_log(tmp_path, cli):
     w = _qwiki(tmp_path, "### q-2026-01-01-x\n- raised: 2026-01-01, raw\n", synclog=False)
     assert "Open questions" not in text(cli("sync-status", cwd=w, env=ENV))
+
+
+@pytest.mark.checks("sync-status/questions-future")
+def test_questions_future(tmp_path, cli):
+    w = _qwiki(tmp_path, "### q-2026-01-01-x\n- raised: 2999-01-01, raw\n")
+    assert "Open questions (open-questions.md): 1. Answer them with /wiki:clarify." in \
+        text(cli("sync-status", cwd=w, env=ENV))

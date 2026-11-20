@@ -55,10 +55,13 @@ Use `/wiki:ingest <key> [filter]` (`raw` or an instance key), or `/wiki:ingest a
 ### q-YYYY-MM-DD-<slug>
 - kind: unclear | conflict | filing
 - raised: YYYY-MM-DD, <key>
-- items: <citations, ; -separated>
+- items: <citations in the contract's Cite form, ; -separated>
 - pages: [[page]], [[page]]
-- question: … / context: … / suggestion: …  (one bullet each; optional related: <id>, answer: <typed by the user>)
+- question: …
+- context: …
+- suggestion: …
 ```
+Optional bullets: `related: <id>`, and `answer: …` typed by the user.
 `/wiki:clarify` answers or dismisses each with the user and logs it as `clarify` (`<id>: answered|dismissed|closed by <key>`). An ingest whose material settles a question closes it the same way; it never applies an `answer:` line. A merge conflict keeps both blocks. Sync-status counts them; lint flags old ones and markers without a question.
 
 ## Data model

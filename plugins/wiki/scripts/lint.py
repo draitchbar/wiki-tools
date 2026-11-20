@@ -425,7 +425,7 @@ def report(root, plugin, history=None):
 
     # Deferred questions (open-questions.md, sourcelib.open_questions) and
     # their ^[open: <id>] markers in wiki/ (log.md aside).
-    w_qold, w_qmark, w_qbad = questions(root, all_, texts, known, today)
+    w_qold, w_qmark, w_qbad = questions(root, all_, texts, {slug_of(p) for p in pages}, today)
 
     # log.md is append-only: no removed or changed lines, neither uncommitted
     # nor in the commits of the last LOG_DAYS days.
@@ -471,16 +471,22 @@ def report(root, plugin, history=None):
     return "\n".join(o), n_err
 
 
-def questions(root, all_, texts, known, today):
+def questions(root, all_, texts, page_slugs, today):
     """The three open-question sections: questions raised more than
-    QUESTION_DAYS ago, markers and questions that don't match, and a
-    malformed open-questions.md."""
+    QUESTION_DAYS ago, markers and questions that don't match (and markers
+    that aren't a question ID), and a malformed open-questions.md."""
     old, mark, bad = [], [], []
     r = sourcelib.read_questions(root)
     qs, conflict = r if r else ([], False)
     marks = sorted({(p, m.group(1)) for p in all_ if p != "log.md"
                     for m in sourcelib.MARKER.finditer(texts[p])}, key=lambda x: (_key(x[0]), x[1]))
     ids = [q.id for q in qs]
+    for p in all_:
+        if p == "log.md":
+            continue
+        for m in sourcelib.MARKER_ANY.finditer(texts[p]):
+            if not sourcelib.MARKER.fullmatch(m.group(0)):
+                mark.append("- `%s`: marker `%s` is not a question ID (q-YYYY-MM-DD-<slug>)" % (p, m.group(0)))
     for p, i in marks:
         if i not in ids:
             mark.append("- `%s`: marker %s has no question in %s" % (p, i, sourcelib.QUESTIONS))
@@ -489,11 +495,10 @@ def questions(root, all_, texts, known, today):
         bad.append("- merge conflict lines (<<<<<<<, =======, >>>>>>>)")
     seen = set()
     for q in qs:
-        if q.raised_date is not None:
-            age = (today - q.raised_date).days
-            if age > QUESTION_DAYS:
-                old.append("- `%s` raised %s (%d days ago)" % (q.id, q.raised_date.isoformat(), age))
-        if q.valid and q.id not in marked:
+        age = None if q.raised_date is None else (today - q.raised_date).days
+        if age is not None and age > QUESTION_DAYS:
+            old.append("- `%s` raised %s (%d days ago)" % (q.id, q.raised_date.isoformat(), age))
+        if q.valid and q.id not in marked and q.id not in seen:
             mark.append("- `%s`: no page carries its marker" % q.id)
         probs = []
         if not q.valid:
@@ -506,8 +511,10 @@ def questions(root, all_, texts, known, today):
                          if q.kind else "no kind")
         if q.raised_date is None:
             probs.append("raised `%s` has no YYYY-MM-DD date" % q.raised if q.raised else "no raised")
+        elif age < 0:
+            probs.append("raised %s is in the future" % q.raised_date.isoformat())
         for t in links_of(q.pages):
-            if t not in known:
+            if t not in page_slugs:
                 probs.append("pages links to [[%s]], no such page" % t)
         if probs:
             bad.append("- `%s`: %s" % (q.id, "; ".join(probs)))

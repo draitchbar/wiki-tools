@@ -437,3 +437,28 @@ def test_questions_conflict(tmp_path, cli):
 @pytest.mark.checks("lint/questions-absent")
 def test_questions_absent(lint_out):
     assert "open question" not in lint_out and "open-questions" not in lint_out
+
+
+@pytest.mark.checks("lint/questions-more")
+def test_questions_more(tmp_path, cli):
+    """A marker in index.md counts; a malformed marker is named; a future
+    raised date is malformed; pages: [[index]] is no page; an unmarked
+    duplicate is reported once; markers with no open-questions.md at all."""
+    w = tmp_path / "qm"
+    write(w / "wiki/index.md", "# Index\n\n[[a]] ^[open: q-2026-10-01-in-index]\n")
+    write(w / "wiki/a.md", _lfm("A") + "\n^[open: q-2026-10-1-bad] ^[open: q-2026-10-05-later]\n")
+    git(w, "init", "-q")
+    out = text(cli("lint", cwd=w, env=TODAY))
+    assert "- `index.md`: marker q-2026-10-01-in-index has no question in open-questions.md\n" in out
+    assert "- `a.md`: marker q-2026-10-05-later has no question in open-questions.md\n" in out
+    assert "- `a.md`: marker `^[open: q-2026-10-1-bad]` is not a question ID (q-YYYY-MM-DD-<slug>)" in out
+    write(w / "open-questions.md",
+          "### q-2026-10-01-in-index\n- kind: unclear\n- raised: 2026-10-01, raw\n- pages: [[index]]\n\n"
+          "### q-2026-10-05-later\n- kind: unclear\n- raised: 2026-12-01, raw\n- pages: [[a]]\n\n"
+          "### q-2026-10-09-dup\n- kind: unclear\n- raised: 2026-10-09, raw\n\n"
+          "### q-2026-10-09-dup\n- kind: unclear\n- raised: 2026-10-09, raw\n")
+    out = text(cli("lint", cwd=w, env=TODAY))
+    assert "- `q-2026-10-01-in-index`: pages links to [[index]], no such page" in out
+    assert "- `q-2026-10-05-later`: raised 2026-12-01 is in the future" in out
+    assert out.count("`q-2026-10-09-dup`: no page carries its marker") == 1
+    assert "has no question" not in out

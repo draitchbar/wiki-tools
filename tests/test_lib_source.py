@@ -223,6 +223,8 @@ def test_open_questions_parse():
     pytest.param("=======", True, id="open-questions/conflict-sep"),
     pytest.param(">>>>>>> main", True, id="open-questions/conflict-theirs"),
     pytest.param(" =======", False, id="open-questions/no-conflict-indented"),
+    pytest.param("||||||| base", True, id="open-questions/conflict-diff3"),
+    pytest.param("==========", False, id="open-questions/no-conflict-setext"),
 ])
 def test_open_questions_conflict(line, want):
     assert sourcelib.open_questions("### q-2026-01-01-a\n%s\n- kind: unclear\n" % line)[1] is want
@@ -242,3 +244,10 @@ def test_read_questions(tmp_path):
     write(tmp_path / "open-questions.md", "### q-2026-01-01-a\n- kind: unclear")
     qs, _ = sourcelib.read_questions(posix(tmp_path))
     assert [q.kind for q in qs] == ["unclear"]
+
+
+@pytest.mark.checks("open-questions/fenced-example")
+def test_open_questions_fenced():
+    t = "### q-2026-01-01-a\n- kind: unclear\n```markdown\n### q-2026-01-02-example\n- kind: filing\n```\n"
+    qs, _ = sourcelib.open_questions(t)
+    assert [(q.id, q.kind) for q in qs] == [("q-2026-01-01-a", "unclear")]

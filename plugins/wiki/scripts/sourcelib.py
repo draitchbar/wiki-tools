@@ -189,7 +189,9 @@ _Q_HEAD = re.compile(r"### (.*)")
 _Q_END = re.compile(r"#{1,2}( |$)")
 _Q_FIELD = re.compile(r"- ([a-z]+): ?(.*)", re.ASCII)
 _Q_DATE = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})", re.ASCII)
-_Q_CONFLICT = re.compile(r"(<{7}|={7}|>{7})")
+_Q_CONFLICT = re.compile(r"(<{7}|={7}|>{7}|\|{7})( |$)")
+_Q_FENCE = re.compile(r" {0,3}(```|~~~)")
+MARKER_ANY = re.compile(r"\^\[open:[^\]\n]*\]")
 
 
 class Question:
@@ -217,11 +219,17 @@ def open_questions(text):
     """(questions in file order, True if the text has merge-conflict lines).
     A block runs from its `### ` heading to the next heading of level 1 to
     3; its `- <field>: <value>` bullets are read in any order, the first of
-    each field wins."""
-    qs, cur, conflict = [], None, False
+    each field wins. Lines inside a fenced code block (an example) are
+    skipped."""
+    qs, cur, conflict, fence = [], None, False, False
     for ln in text.split("\n"):
         if ln.endswith("\r"):
             ln = ln[:-1]
+        if _Q_FENCE.match(ln):
+            fence = not fence
+            continue
+        if fence:
+            continue
         if _Q_CONFLICT.match(ln):
             conflict = True
             continue

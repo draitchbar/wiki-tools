@@ -173,13 +173,14 @@ def report(root, plugin, today):
 
 def questions_line(root, today):
     """The open questions of open-questions.md (/wiki:ingest --unattended
-    defers them there): how many, and the oldest by its raised date. None
-    when there are none."""
+    defers them there): how many, and the oldest by its raised date (a date
+    in the future doesn't count; lint reports it). None when there are
+    none."""
     r = sourcelib.read_questions(root)
     if not r or not r[0]:
         return None
     qs = r[0]
-    dated = [q for q in qs if q.raised_date is not None]
+    dated = [q for q in qs if q.raised_date is not None and q.raised_date <= today]
     line = "Open questions (%s): %d" % (sourcelib.QUESTIONS, len(qs))
     if dated:
         old = min(dated, key=lambda q: q.raised_date)
