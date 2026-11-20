@@ -197,20 +197,29 @@ def story(tmp_path_factory, cli, request):
     st = Story()
     inst = sw / ".claude/sources/instances"
 
-    def srun(*args):
-        return cli("sources", *args, cwd=sw).merged.decode("utf-8", errors="surrogateescape")
+    def srun(*args, memo=None):
+        """sources.sh's output; with memo (a dict, for steps on one unchanged
+        wiki) each argument list runs once."""
+        if memo is None or args not in memo:
+            o = cli("sources", *args, cwd=sw).merged.decode("utf-8", errors="surrogateescape")
+            if memo is None:
+                return o
+            memo[args] = o
+        return memo[args]
 
     def expect(rows):
+        memo = {}
         for n, text, args in rows:
-            st.found("sources/" + n, text, srun(*args))
+            st.found("sources/" + n, text, srun(*args, memo=memo))
 
+    memo = {}
     for n, text, args in LIST_ETC:
-        st.found("sources/" + n, text, srun(*args))
-    st.check("sources/contract-root-filled", "${CLAUDE_PLUGIN_ROOT}" not in srun("contract", "local-folder"))
+        st.found("sources/" + n, text, srun(*args, memo=memo))
+    st.check("sources/contract-root-filled", "${CLAUDE_PLUGIN_ROOT}" not in srun("contract", "local-folder", memo=memo))
     for n, args, rx in COUNTS:
-        st.eq("sources/" + n, 0, sum(bool(re.search(rx, ln)) for ln in srun(*args).split("\n")))
+        st.eq("sources/" + n, 0, sum(bool(re.search(rx, ln)) for ln in srun(*args, memo=memo).split("\n")))
     for n, args, rx in COUNT_ONE:
-        st.eq("sources/" + n, 1, sum(bool(re.search(rx, ln)) for ln in srun(*args).split("\n")))
+        st.eq("sources/" + n, 1, sum(bool(re.search(rx, ln)) for ln in srun(*args, memo=memo).split("\n")))
     write(inst / "notes.md", "---\nkey: notes\ntype: onenote\nsections:\n  - Book > Tab\nstate:\n"
           "  - last_checked\n  - cursor\n---\n")
     expect(NOTES)

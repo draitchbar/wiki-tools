@@ -52,7 +52,7 @@ plugins/wiki/
 scripts/pii-check.sh, pii_check.py  repo tooling, not the plugin: the personal-data check (docs/development.md, "Personal data")
 .githooks/pre-push                runs the personal-data check on every push (switched on per clone)
 .github/workflows/                ci.yml (lint, tests), pii.yml (personal-data check), claude-review.yml
-tests/                            run-tests.sh (runs pytest), conftest.py and test_*.py, fixtures and fixture wikis, fakes
+tests/                            run-tests.sh (runs pytest), conftest.py and test_*.py, codebase_story.py (the codebase modules' shared setup), fixtures and fixture wikis, fakes
 docs/                             these pages, the ADR, the roadmap, a security review
 docs/plans/                       one file per detailed plan, indexed in the roadmap
 ```

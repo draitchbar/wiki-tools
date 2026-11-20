@@ -56,22 +56,18 @@ def test_fixture(fixture, gw, guard_run):
     data = subst(fixture.read_bytes().decode("utf-8"), wiki)
     r = guard_run(data, wiki)
     assert r.rc == (0 if fixture.stem.startswith("pass-") else 2), r
-
-
-@pytest.mark.parametrize("fixture", [pytest.param(f, id="%s/%s (message)" % (f.parent.name, f.stem))
-                                     for f in sorted(FIXTURES.glob("*/*.json"))
-                                     if f.with_suffix(".msg").is_file()])
-def test_fixture_message(fixture, gw, guard_run):
-    wiki = str(gw).replace("\\", "/")
-    r = guard_run(subst(fixture.read_bytes().decode("utf-8"), wiki), wiki)
-    want = subst(fixture.with_suffix(".msg").read_bytes().decode("utf-8"), wiki).rstrip("\n")
-    assert _message(r, wiki) == norm(want, wiki)
+    # The message, when a <case>.msg is beside it: same guard run.
+    msg = fixture.with_suffix(".msg")
+    if msg.is_file():
+        want = subst(msg.read_bytes().decode("utf-8"), wiki).rstrip("\n")
+        assert _message(r, wiki) == norm(want, wiki)
 
 
 @pytest.mark.parametrize("msg", [pytest.param(m, id="fixtures/%s has a fixture" % m.name)
                                  for m in sorted(FIXTURES.glob("*/*.msg"))])
 def test_message_has_fixture(msg):
-    assert msg.with_suffix(".json").is_file()
+    """Every message is checked (test_fixture): a pass- or block- fixture beside it."""
+    assert msg.with_suffix(".json").is_file() and msg.stem.startswith(("pass-", "block-"))
 
 
 # --- the checks: an ordered list, each one tested -------------------------
@@ -228,6 +224,15 @@ def test_harmless_list():
     """No tool that runs commands, writes or reads files is on the list."""
     assert not hookjson.HARMLESS & {"Bash", "PowerShell", "Monitor", "Write", "Edit", "MultiEdit",
                                     "NotebookEdit", "Read", "Grep", "Glob", "LSP"}
+
+
+@pytest.mark.checks("hookjson/harmless-names")
+def test_harmless_names():
+    """The built-in tools a wiki session uses stay allowed, current names and
+    legacy ones. One payload of each kind runs through the guard as a
+    fixture: pass-harmless-tool, pass-real-agent, pass-task-legacy-agent."""
+    assert {"Agent", "Skill", "TaskCreate", "ToolSearch", "EnterWorktree", "ExitWorktree", "TodoWrite",
+            "Task", "BashOutput", "KillShell"} <= hookjson.HARMLESS
 
 
 # --- hooks.json: one guard command, run as Claude Code runs it ------------

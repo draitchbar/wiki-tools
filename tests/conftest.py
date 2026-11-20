@@ -337,14 +337,16 @@ def cli(request, run, pydata):
     e2e = request.config.getoption("--e2e")
 
     def _cli(name, *args, cwd, env=None, input=b"", both=False):
-        """both: separate streams and the real merged order (e2e runs twice)."""
+        """both: separate streams and the real merged order (e2e runs a
+        second time for it, when both streams have output; with one empty
+        the merged order is the other stream)."""
         if e2e:
             if name == "sourcelib":
                 argv = ["bash", "-c", _BRIDGE, "_", SCRIPTS_P, PLUGIN_BASH] + list(args)
             else:
                 argv = ["bash", SCRIPTS_P + "/%s.sh" % name] + list(args)
             r = run(argv, cwd=cwd, env=env, input=input)
-            if both:
+            if both and r.out and r.err:
                 r.merged = run(argv, cwd=cwd, env=env, input=input, merged=True).merged
             return r
         mod = __import__(_MODULES[name])
