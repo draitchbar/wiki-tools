@@ -93,6 +93,7 @@ Offer concrete fixes grouped by kind, and show the exact change before writing e
 - **Stale pages:** list them with the sources to re-check. Don't change status text without a source.
 - **Superseded analyses** (research written before a later event): rather than rewriting them, add `as_of: YYYY-MM-DD` and a banner, as wiki-layout describes.
 - **Privacy:** remove the data, or replace it with a reference to where it is kept outside the wiki. Show the change.
+- **Open questions** (`open-questions.md`, deferred by unattended ingests): for old ones, suggest `/wiki:clarify`. For a marker without a question, offer to remove the marker (show the line) or to raise the question again with the user's words. For a question without a marker, offer to put the marker back on the page it names, or leave it to `/wiki:clarify` to dismiss. For a malformed file, show the fix line by line; a duplicate ID gets a new one for the newer block, and its markers are rewritten.
 - **Contradictions and VAT ambiguities:** don't pick a value. Suggest `/wiki:audit <page>` on the affected page, which re-reads the sources.
 
 Record each batch of fixes the user accepts, now or later in another session, on its own:

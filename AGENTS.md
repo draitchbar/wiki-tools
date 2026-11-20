@@ -15,7 +15,7 @@ The contribution rules, for people and agents alike:
 - The guards are a guardrail, not a security boundary. Don't weaken one without saying so in the commit message.
 - No fixed clone path. Skills, the schema and contract bodies name plugin files as `${CLAUDE_PLUGIN_ROOT}/...` (filled in by Claude Code for skills, by `schema.sh` and `sources.sh` for the rest); scripts find their own folder; contract `read_tools` use `Bash(bash */sources/<type>/<script>.sh *)`. Everything the wikis need lives under `plugins/wiki/`, since Claude Code may run an installed copy of only that folder.
 - Sources: the wiki skills are source-neutral. Anything specific to one source belongs in its type's `plugins/wiki/sources/<type>/SOURCE.md`, never in a skill. New standard types: `/new-source-type`.
-- Test plans sent to a wiki session: Claude can't start a skill with `disable-model-invocation` (`init`, `add-source`, `ingest`, `lint`, `audit`, `commit-themes`): mark such a step as the user's; for `/wiki:init`'s check mode, Claude can run `wiki-check.sh` (`docs/skills.md`, `/wiki:init`).
+- Test plans sent to a wiki session: Claude can't start a skill with `disable-model-invocation` (`init`, `add-source`, `ingest`, `clarify`, `lint`, `audit`, `commit-themes`): mark such a step as the user's; for `/wiki:init`'s check mode, Claude can run `wiki-check.sh` (`docs/skills.md`, `/wiki:init`).
 - Lint must be clean before committing: `ruff check .` (`ruff.toml`) and `shellcheck -S warning` on every `*.sh` (`.shellcheckrc`).
 
 ## Agents

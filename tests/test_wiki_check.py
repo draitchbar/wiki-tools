@@ -230,10 +230,10 @@ def test_deny_blocks(mk, cli, deny):
 def test_stray_markdown(mk, cli):
     """Tracked Markdown outside the layout is listed as INFO, not a failure;
     the layout's folders, work/, dot folders and dot files, untracked files
-    and the root's CLAUDE.md and README.md aren't."""
+    and the root's CLAUDE.md, README.md and open-questions.md aren't."""
     w = mk("f24")
-    for rel in ("draft.md", "notes/mail.MD", "notes/CLAUDE.md", "README.md", "work/deck.md", "raw/note.md",
-                "outputs/r.md", ".hidden.md", "notes/.drafts/x.md", "notes/a.txt"):
+    for rel in ("draft.md", "notes/mail.MD", "notes/CLAUDE.md", "README.md", "open-questions.md", "work/deck.md",
+                "raw/note.md", "outputs/r.md", ".hidden.md", "notes/.drafts/x.md", "notes/a.txt"):
         write(w / rel, "Draft.\n")
     git(w, "add", "-A")
     git(w, "commit", "-qm", "more")

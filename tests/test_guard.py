@@ -246,6 +246,15 @@ def test_hooks_json_matcher():
     assert matchers == ["*"]
 
 
+@pytest.mark.checks("hooks-json/sync-status-matcher")
+def test_hooks_json_sync_status_matcher():
+    """The sync status (and its open-questions reminder) runs at startup and
+    after /clear, not on resume or compaction."""
+    groups = [g for g in json.loads(HOOKS)["hooks"]["SessionStart"]
+              if any("sync-status.sh" in h["command"] for h in g["hooks"])]
+    assert [g.get("matcher") for g in groups] == ["startup|clear"]
+
+
 @pytest.mark.parametrize("tool,ti,want", [
     pytest.param("Monitor", {"command": "git push"}, 2, id="py-launch/hooks-json-monitor-push"),
     pytest.param("Monitor", {"ws": {"url": "wss://example.com/x"}}, 0, id="py-launch/hooks-json-monitor-ws"),

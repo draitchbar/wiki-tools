@@ -29,6 +29,11 @@ schema in schema/wiki-layout.md):
          the one format /wiki:init writes: header `| Page | Summary |
          Updated |`, Page a [[link]], Updated a YYYY-MM-DD date; any other
          table or row is skipped)
+         open questions (open-questions.md) raised more than 30 days ago,
+         ^[open: <id>] markers below wiki/ (not in log.md) with no question
+         and questions no file marks, a malformed open-questions.md
+         (heading not an ID, duplicate ID, bad kind or raised, pages links
+         to no page, merge-conflict lines)
   INFO   pages without status_as_of whose type carries it (its template,
          templates/<type>.md, has a status_as_of field), `sources:`
          entries that match no source of the wiki (only once it has
@@ -69,6 +74,7 @@ from hookjson import lower  # noqa: E402
 from sourcelib import git, read_text  # noqa: E402
 
 STALE_DAYS = 90
+QUESTION_DAYS = 30
 LOG_DAYS = 30
 REQUIRED = ("title", "type", "sources", "created", "updated")
 # Words that suggest a claim goes out of date (English and Danish).
@@ -417,6 +423,10 @@ def report(root, plugin, history=None):
             w_idxdate.append("- `%s`: index.md says Updated %s, the page says `updated: %s`"
                              % (ps[0], d, up))
 
+    # Deferred questions (open-questions.md, sourcelib.open_questions) and
+    # their ^[open: <id>] markers in wiki/ (log.md aside).
+    w_qold, w_qmark, w_qbad = questions(root, all_, texts, known, today)
+
     # log.md is append-only: no removed or changed lines, neither uncommitted
     # nor in the commits of the last LOG_DAYS days.
     _, d = git(root, "diff", "--no-color", "-U0", "HEAD", "--", "wiki/log.md")
@@ -429,7 +439,7 @@ def report(root, plugin, history=None):
 
     n_err = len(e_nofm) + len(e_fields) + len(e_broken) + len(e_log)
     n_warn = (len(w_orphan) + len(w_noindex) + len(w_idxdate) + len(w_nosrc) + len(w_dates)
-              + len(w_stale))
+              + len(w_stale) + len(w_qold) + len(w_qmark) + len(w_qbad))
     n_info = len(i_status) + len(i_srcprefix)
     o = ["## Mechanical checks: %s (%s)" % (root.rstrip("/").rsplit("/", 1)[-1], today_s), "",
          "Pages: %d. Errors: %d. Warnings: %d. Info: %d." % (len(pages), n_err, n_warn, n_info)]
@@ -443,6 +453,9 @@ def report(root, plugin, history=None):
                          (w_nosrc, "WARN: no sources"),
                          (w_dates, "WARN: bad dates"),
                          (w_stale, "WARN: possibly stale (not updated in %d+ days)" % STALE_DAYS),
+                         (w_qold, "WARN: open questions older than %d days" % QUESTION_DAYS),
+                         (w_qmark, "WARN: open question markers that don't match"),
+                         (w_qbad, "WARN: open-questions.md malformed"),
                          (i_status, "INFO: missing status_as_of"),
                          (i_srcprefix, "INFO: citations with no matching source")):
         if lines:
@@ -456,6 +469,49 @@ def report(root, plugin, history=None):
     o += ["", "## Clusters for contradiction checks", ""]
     o += sorted(("- **%s**: %s" % (k, ", ".join(v)) for k, v in cl.items()), key=_key)
     return "\n".join(o), n_err
+
+
+def questions(root, all_, texts, known, today):
+    """The three open-question sections: questions raised more than
+    QUESTION_DAYS ago, markers and questions that don't match, and a
+    malformed open-questions.md."""
+    old, mark, bad = [], [], []
+    r = sourcelib.read_questions(root)
+    qs, conflict = r if r else ([], False)
+    marks = sorted({(p, m.group(1)) for p in all_ if p != "log.md"
+                    for m in sourcelib.MARKER.finditer(texts[p])}, key=lambda x: (_key(x[0]), x[1]))
+    ids = [q.id for q in qs]
+    for p, i in marks:
+        if i not in ids:
+            mark.append("- `%s`: marker %s has no question in %s" % (p, i, sourcelib.QUESTIONS))
+    marked = {i for _, i in marks}
+    if conflict:
+        bad.append("- merge conflict lines (<<<<<<<, =======, >>>>>>>)")
+    seen = set()
+    for q in qs:
+        if q.raised_date is not None:
+            age = (today - q.raised_date).days
+            if age > QUESTION_DAYS:
+                old.append("- `%s` raised %s (%d days ago)" % (q.id, q.raised_date.isoformat(), age))
+        if q.valid and q.id not in marked:
+            mark.append("- `%s`: no page carries its marker" % q.id)
+        probs = []
+        if not q.valid:
+            probs.append("not a question ID (q-YYYY-MM-DD-<slug>)")
+        if q.id in seen:
+            probs.append("duplicate ID")
+        seen.add(q.id)
+        if q.kind not in sourcelib.KINDS:
+            probs.append("kind `%s` is not one of %s" % (q.kind, ", ".join(sourcelib.KINDS))
+                         if q.kind else "no kind")
+        if q.raised_date is None:
+            probs.append("raised `%s` has no YYYY-MM-DD date" % q.raised if q.raised else "no raised")
+        for t in links_of(q.pages):
+            if t not in known:
+                probs.append("pages links to [[%s]], no such page" % t)
+        if probs:
+            bad.append("- `%s`: %s" % (q.id, "; ".join(probs)))
+    return old, mark, bad
 
 
 def wiki_root():

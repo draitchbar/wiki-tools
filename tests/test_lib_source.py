@@ -191,3 +191,54 @@ def test_tools_valid(ls, tmp_path):
 def test_proton_files_contract():
     from conftest import PLUGIN
     assert vc(posix(PLUGIN / "sources/proton-files/SOURCE.md")) == ("", 0)
+
+
+# --- open-questions.md (sourcelib.open_questions) --------------------------
+
+Q_TEXT = ("# Open questions\r\n\r\nWhat /wiki:clarify answers.\r\n\r\n"
+          "### q-2026-11-20-offer-vat-basis\r\n- raised: 2026-11-20, gmail\r\n- kind: unclear\r\n"
+          "- pages: [[supplier-x]], [[budget]]\r\n- question: Incl. VAT?\r\n- kind: conflict\r\n\r\n"
+          "### q-2026-10-01-old\n- kind: filing\n- raised: soon, raw\n\n"
+          "### Not an id\n- kind: unclear\n\n"
+          "## Notes\n- kind: conflict\n\n"
+          "### q-2026-10-01-old\n- raised: 2026-02-30")
+
+
+@pytest.mark.checks("open-questions/parse")
+def test_open_questions_parse():
+    qs, conflict = sourcelib.open_questions(Q_TEXT)
+    assert not conflict
+    assert [(q.id, q.valid, q.kind, q.raised) for q in qs] == [
+        ("q-2026-11-20-offer-vat-basis", True, "unclear", "2026-11-20, gmail"),
+        ("q-2026-10-01-old", True, "filing", "soon, raw"),
+        ("Not an id", False, "unclear", ""),
+        ("q-2026-10-01-old", True, "", "2026-02-30")]
+    assert qs[0].raised_date.isoformat() == "2026-11-20"
+    assert qs[0].pages == "[[supplier-x]], [[budget]]"
+    assert qs[1].raised_date is None and qs[3].raised_date is None
+
+
+@pytest.mark.parametrize("line,want", [
+    pytest.param("<<<<<<< HEAD", True, id="open-questions/conflict-ours"),
+    pytest.param("=======", True, id="open-questions/conflict-sep"),
+    pytest.param(">>>>>>> main", True, id="open-questions/conflict-theirs"),
+    pytest.param(" =======", False, id="open-questions/no-conflict-indented"),
+])
+def test_open_questions_conflict(line, want):
+    assert sourcelib.open_questions("### q-2026-01-01-a\n%s\n- kind: unclear\n" % line)[1] is want
+
+
+@pytest.mark.checks("open-questions/marker")
+def test_open_questions_marker():
+    t = "A *note* ^[open: q-2026-11-20-a-b] and ^[open: q-2026-11-2-x] and ^[open: Q-2026-11-20-a]"
+    assert [m.group(1) for m in sourcelib.MARKER.finditer(t)] == ["q-2026-11-20-a-b"]
+    assert sourcelib.QID.fullmatch("q-2026-11-20-" + "a" * 40)
+    assert not sourcelib.QID.fullmatch("q-2026-11-20-" + "a" * 41)
+
+
+@pytest.mark.checks("open-questions/read")
+def test_read_questions(tmp_path):
+    assert sourcelib.read_questions(posix(tmp_path)) is None
+    write(tmp_path / "open-questions.md", "### q-2026-01-01-a\n- kind: unclear")
+    qs, _ = sourcelib.read_questions(posix(tmp_path))
+    assert [q.kind for q in qs] == ["unclear"]

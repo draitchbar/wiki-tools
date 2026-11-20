@@ -84,7 +84,7 @@ Draft the plan (step 5's content). Then dispatch one reviewer subagent with the 
    - `## Pages`: folders, `type:` rule, which types get `status_as_of`, "New pages start from `templates/<type>.md`".
    - `## Formats`: language, dates; currency and VAT or tax basis only if the wiki handles amounts.
    - `## Privacy` (only if item 7 produced rules).
-   - `## Session routine`: `/wiki:sync-status` at the start; `/wiki:lint` about every 5 ingests; `/wiki:audit <page>` on key pages (name the types).
+   - `## Session routine`: `/wiki:sync-status` at the start; `/wiki:clarify` when it reports open questions; `/wiki:lint` about every 5 ingests; `/wiki:audit <page>` on key pages (name the types).
 3. **Templates** in full.
 4. **Standard files**: `wiki/index.md` (a `## <Folder>` section with an empty `| Page | Summary | Updated |` table per folder), `wiki/log.md` (`# Log` and `## YYYY-MM-DD | init | <summary>` listing what was created), `raw/sync-log.md` (`# Sync Log`, `last_checked_raw: never` plus, per instance, a `last_checked_<key>: never` line and any other agreed state field, a `## History` table with an `init` row), `.gitignore`:
    ```

@@ -10,6 +10,8 @@ have no line yet are listed too, and keys with no instance file are marked
 as manual once the wiki has instances. Research instances (mode: research)
 aren't ingested, so they are left out. A dated raw line says
 "nothing new in raw/" when git shows nothing new there (raw_unchanged).
+Open questions in open-questions.md (deferred by an unattended ingest) are
+counted in a last line, with the oldest.
 
 Same output as the bash version (checked by recording every call of the
 test suite on both), except:
@@ -163,9 +165,27 @@ def report(root, plugin, today):
         pre = "last_checked_%s:" % k
         if not any(ln.startswith(pre) for ln in lines):
             out.append("- %s: no last_checked_%s line yet (treated as never checked)" % (k, k))
-    if not out:
+    q = questions_line(root, today)
+    if not out and not q:
         return None
-    return "Wiki sync status (raw/sync-log.md):\n" + "\n".join(out)
+    return "Wiki sync status (raw/sync-log.md):\n" + "\n".join(out + ([q] if q else []))
+
+
+def questions_line(root, today):
+    """The open questions of open-questions.md (/wiki:ingest --unattended
+    defers them there): how many, and the oldest by its raised date. None
+    when there are none."""
+    r = sourcelib.read_questions(root)
+    if not r or not r[0]:
+        return None
+    qs = r[0]
+    dated = [q for q in qs if q.raised_date is not None]
+    line = "Open questions (%s): %d" % (sourcelib.QUESTIONS, len(qs))
+    if dated:
+        old = min(dated, key=lambda q: q.raised_date)
+        line += ", oldest %s (raised %s, %d days ago)" % (
+            old.id, old.raised_date.isoformat(), (today - old.raised_date).days)
+    return line + ". Answer them with /wiki:clarify."
 
 
 def _main(argv):

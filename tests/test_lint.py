@@ -374,3 +374,66 @@ def idx_out(tmp_path_factory, cli):
 ])
 def test_index_dates(needle, present, idx_out):
     assert (needle in idx_out) == present
+
+
+# --- open questions (open-questions.md and ^[open: <id>] markers) ---------
+
+Q_OK = "q-2026-09-01-vat-basis"
+
+
+@pytest.fixture(scope="module")
+def q_out(tmp_path_factory, cli):
+    """A wiki with one question of each problem; lint on 2026-10-16."""
+    w = tmp_path_factory.mktemp("lq") / "qw"
+    write(w / "wiki/index.md", "# Index\n\n[[a]] [[b]]\n")
+    write(w / "wiki/log.md", "# Log\n\n## 2026-10-01 | clarify | ^[open: q-2026-01-01-in-log]\n")
+    write(w / "wiki/a.md", _lfm("A") + "\n[[b]] *VAT basis not stated* ^[open: %s]\n"
+          "*Old* ^[open: q-2026-09-15-boundary] ^[open: q-2026-09-16-fresh]\n" % Q_OK)
+    write(w / "wiki/b.md", _lfm("B") + "\n[[a]] ^[open: q-2026-10-01-orphan-marker]\n")
+    write(w / "open-questions.md", "# Open questions\n\n"
+          "### q-2026-10-02-unmarked\n- kind: conflict\n- raised: 2026-10-02, raw\n- pages: [[a]]\n\n"
+          "### q-2026-09-16-fresh\n- kind: unclear\n- raised: 2026-09-16, raw\n- pages: [[a]]\n\n"
+          "### q-2026-09-15-boundary\n- kind: unclear\n- raised: 2026-09-15, raw\n- pages: [[a]]\n\n"
+          "### %s\n- kind: unclear\n- raised: 2026-09-01, gmail\n- pages: [[a]], [[gone]]\n\n"
+          "### %s\n- kind: guess\n- raised: soon\n\n"
+          "### Bad heading\n- raised: 2026-10-01, raw\n- kind: filing\n" % (Q_OK, Q_OK))
+    git(w, "init", "-q")
+    return text(cli("lint", cwd=w, env=TODAY))
+
+
+@pytest.mark.parametrize("want", [pytest.param(t, id="lint/questions-" + n) for n, t in [
+    ("old", "### WARN: open questions older than 30 days (2)\n\n"
+            "- `q-2026-09-15-boundary` raised 2026-09-15 (31 days ago)\n"
+            "- `q-2026-09-01-vat-basis` raised 2026-09-01 (45 days ago)\n"),
+    ("markers", "### WARN: open question markers that don't match (2)\n\n"
+                "- `b.md`: marker q-2026-10-01-orphan-marker has no question in open-questions.md\n"
+                "- `q-2026-10-02-unmarked`: no page carries its marker\n"),
+    ("malformed", "### WARN: open-questions.md malformed (3)\n\n"
+                  "- `q-2026-09-01-vat-basis`: pages links to [[gone]], no such page\n"
+                  "- `q-2026-09-01-vat-basis`: duplicate ID; kind `guess` is not one of unclear, conflict, filing; "
+                  "raised `soon` has no YYYY-MM-DD date\n"
+                  "- `Bad heading`: not a question ID (q-YYYY-MM-DD-<slug>)\n"),
+    ("summary", "Errors: 0. Warnings: 7. Info: 0."),
+]])
+def test_questions(want, q_out):
+    assert want in q_out
+
+
+@pytest.mark.checks("lint/questions-fresh-and-log-ignored")
+def test_questions_ignored(q_out):
+    assert "q-2026-09-16-fresh" not in q_out and "in-log" not in q_out
+
+
+@pytest.mark.checks("lint/questions-conflict-lines")
+def test_questions_conflict(tmp_path, cli):
+    w = tmp_path / "qc"
+    write(w / "wiki/index.md", "# Index\n")
+    write(w / "open-questions.md", "<<<<<<< HEAD\n=======\n>>>>>>> other\n")
+    git(w, "init", "-q")
+    out = text(cli("lint", cwd=w, env=TODAY))
+    assert "### WARN: open-questions.md malformed (1)\n\n- merge conflict lines" in out
+
+
+@pytest.mark.checks("lint/questions-absent")
+def test_questions_absent(lint_out):
+    assert "open question" not in lint_out and "open-questions" not in lint_out

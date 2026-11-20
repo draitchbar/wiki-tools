@@ -52,7 +52,7 @@ _ENABLED = '"wiki@wiki-tools":true'
 # Where a wiki's Markdown lives (schema/wiki-layout.md), and the root files
 # that aren't pages.
 _LAYOUT_DIRS = ("raw", "wiki", "outputs", "templates", "work")
-_ROOT_MD = ("CLAUDE.md", "README.md")
+_ROOT_MD = ("CLAUDE.md", "README.md", "open-questions.md")
 
 
 class Die(Exception):

@@ -212,3 +212,48 @@ def test_raw_nothing_new(step, quiet, ss_raw):
 @pytest.mark.checks("sync-status/raw-never")
 def test_raw_never(ss_raw):
     assert "- raw: never checked" in ss_raw["never"] and "nothing new" not in ss_raw["never"]
+
+
+# --- open questions (open-questions.md) ------------------------------------
+
+def _qwiki(tmp_path, questions=None, synclog=True):
+    w = tmp_path / "qw"
+    git(tmp_path, "init", "-q", "qw")
+    if synclog:
+        write(w / "raw/sync-log.md", "last_checked_raw: never\n")
+    if questions is not None:
+        write(w / "open-questions.md", questions)
+    return w
+
+
+@pytest.mark.checks("sync-status/questions-none")
+def test_questions_none(tmp_path, cli):
+    w = _qwiki(tmp_path)
+    assert "Open questions" not in text(cli("sync-status", cwd=w, env=ENV))
+    write(w / "open-questions.md", "# Open questions\n\nNone yet.\n")
+    assert "Open questions" not in text(cli("sync-status", cwd=w, env=ENV))
+
+
+@pytest.mark.checks("sync-status/questions-oldest")
+def test_questions_oldest(tmp_path, cli):
+    d = datetime.date.today()
+    d5, d40 = ((d - datetime.timedelta(days=n)).isoformat() for n in (5, 40))
+    w = _qwiki(tmp_path, "# Open questions\n\n### q-%s-new\n- kind: unclear\n- raised: %s, gmail\n\n"
+                         "### q-2026-01-01-bad\n- raised: someday\n\n"
+                         "### q-%s-old\n- kind: conflict\n- raised: %s, raw\n" % (d5, d5, d40, d40))
+    out = text(cli("sync-status", cwd=w, env=ENV))
+    assert ("- raw: never checked (first ingest asks for a starting point)\nOpen questions (open-questions.md): 3, "
+            "oldest q-%s-old (raised %s, 40 days ago). Answer them with /wiki:clarify.\n" % (d40, d40)) in out
+
+
+@pytest.mark.checks("sync-status/questions-undated")
+def test_questions_undated(tmp_path, cli):
+    w = _qwiki(tmp_path, "### q-2026-01-01-x\n- raised: someday\n")
+    assert "Open questions (open-questions.md): 1. Answer them with /wiki:clarify." in \
+        text(cli("sync-status", cwd=w, env=ENV))
+
+
+@pytest.mark.checks("sync-status/questions-no-sync-log")
+def test_questions_no_sync_log(tmp_path, cli):
+    w = _qwiki(tmp_path, "### q-2026-01-01-x\n- raised: 2026-01-01, raw\n", synclog=False)
+    assert "Open questions" not in text(cli("sync-status", cwd=w, env=ENV))
