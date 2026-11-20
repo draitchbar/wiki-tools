@@ -15,7 +15,7 @@ Verify sub-agent claims against the source before putting them in a page or repo
 - When the meaning of something is unclear, ask the user instead of guessing. Typical cases: who a person is, which of two offers or versions is meant, an unstated VAT or tax basis where amounts matter, whether a decision still stands, how a new kind of material fits the wiki.
 - Record the answer as a source: `"User statement (YYYY-MM-DD)"`, in `sources:` and inline next to the claim.
 - A pointer from the user ("the new contract is on Proton") is a pointer, not a fact about the document. Record facts about a file (signed or not, which version, its date) only after reading it; until then write "the user says X is in Y".
-- In a non-interactive (headless) run nobody can answer: list the open questions in the final report instead of guessing.
+- In a non-interactive (headless) run nobody can answer: list the open questions in the final report instead of guessing. `/wiki:ingest --unattended` defers them to `open-questions.md` instead (wiki-layout, **Open questions**); this also holds for conflicts below.
 
 ## Verbatim figures (anti-drift)
 - Every amount, date, percentage, deadline or contract term is quoted **exactly as in the source**, with its source, in the source type's **Cite** format (its `SOURCE.md`), e.g.:
@@ -49,4 +49,4 @@ Verify sub-agent claims against the source before putting them in a page or repo
 ## Naming
 - Filenames: kebab-case (`jane-doe.md`).
 - Cross-references: `[[wikilink]]`.
-- Renaming a page: `git mv`, then update its links in every page and in `index.md`, and log the rename (`renamed [[old]] -> [[new]]`). Older log entries keep the old name; lint ignores links in the log.
+- Renaming a page: `git mv`, then update its links in every page, in `index.md` and in `open-questions.md`, and log the rename (`renamed [[old]] -> [[new]]`). Older log entries keep the old name; lint ignores links in the log.

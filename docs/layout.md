@@ -14,7 +14,7 @@ plugins/wiki/
   templates/project-settings.json core of a wiki's .claude/settings.json (source rules come from the types)
   templates/source-type/SOURCE.md the source contract template
   templates/pages/entity.md       shared page template for people and organisations
-  skills/{init,add-source,bind-reader,ingest,research,sync-status,commit-themes,lint,audit}/SKILL.md
+  skills/{init,add-source,bind-reader,ingest,clarify,research,sync-status,commit-themes,lint,audit}/SKILL.md
   agents/{source-researcher,critic}.md  subagents /wiki:research dispatches (read-only research; independent critic)
   skills/ingest/reading-files.md  core rules for reading fetched files (pdftotext, LibreOffice, OCR)
   hooks/hooks.json                PreToolUse guard + SessionStart schema and status
@@ -42,7 +42,7 @@ plugins/wiki/
     decode-download.sh            base64 download (e.g. Google Drive) into the source cache; checks and paths, decoding in decode_download.py
     decode_download.py            finds the base64 (plain, or a saved tool result's "content") and decodes it
     schema.sh                     prints one schema file (SessionStart, every start, resume, /clear, compaction)
-    sync-status.sh                staleness report from raw/sync-log.md; a launcher for sync_status.py
+    sync-status.sh                staleness report from raw/sync-log.md, and the open questions' count; a launcher for sync_status.py
     sync_status.py                the work of sync-status.sh
     ocr.sh                        ocrmypdf wrapper (Linux)
     lint.sh                       deterministic wiki checks for /wiki:lint (read-only); a launcher for lint.py

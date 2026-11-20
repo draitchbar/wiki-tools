@@ -46,6 +46,7 @@ import sys
 # -I leaves this folder off sys.path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import datetime  # noqa: E402
 import re  # noqa: E402
 import subprocess  # noqa: E402
 import difflib  # noqa: E402
@@ -175,6 +176,91 @@ def git_out(root, *args):
 def toplevel(root):
     """The work tree holding root (None: the current folder), "" if none."""
     return git_out(root, "rev-parse", "--show-toplevel") or ""
+
+
+# Deferred questions (open-questions.md at the wiki root), shared by
+# sync_status.py and lint.py. Written by /wiki:ingest --unattended, answered
+# with /wiki:clarify; the format is in schema/wiki-layout.md.
+QUESTIONS = "open-questions.md"
+QID = re.compile(r"q-[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]{1,40}", re.ASCII)
+MARKER = re.compile(r"\^\[open: (q-[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]{1,40})\]", re.ASCII)
+KINDS = ("unclear", "conflict", "filing")
+_Q_HEAD = re.compile(r"### (.*)")
+_Q_END = re.compile(r"#{1,2}( |$)")
+_Q_FIELD = re.compile(r"- ([a-z]+): ?(.*)", re.ASCII)
+_Q_DATE = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})", re.ASCII)
+_Q_CONFLICT = re.compile(r"(<{7}|={7}|>{7}|\|{7})( |$)")
+_Q_FENCE = re.compile(r" {0,3}(```|~~~)")
+MARKER_ANY = re.compile(r"\^\[open:[^\]\n]*\]")
+
+
+class Question:
+    """One block: id (the heading, stripped), valid (the id matches QID),
+    kind and raised ("" when the bullet is missing), raised_date (a
+    datetime.date, or None) and pages (the bullet's text)."""
+
+    def __init__(self, qid):
+        self.id, self.valid = qid, bool(QID.fullmatch(qid))
+        self.kind = self.raised = self.pages = ""
+        self.raised_date = None
+
+
+def _q_date(v):
+    m = _Q_DATE.match(v)
+    if not m:
+        return None
+    try:
+        return datetime.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+
+
+def open_questions(text):
+    """(questions in file order, True if the text has merge-conflict lines).
+    A block runs from its `### ` heading to the next heading of level 1 to
+    3; its `- <field>: <value>` bullets are read in any order, the first of
+    each field wins. Lines inside a fenced code block (an example) are
+    skipped."""
+    qs, cur, conflict, fence = [], None, False, False
+    for ln in text.split("\n"):
+        if ln.endswith("\r"):
+            ln = ln[:-1]
+        if _Q_FENCE.match(ln):
+            fence = not fence
+            continue
+        if fence:
+            continue
+        if _Q_CONFLICT.match(ln):
+            conflict = True
+            continue
+        m = _Q_HEAD.fullmatch(ln)
+        if m:
+            cur = Question(m.group(1).strip())
+            qs.append(cur)
+            continue
+        if _Q_END.match(ln):
+            cur = None
+            continue
+        m = _Q_FIELD.fullmatch(ln)
+        if cur is None or not m:
+            continue
+        k, v = m.group(1), m.group(2).strip()
+        if k == "kind" and not cur.kind:
+            cur.kind = v
+        elif k == "raised" and not cur.raised:
+            cur.raised, cur.raised_date = v, _q_date(v)
+        elif k == "pages" and not cur.pages:
+            cur.pages = v
+    return qs, conflict
+
+
+def read_questions(root):
+    """open_questions() of the wiki's open-questions.md, or None if it has
+    none."""
+    p = os.path.join(root, QUESTIONS)
+    if not os.path.isfile(p):
+        return None
+    return open_questions(read_text(p))
 
 
 # The bridged functions.
