@@ -1,9 +1,12 @@
 """contract.py (speed plan, step 2b) against lib-source.sh's frontmatter
 parsers, which stay bash for the wrappers and the wikis' local types:
 has-fm and the values of every frontmatter key (and one absent key) must
-match byte for byte, for every contract and instance file in the plugin and
-the tests, and for edge cases. Then contract.py's lookups and path helpers
-(formerly the contract-parity section of run-tests.sh).
+match byte for byte, for every instance file in the tests (and the local
+types' contracts beside them), a CRLF copy of one, and edge cases. The
+plugin's contracts aren't compared: only contract.py reads them; the bash
+readers read instances (local-folder/read.sh, a local type's wrapper).
+Then contract.py's lookups and path helpers (formerly the contract-parity
+section of run-tests.sh).
 
 The bash side runs once, in one bash process over every file; contract.py
 is called in-process."""
@@ -12,7 +15,7 @@ is called in-process."""
 import pytest
 
 import contract
-from conftest import PLUGIN, SCRIPTS_P, TESTS, call_main, copytree, posix, write
+from conftest import SCRIPTS_P, TESTS, call_main, copytree, posix, write
 
 EDGE = {
     "no-close.md": b"---\ntype: x\n  - y\n",
@@ -44,8 +47,8 @@ done'''
 
 @pytest.fixture(scope="module")
 def tree(tmp_path_factory, run):
-    """The files, as named in the check names (relative to tests/, to the
-    temp folder, or to the plugin), and the bash side's output per file."""
+    """The files, as named in the check names (relative to tests/ or to the
+    temp folder), and the bash side's output per file."""
     t = tmp_path_factory.mktemp("cp")
     # The lib-source fixture as the lib-source section leaves it: a CRLF
     # copy of an instance.
@@ -55,10 +58,8 @@ def tree(tmp_path_factory, run):
           .replace(b"key: good", b"key: crlf"))
     for n, data in EDGE.items():
         write(t / "cp-edge" / n, data)
-    files = sorted(PLUGIN.glob("sources/*/SOURCE.md"))
-    found = [p for root in (TESTS, t / "ls") for p in root.rglob("*.md") if "/.claude/sources/" in posix(p)]
-    files += sorted(found, key=lambda p: posix(p).encode())
-    files += sorted(TESTS.glob("sources/*/plugin/sources/*/SOURCE.md"))
+    found = [p for p in TESTS.rglob("*.md") if "/.claude/sources/" in posix(p)]
+    files = sorted(found, key=lambda p: posix(p).encode()) + [inst / "crlf.md"]
     files += sorted((t / "cp-edge").glob("*.md"))
     r = run(["bash", "-c", BASH_SIDE, "_", SCRIPTS_P] + [posix(f) for f in files])
     assert r.rc == 0, r
@@ -67,7 +68,7 @@ def tree(tmp_path_factory, run):
     out = {}
     for f, c in zip(files, chunks):
         name = posix(f)
-        for pre in (posix(TESTS) + "/", posix(t) + "/", posix(PLUGIN) + "/"):
+        for pre in (posix(TESTS) + "/", posix(t) + "/"):
             if name.startswith(pre):
                 name = name[len(pre):]
                 break
@@ -86,14 +87,9 @@ def _python_side(path, keys):
 
 def _names():
     # Collected before the tree exists: the same walk, names only.
-    names = [posix(p.relative_to(PLUGIN)) for p in sorted(PLUGIN.glob("sources/*/SOURCE.md"))]
     found = [p for p in TESTS.rglob("*.md") if "/.claude/sources/" in posix(p)]
-    names += [posix(p.relative_to(TESTS)) for p in found]
-    ls = TESTS / "sources" / "lib-source"
-    names += ["ls/" + posix(p.relative_to(ls)) for p in ls.rglob("*.md") if "/.claude/sources/" in posix(p)]
-    names += ["ls/wiki/.claude/sources/instances/crlf.md"]
-    tests_srcs = [posix(p.relative_to(TESTS)) for p in sorted(TESTS.glob("sources/*/plugin/sources/*/SOURCE.md"))]
-    names += tests_srcs + ["cp-edge/" + n for n in sorted(EDGE)]
+    names = [posix(p.relative_to(TESTS)) for p in found]
+    names += ["ls/wiki/.claude/sources/instances/crlf.md"] + ["cp-edge/" + n for n in sorted(EDGE)]
     return sorted(set(names))
 
 
