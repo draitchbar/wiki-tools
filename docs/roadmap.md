@@ -3,8 +3,7 @@
 The index of plans: what is in progress, what is planned, and what is parked, each with the trigger that would make it worth picking up. An item may be one line; a plan worked out in detail lives in its own file in `docs/plans/`, linked from the item, and is deleted when the work is done. The decisions behind what is built are in `docs/adr.md`. Small fixes and follow-ups are GitHub issues.
 
 ## In progress
-- **`lint.sh` in the largest wiki:** on the machine that holds it, compare `lint.sh`'s output with the last bash version of the script. It is a work wiki, the largest, and has content the other wikis lack (codebase research sources, Jira and Teams citation prefixes).
-- **Clone-anywhere layout** (`docs/adr.md`, 1): check on Windows (Git Bash), and plugin loading in a fresh clone of a wiki without a project-scope install (`docs/setup.md`, "Open checks").
+- **Clone-anywhere layout** (`docs/adr.md`, 1): one check left, a wiki's wrapper rule `Bash(bash */sources/<type>/<script>.sh *)` matching without a prompt on Windows (Git Bash), in an interactive session outside auto mode (`docs/setup.md`, "Open checks").
 
 - **Unattended ingest, `/wiki:clarify`** (`docs/adr.md`, 14): the user's live check in a wiki: an unattended ingest that raises each kind of question, `/wiki:clarify` answering and dismissing, and how `^[open: …]` renders in Obsidian (Live Preview, reading view, a table cell).
 
