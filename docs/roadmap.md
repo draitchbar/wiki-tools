@@ -20,7 +20,7 @@ The index of plans: what is in progress, what is planned, and what is parked, ea
 
 - **A repository-local venv for the dev tools** (`docs/plans/dev-venv.md`): pytest, pytest-xdist, ruff and shellcheck-py in a gitignored `.venv`, fully pinned and hashed in one lock (`uv pip compile --universal`) that installs on Python 3.11 and up (the floor), set up by `scripts/dev-setup.sh` here, in CI and in agent sessions; CI's job on 3.11 runs through it. Designed and reviewed 2026-11-16.
 
-- **Type checking for the plugin's Python** ([plan](plans/type-checking.md)): mypy, strict, module by module, as a dev-only tool (never the plugin's); the Python floor rises to 3.11 (mypy 2 no longer targets 3.9, and 3.10 is past its end of life). A spike first, then the floor and mypy in CI at a baseline level (the first PR), then the modules to strict, the guard's parser first; ruff's `ANN` rules keep each finished module annotated.
+- **Type checking for the plugin's Python** ([plan](plans/type-checking.md)): mypy, strict, module by module, as a dev-only tool (never the plugin's); the Python floor rises to 3.11 (mypy 2 no longer targets 3.9, and 3.10 is past its end of life). A spike first, then the floor and mypy in CI at a baseline level (the first PR, done 2026-11-21), then the modules to strict, the guard's parser first; ruff's `ANN` rules keep each finished module annotated.
 
 ## Parked, with triggers
 
