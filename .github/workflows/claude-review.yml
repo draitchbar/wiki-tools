@@ -76,13 +76,83 @@ jobs:
               alone needs no new findings.
             - Report only correctness bugs and missing tests as blocking. Mention
               other points only if clearly worth the change; skip optional nits.
+            Reviewer guide: for the human who approves the PR, first in the summary
+            comment, under the heading "## Reviewer guide".
+            - When: only while no blocking finding is open (none raised in this
+              run, each earlier one fixed, answered or declined with a reason).
+              Otherwise the comment starts with the one line "Guide withheld:
+              blocking findings open", and adds that the earlier guide is out of
+              date if there is one.
+            - The first such run writes the full guide, for the whole PR at its
+              head (`gh pr diff`); the delta-only rule above is for findings. A
+              later run writes a new full guide only if the push changes one of
+              its lines; if not, the one line "Guide unchanged:" with a link to
+              the comment that holds the current guide.
+            - Derive every line from the diff and the code around it (Read,
+              Grep). The PR's title, description and commit messages are claims
+              to check, not sources.
+            - Be extremely concise. Sacrifice grammar for the sake of concision:
+              fragments, not sentences, e.g. "**Risk:** low. Msgs only,
+              decisions untouched, fixtures pin each. Not assessed: live
+              session." Goal, Blast radius, Risk and Cost of maintenance take
+              one or two lines each, a Focus part or a Demo step one line. No
+              file:line, no code detail, no findings, no merge advice. Fewer
+              lines for a small PR.
+            Its lines, in this order, each starting with its name in bold:
+            - Goal: what the change is for, one line. Say so if the description
+              claims something else.
+            - Blast radius: who is hit if the change is wrong. One category, the
+              highest in this list that applies (the higher one when unsure),
+              then a few words on what breaks. Judge by what the code does and
+              who calls it, not by path alone.
+              `none`: no behaviour changes (prose, comments). Docs with commands
+              people run (README.md, docs/setup.md) are not `none`.
+              `contributors`: people and agents developing this repo (tests, CI,
+              lint, AGENTS.md, repo skills).
+              `one source`: wikis that use one source type.
+              `all wikis`: every wiki session once the plugin is pulled or
+              reloaded (scripts, launchers, skills, schema, templates, agents).
+              `guard`: every wiki session, failing totally (everything blocked)
+              or silently (protection gone): the hooks, the guard and what feeds
+              it (source contracts, permission templates), the plugin and
+              marketplace manifests.
+              `irreversible`: a revert doesn't restore it: a wiki's data or
+              state format, writes into a source, the personal-data check
+              (scripts/pii*, .githooks, pii.yml).
+            - Risk: how likely the change introduces a bug: low, medium or high,
+              by judgment, with what drove it. What raises it: subtle logic in
+              what changed (quoting, regexes, paths across Linux and Git Bash,
+              exit codes or messages callers read, state across runs, dates,
+              encodings); changed behaviour no test exercises (skill or schema
+              prose, Windows-only paths, real source CLIs); an assertion removed
+              or weakened. Size alone doesn't: a long mechanical change is low.
+              End with what you did not assess.
+            - Cost of maintenance: the complexity the change leaves for whoever
+              changes the code next, never the effort to write it: closer
+              coupling between parts of the plugin, new options or indirection.
+              Say what is added or removed, or "none".
+            - Focus: the change broken down into its material or risky parts,
+              riskiest first, one line each: what the part is and why it
+              deserves attention. Parts of the change, not lines; never a
+              finding.
+            - Demo: makes the change concrete, and works as a quick check on
+              main after the merge. A change a user can see (someone using a
+              wiki; a contributor, for dev tooling): at most three steps, each
+              with the result to expect. Made-up data that is easy to follow (a
+              wiki about houseplants, Alice, example.com), in a scratch wiki or
+              a fixture under tests/; never a real wiki, account, source or
+              path. Mark a step that is a manual-only skill (/wiki:init,
+              add-source, ingest, clarify, lint, audit, commit-themes) as the
+              user's to type. Running a test is not a demo. Only for a change no
+              user can see: "refactor" and one sentence on what changed under
+              the surface.
             Be concise: inline comments for specific lines
             (mcp__github_inline_comment__create_inline_comment), one summary comment
-            with `gh pr comment`. Always post that summary comment, on every run,
-            as your last step: if nothing is blocking and nothing new is worth
-            raising, it is the one line "No new findings."
+            with `gh pr comment`: the reviewer guide or its one line first, then
+            what isn't inline, or "No new findings." Always post that summary
+            comment, on every run, as your last step.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments:*),Bash(git log:*),Bash(git diff:*)"
+            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments:*),Bash(git log:*),Bash(git diff:*)"
       # The prompt requires a summary comment on every run; a run that ends
       # without one fails, so a silent review shows up as a red check. The
       # action refuses to run on a PR that changes this file (it must match
