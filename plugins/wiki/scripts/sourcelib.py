@@ -436,6 +436,22 @@ def reader_errors(f, c):
     return res
 
 
+def has_body_section(f, name):
+    """True if file f has a `## <name>` heading in its body: after the
+    frontmatter (when it has one) and outside fenced code blocks."""
+    lines = contract._lines(f)
+    if contract.has_fm(f):
+        lines = lines[len(contract.fm(f)) + 2:]
+    head = re.compile("## " + re.escape(name) + r"\s*")
+    fence = False
+    for ln in lines:
+        if _Q_FENCE.match(ln):
+            fence = not fence
+        elif not fence and head.fullmatch(ln):
+            return True
+    return False
+
+
 def reader_rules(f):
     """An instance's binding as needed_rules lines: allow each bound rule
     (an MCP tool once, whatever its limits), deny each reader_deny rule."""

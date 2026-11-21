@@ -91,6 +91,23 @@ NOTES = [
     ("settings-tools-all", "onenote (access: tools) names no tools", ["settings"]),
     ("settings-tools-cache", '"Edit(~/.cache/wiki-sources/sw/notes/**)"', ["settings", "onenote", "--key", "notes"]),
 ]
+# Bound before the `reader` list existed: a `## Reader` section alone is a
+# binding in prose, still unbound (Check stops the ingest), but the messages
+# say it needs binding again, not a first binding. A `## Reader` inside a
+# fenced code block doesn't count.
+PROSE = [
+    ("show-prose-check", "Check needed: proton-files names no tools (access: tools) and this instance's reader "
+     "binding is in prose only (a '## Reader' section, no 'reader' list); run /wiki:bind-reader pdocs again to "
+     "make it machine-readable.", ["show", "pdocs"]),
+    ("show-fenced-unbound", "this instance has no reader binding yet; /wiki:bind-reader pfence drafts it.",
+     ["show", "pfence"]),
+    ("settings-prose-key", "adds the reader's rules; bound in prose only (a '## Reader' section, no 'reader' "
+     "list): pdocs (/wiki:bind-reader <key> again makes it machine-readable). How read-only",
+     ["settings", "proton-files", "--key", "pdocs"]),
+    ("settings-prose-all", "adds the reader's rules; not bound yet: pfence, proton (/wiki:bind-reader <key> "
+     "drafts it); bound in prose only (a '## Reader' section, no 'reader' list): pdocs (/wiki:bind-reader <key> "
+     "again makes it machine-readable). How read-only", ["settings"]),
+]
 SHADOW = [
     ("shadow-fix-order", "delete the folder .claude/sources/types/onenote/", ["contract", "onenote"]),
     ("shadow-contract", "shown is the standard contract", ["contract", "onenote"]),
@@ -178,7 +195,7 @@ EDGE_ARGS = [a.split() for a in ("", "bogus", "list extra", "show", "show a?b", 
                                  "show -x")]
 EDGE_ARGS += [["show", ""], ["show", "a b"], ["contract", "bad name"], ["settings", ""], ["settings", "gmail jira"]]
 
-NAMES = (["sources/" + n for n, _, _ in LIST_ETC + NOTES + SHADOW] + ["sources/contract-root-filled"]
+NAMES = (["sources/" + n for n, _, _ in LIST_ETC + NOTES + PROSE + SHADOW] + ["sources/contract-root-filled"]
          + ["sources/" + n for n, _, _ in COUNTS + COUNT_ONE] +["sources/check-settings-" + n for n, _, _, _ in SCK]
          + ["sources/check-settings-none"] + ["contract/%s-valid" % t for t in CONTRACTS]
          + ["sources/check-uncommitted", "sources/check-same-commit", "sources/check-committed-after",
@@ -224,6 +241,13 @@ def story(tmp_path_factory, cli, request):
           "  - last_checked\n  - cursor\n---\n")
     expect(NOTES)
     (inst / "notes.md").unlink()
+    pfm = "---\nkey: %s\ntype: proton-files\nroots:\n  - /my-files/Projects/beta\nstate:\n  - last_checked\n---\n"
+    write(inst / "pdocs.md", pfm % "pdocs" + "Read with the example-drive plugin.\n\n## Reader\n\n"
+          "list: drive.sh list <root>\n")
+    write(inst / "pfence.md", pfm % "pfence" + "Example:\n\n```\n## Reader\n```\n")
+    expect(PROSE)
+    (inst / "pdocs.md").unlink()
+    (inst / "pfence.md").unlink()
     # A local type shadowing a standard one: the error names the fix order,
     # and `contract` still shows the standard contract to migrate to.
     shadow = sw / ".claude/sources/types/onenote/SOURCE.md"

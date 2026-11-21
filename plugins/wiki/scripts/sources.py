@@ -238,9 +238,15 @@ def op_show(w, args):
         out(msg)
     if unbound(c, f):
         # Without a reader binding, Check (its step 1) must stop the ingest,
-        # whatever the instance file's history.
-        out("Check needed: %s names no tools (access: tools) and this instance has no reader "
-            "binding yet; /wiki:bind-reader %s drafts it." % (t, k))
+        # whatever the instance file's history. A `## Reader` section alone
+        # is a binding in prose, from before the `reader` list (docs/adr.md, 13).
+        if sourcelib.has_body_section(f, "Reader"):
+            out("Check needed: %s names no tools (access: tools) and this instance's reader binding "
+                "is in prose only (a '## Reader' section, no 'reader' list); run /wiki:bind-reader %s "
+                "again to make it machine-readable." % (t, k))
+        else:
+            out("Check needed: %s names no tools (access: tools) and this instance has no reader "
+                "binding yet; /wiki:bind-reader %s drafts it." % (t, k))
     out("")
     out("===== Instance file %s =====" % (f[len(w.root) + 1:] if f.startswith(w.root + "/") else f))
     raw(read_bytes(f).replace(b"\r", b""))
@@ -446,7 +452,14 @@ def op_settings(w, args):
             nob = [k for k in keys if unbound(c, "%s/%s.md" % (w.idir, k))]
             if not nob:
                 continue
-            how = "; not bound yet: %s (/wiki:bind-reader <key> drafts it)" % ", ".join(nob)
+            prose = [k for k in nob if sourcelib.has_body_section("%s/%s.md" % (w.idir, k), "Reader")]
+            never = [k for k in nob if k not in prose]
+            how = ""
+            if never:
+                how += "; not bound yet: %s (/wiki:bind-reader <key> drafts it)" % ", ".join(never)
+            if prose:
+                how += ("; bound in prose only (a '## Reader' section, no 'reader' list): %s "
+                        "(/wiki:bind-reader <key> again makes it machine-readable)" % ", ".join(prose))
         else:
             how = " (sources.sh settings %s --key <key>)" % t
         out("\n%s (access: tools) names no tools, so it adds no tool rules here (only its cache rules, "
