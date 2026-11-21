@@ -11,6 +11,9 @@ These rules apply to every LLM wiki. The wiki's own CLAUDE.md adds project facts
 
 Verify sub-agent claims against the source before putting them in a page or report.
 
+## Answers: extremely concise
+Answers to wiki inquiries and research (a question in the session, `/wiki:research`'s answer and final report) are extremely concise. Sacrifice grammar for concision and readability. Citations and verbatim figures stay in full (below).
+
 ## Ask for context, don't guess
 - When the meaning of something is unclear, ask the user instead of guessing. Typical cases: who a person is, which of two offers or versions is meant, an unstated VAT or tax basis where amounts matter, whether a decision still stands, how a new kind of material fits the wiki.
 - Record the answer as a source: `"User statement (YYYY-MM-DD)"`, in `sources:` and inline next to the claim.
