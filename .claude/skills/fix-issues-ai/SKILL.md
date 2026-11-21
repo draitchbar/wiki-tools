@@ -1,6 +1,6 @@
 ---
 name: fix-issues-ai
-description: Fix GitHub issues of this repo and hand back pull requests for approval. Arguments, one or more issue numbers or titles (`45 48`, `"false Check needed"`). Triages each issue (severity against the cost of fixing), closes what isn't worth fixing with the reasons, fixes the rest one pull request per issue, and follows each until CI is green and the review is answered. Never merges. Only for a wiki-tools session, and only when the user runs /fix-issues-ai.
+description: Fix GitHub issues of this repo and hand back pull requests for approval. Arguments, one or more issue numbers or titles (`45 48`, `"false Check needed"`). Triages each issue (severity against the cost of maintenance), closes what isn't worth fixing with the reasons, fixes the rest one pull request per issue, and follows each until CI is green and the review is answered. Never merges. Only for a wiki-tools session, and only when the user runs /fix-issues-ai.
 argument-hint: "<issue number or title>..."
 disable-model-invocation: true
 ---
@@ -24,7 +24,7 @@ Repo rules: `AGENTS.md` and `CONTRIBUTING.md`. They win over this skill where th
 - `git fetch origin main`. Every branch starts from `origin/main`.
 
 ## 2. Triage
-Read each issue with its comments, then the code it names: check that the problem is still there and that the issue's line numbers, names and proposed fix still fit `main`. Then judge it by the triage criteria below: severity, cost of fixing, verdict.
+Read each issue with its comments, then the code it names: check that the problem is still there and that the issue's line numbers, names and proposed fix still fit `main`. Then judge it by the triage criteria below: severity, cost of maintenance, verdict.
 
 **An open choice.** If an issue leaves a design question open, decide it: take the option that changes less and weakens no guard (a clearer message before a new exception). Record the choice and the reason for the pull request body (step 4) and the report (step 6); the user overrules it at review.
 
@@ -40,17 +40,17 @@ Read each issue with its comments, then the code it names: check that the proble
 
 Between two rows, take the lower one (the stronger model): a failed attempt costs more than the model does. An issue whose first attempt failed (step 5) is retried one row down; on `opus` already, there is no retry. Your own model, as coordinator, stays as the user set it.
 
-Show the user one table before going on (issue, severity, cost, verdict, model, open choices decided), then carry on without waiting.
+Show the user one table before going on (issue, severity, cost of maintenance, verdict, model, open choices decided), then carry on without waiting.
 
 ## Triage criteria
-An issue is fixed when its severity outweighs the cost of fixing it, and closed as won't fix when it doesn't.
+An issue is fixed when its severity outweighs the cost of maintaining the fix, and closed as won't fix when it doesn't.
 
 **Severity** is what goes wrong for someone using a wiki:
 - what happens, how often, and whether they would notice;
 - silent wrong results (a source never ingested, a wrong answer) rank above loud refusals, and those above cosmetics;
 - an enhancement with no effect a user would see has none.
 
-**Cost of fixing** is the complexity the fix leaves in the code. It is never the tokens or the time the fix takes to write. In order of weight:
+**Cost of maintenance** is the complexity the fix leaves in the code, which everyone who changes it later pays for. It is never the tokens or the time the fix takes to write. In order of weight:
 1. **Closer coupling between parts of the plugin.** Scripts that come to depend on a shared helper, or on each other's exit codes, messages or file formats; a skill that comes to depend on one source; the guard on a script's internals. This weighs most: coupled parts can no longer be read, tested or changed alone.
 2. **New options and indirection.** A flag per caller that differs, a helper whose callers each need a special case, a second way to do what one way did.
 3. **A weaker guard.** A new exception, or a rule that needs parsing the guard didn't need before.
@@ -59,8 +59,8 @@ An issue is fixed when its severity outweighs the cost of fixing it, and closed 
 Lines and files touched count only as a sign of these. A fix that is long to write but leaves the code no more complex or coupled is cheap.
 
 **Verdict.**
-- Fix when the severity is real and the cost is low, also when the fix is long.
-- Won't fix when the cost outweighs the severity. The usual case is a refactor no user would see, which adds options or puts several scripts behind one function.
+- Fix when the severity is real and the cost of maintenance is low, also when the fix is long.
+- Won't fix when the cost of maintenance outweighs the severity. The usual case is a refactor no user would see, which adds options or puts several scripts behind one function.
 - Between the two, look for a cheaper fix that keeps the issue's intent (a clearer message before a new exception) and fix that.
 - When still unsure, fix.
 
