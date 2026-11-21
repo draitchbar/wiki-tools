@@ -125,9 +125,9 @@ jobs:
               (scripts/pii*, .githooks, pii.yml).
             - Risk: how likely the change introduces a bug: low, medium or high,
               by judgment (🟢 low, 🟡 medium, 🔴 high), with what drove it.
-              What raises it: subtle logic in what changed (quoting, regexes, paths across Linux and Git Bash,
-              exit codes or messages callers read, state across runs, dates,
-              encodings); changed behaviour no test exercises (skill or schema
+              What raises it: subtle logic in what changed (quoting, regexes,
+              paths across Linux and Git Bash, exit codes or messages callers
+              read, state across runs, dates, encodings); changed behaviour no test exercises (skill or schema
               prose, Windows-only paths, real source CLIs); an assertion removed
               or weakened. Size alone doesn't: a long mechanical change is low.
               End with what you did not assess.
@@ -155,7 +155,10 @@ jobs:
             with `gh pr comment`: the reviewer guide or its one line first, then
             what isn't inline, or "✅ No new findings." Always post that summary
             comment, on every run, as your last step. No emojis other than the
-            ones named here.
+            ones named here. Use Markdown so comments scan easily: bold labels,
+            a bullet per finding or point, `code` for file, function and command
+            names; no tables, no headings beyond "## Reviewer guide" and
+            "Personal data".
           claude_args: |
             --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments:*),Bash(git log:*),Bash(git diff:*)"
       # The prompt requires a summary comment on every run; a run that ends
