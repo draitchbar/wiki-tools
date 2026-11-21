@@ -1,6 +1,6 @@
 ---
 name: fix-issues-ai
-description: Fix GitHub issues of this repo and hand back pull requests for approval. Arguments, one or more issue numbers or titles (`45 48`, `"false Check needed"`). Triages each issue (severity against the cost of fixing), closes what isn't worth fixing with the reasons, fixes the rest one pull request per issue, and follows each until CI is green and the review is answered. Never merges. Only for a wiki-tools session, and only when the user runs /fix-issues-ai.
+description: Fix GitHub issues of this repo and hand back pull requests for approval. Arguments, one or more issue numbers or titles (`45 48`, `"false Check needed"`). Triages each issue (severity against the cost of fixing, meaning the complexity the fix adds to the code, above all closer coupling between parts of the plugin, not tokens or time), closes what isn't worth fixing with the reasons, fixes the rest one pull request per issue, and follows each until CI is green and the review is answered. Never merges. Only for a wiki-tools session, and only when the user runs /fix-issues-ai.
 argument-hint: "<issue number or title>..."
 disable-model-invocation: true
 ---
@@ -26,8 +26,8 @@ Repo rules: `AGENTS.md` and `CONTRIBUTING.md`. They win over this skill where th
 ## 2. Triage
 Read each issue with its comments, then the code it names: check that the problem is still there and that the issue's line numbers, names and proposed fix still fit `main`. Then judge:
 - **Severity:** what goes wrong for a wiki's user, how often, and whether they would notice. Silent wrong results rank above loud refusals, those above cosmetics.
-- **Cost of fixing:** lines and files touched, new options or indirection, what could regress (exit codes callers read, pinned messages, the guard), and whether the fix weakens a guard.
-- **Verdict:** fix, or won't fix when the cost outweighs the severity. A refactor with no effect a user would see, which adds options or puts several scripts behind one function, is the usual won't-fix. When unsure, fix.
+- **Cost of fixing:** the complexity the fix leaves in the code, never the tokens or time it takes to write. Most of all, closer coupling between parts of the plugin: scripts that come to depend on a shared helper, on each other's exit codes or messages, or a skill on one source. Then new options or indirection, what could regress (exit codes callers read, pinned messages, the guard), and whether the fix weakens a guard. Lines and files touched count only as a sign of these.
+- **Verdict:** fix, or won't fix when that cost outweighs the severity. A fix that is long to write but leaves the code no more complex or coupled is cheap. A refactor with no effect a user would see, which adds options or puts several scripts behind one function, is the usual won't-fix. When unsure, fix.
 
 **An open choice.** If an issue leaves a design question open, decide it: take the option that changes less and weakens no guard (a clearer message before a new exception). Record the choice and the reason for the pull request body (step 4) and the report (step 6); the user overrules it at review.
 
