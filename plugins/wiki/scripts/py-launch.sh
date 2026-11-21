@@ -12,11 +12,14 @@
 # 1 on an error before the script's own handler runs, and bash 126/127 when
 # it can't start the program.
 #
-# The interpreter: the path cached in $CLAUDE_PLUGIN_DATA/python, if it is
-# absolute, executable and named python*. Otherwise python, python3 and
+# The interpreter: the path cached in $CLAUDE_PLUGIN_DATA/python-3.11, if it
+# is absolute, executable and named python*. Otherwise python, python3 and
 # `py -3`, in that order, are asked for their version and sys.executable;
-# the first 3.9 or later is cached and used. The probe rejects the Windows Store alias
-# (it doesn't run) and turns `py -3` into a real path. Without
+# the first 3.11 or later is cached and used. The probe rejects the Windows
+# Store alias (it doesn't run) and turns `py -3` into a real path. The
+# floor, _pl_floor, names the cache file: a cache written before the floor
+# rose (the old `python`) is never read, so an older Python is never run
+# without a probe. guard.py checks its own version too. Without
 # CLAUDE_PLUGIN_DATA nothing is cached and every call probes (slow, safe).
 # The cache is under ~/.claude/plugins/, which the guard protects: a cache
 # pointing at a program that exits 0 would let every call through.
@@ -46,7 +49,10 @@ _pl_ok() {
   [ -f "$1" ] && [ -x "$1" ]
 }
 
-_pl_cache=${CLAUDE_PLUGIN_DATA:+$CLAUDE_PLUGIN_DATA/python}
+# The Python floor: the cache's name, the probe and the message (py-run.sh
+# has the same; a test checks it).
+_pl_floor=3.11
+_pl_cache=${CLAUDE_PLUGIN_DATA:+$CLAUDE_PLUGIN_DATA/python-$_pl_floor}
 _pl_py=
 if [ -n "$_pl_cache" ] && [ -f "$_pl_cache" ]; then
   IFS= read -r _pl_py < "$_pl_cache" || true
@@ -57,7 +63,7 @@ fi
 if [ -z "$_pl_py" ]; then
   # Slow path: one run per candidate. Forward slashes, so Git Bash can test
   # a Windows path with -x.
-  _pl_probe='import sys; print(("ok " if sys.version_info >= (3, 9) else "old ") + sys.executable.replace(chr(92), "/"))'
+  _pl_probe='import sys; print(("ok " if sys.version_info >= ('"${_pl_floor/./, }"') else "old ") + sys.executable.replace(chr(92), "/"))'
   # python before python3: on Windows python3 is usually the Store alias,
   # whose failed run costs ~300 ms; on Linux a missing python costs ~nothing.
   for _pl_c in python python3 "py -3"; do
@@ -69,7 +75,7 @@ if [ -z "$_pl_py" ]; then
     _pl_py=${_pl_out#ok }
     break
   done
-  [ -n "$_pl_py" ] || _pl_block "no Python 3.9 or later found (tried python, python3, py -3). Install it (Windows: from python.org, and turn off the python3 App execution alias), then start Claude again"
+  [ -n "$_pl_py" ] || _pl_block "no Python $_pl_floor or later found (tried python, python3, py -3). Install it (Windows: from python.org, and turn off the python3 App execution alias), then start Claude again"
   if [ -n "$_pl_cache" ]; then
     { mkdir -p "$CLAUDE_PLUGIN_DATA" &&
       printf '%s\n' "$_pl_py" > "$_pl_cache.$$" &&

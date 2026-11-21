@@ -70,7 +70,7 @@ def _inst(tmp_path, typ, reader=(), deny=()):
 ])
 def test_reader_errors(reader, deny, want, tmp_path):
     got = sourcelib.reader_errors(_inst(tmp_path, "jira", reader, deny), JIRA)
-    assert len(got) == len(want) and all(w in g for w, g in zip(want, got)), got
+    assert len(got) == len(want) and all(w in g for w, g in zip(want, got, strict=True)), got
 
 
 def test_reader_only_tools(tmp_path):

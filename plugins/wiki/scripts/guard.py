@@ -85,6 +85,16 @@ still get through.
 import os
 import sys
 
+# The Python floor (py-launch.sh's _pl_floor), checked before anything a
+# newer Python may need: exit 2, so py-launch.sh passes this message on
+# instead of a bare "guard.py failed". Up to here this file must parse on
+# an old Python (no match, no except*).
+if sys.version_info < (3, 11):
+    sys.stderr.write("wiki guard: Python 3.11 or later is needed, %s is %d.%d. Install it (Windows: "
+                     "from python.org), then start Claude again; refusing (fail closed).\n"
+                     % (sys.executable, sys.version_info[0], sys.version_info[1]))
+    sys.exit(2)
+
 # -I leaves this folder off sys.path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

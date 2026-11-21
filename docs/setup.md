@@ -8,7 +8,7 @@ Install from GitHub: `claude plugin marketplace add draitchbar/wiki-tools`. Clau
 
 | | Linux | Windows |
 |---|---|---|
-| Prerequisites | git, bash, Python 3.9 or later (`python3`; standard library only) | Git for Windows (Git Bash), Claude Code runs hooks in Git Bash; Python 3.9 or later from python.org, with the `python3` App execution alias turned off in Settings |
+| Prerequisites | git, bash, Python 3.11 or later (`python3`; standard library only) | Git for Windows (Git Bash), Claude Code runs hooks in Git Bash; Python 3.11 or later from python.org, with the `python3` App execution alias turned off in Settings |
 | OCR | `sudo apt install ocrmypdf` plus the Tesseract language packs your documents need (e.g. `tesseract-ocr-dan`); `/wiki:ingest` passes the languages from the wiki's CLAUDE.md | none; scans are read as page images |
 | Sources | whatever the wikis' source types need, listed in each type's Caveats; e.g. codebase: a git clone of the repository, and `gh auth login` for the account in `gh_user`; Proton Drive: a Proton Drive reader, e.g. the `proton` plugin from `aitchbar-ai-tools` loaded from a local clone, with the CLI and its sign-in as its README says, and its rule in your user settings; Jira: a Jira reader, e.g. the claude.ai "Atlassian MCP" connector connected, its read tools allowed and its write tools denied in your settings; OneNote: a OneNote reader (CLI, skill or MCP server) signed in with Graph `Notes.Read` or `Notes.Read.All`, its read operations allowed in your settings | the same |
 

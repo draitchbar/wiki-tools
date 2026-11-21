@@ -31,6 +31,10 @@ TESTS = Path(__file__).resolve().parent
 PLUGIN = (TESTS.parent / "plugins" / "wiki").resolve()
 SCRIPTS = PLUGIN / "scripts"
 IS_WIN = os.name == "nt"
+# The Python floor, as the launchers' _pl_floor and _pr_floor (a test checks
+# they agree), and the interpreter cache named after it.
+FLOOR = "3.11"
+CACHE = "python-" + FLOOR
 
 sys.path.insert(0, str(SCRIPTS))
 
@@ -136,7 +140,7 @@ def pydata(tmp_path_factory):
     """A CLAUDE_PLUGIN_DATA whose interpreter cache names the Python running
     the tests, so launchers run the same one (py-run.sh, py-launch.sh)."""
     d = tmp_path_factory.mktemp("pydata")
-    (d / "python").write_bytes((posix(sys.executable) + "\n").encode())
+    (d / CACHE).write_bytes((posix(sys.executable) + "\n").encode())
     return posix(d)
 
 

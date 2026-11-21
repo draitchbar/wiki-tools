@@ -247,7 +247,7 @@ def nopy(tmp_path_factory):
 def test_decode_no_python(dd, nopy):
     _dd, d, _ = dd
     o, rc = _dd("gmail", posix(d / "plain.b64"), "a.drawio", env=nopy)
-    assert rc == 1 and o.startswith("decode-download: no Python 3.9 or later found")
+    assert rc == 1 and o.startswith("decode-download: no Python 3.11 or later found")
 
 
 # --- local-folder/read.sh against a throwaway wiki and folder --------------

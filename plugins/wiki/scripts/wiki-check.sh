@@ -14,7 +14,7 @@
 # template path; CLAUDE_CONFIG_DIR (as in Claude Code) moves ~/.claude.
 #
 # The work is in wiki_check.py (docs/adr.md, 4); this launcher only
-# runs it. Without Python it prints the launcher's message (no Python 3.9 or
+# runs it. Without Python it prints the launcher's message (no Python 3.11 or
 # later found, and the fix) instead of a report, and exits 1. The plugin
 # folder goes over as bash spells it, for the messages (one subshell).
 

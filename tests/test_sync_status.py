@@ -131,7 +131,7 @@ def test_python_missing(ss2, run, tmp_path):
             env={"CLAUDE_PROJECT_DIR": "", "CLAUDE_PLUGIN_DATA": None, "CLAUDE_CONFIG_DIR": posix(tmp_path / "cfg"),
                  "PATH": str(tmp_path / "bin") + os.pathsep + os.environ.get("PATH", "")})
     assert r.rc == 0
-    assert r.out.startswith(b"sync-status: no Python 3.9 or later found (tried python, python3, py -3). Install it")
+    assert r.out.startswith(b"sync-status: no Python 3.11 or later found (tried python, python3, py -3). Install it")
 
 
 # The raw line says "nothing new in raw/" when git shows no change under

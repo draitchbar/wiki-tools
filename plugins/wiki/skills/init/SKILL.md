@@ -34,7 +34,7 @@ Set up this folder as an LLM wiki in the shared raw/wiki layout (`${CLAUDE_PLUGI
 - **Ask for context, don't guess.** If the user's arguments say the run is non-interactive, accept every recommended answer and list all open questions in the final message instead.
 
 ## 0. Prerequisites and mode
-1. `uname -s` (with the Bash tool). `Linux` and Git Bash on Windows (`MINGW*` or `MSYS*`) are supported; on anything else, stop: "/wiki:init supports Linux and Windows (Git Bash) only." On Windows, run every shell command in this skill with the Bash tool (Git Bash), never PowerShell: the wiki's scripts run only there. If a call is refused with "no Python 3.9 or later found", stop and show the user that message: the guard hooks need Python and refuse every Bash, Write and Edit call until it is installed.
+1. `uname -s` (with the Bash tool). `Linux` and Git Bash on Windows (`MINGW*` or `MSYS*`) are supported; on anything else, stop: "/wiki:init supports Linux and Windows (Git Bash) only." On Windows, run every shell command in this skill with the Bash tool (Git Bash), never PowerShell: the wiki's scripts run only there. If a call is refused with "no Python 3.11 or later found", stop and show the user that message: the guard hooks need Python and refuse every Bash, Write and Edit call until it is installed.
 2. Find the folder root: the git toplevel, or the current folder if it isn't a repo yet.
 3. Read `.claude/settings.json` with the Read tool (the guard blocks Bash commands such as `grep` or `cat` on it) and check that it enables `wiki@wiki-tools`. If not, stop and show the user step 2 of the setup: `claude plugin install wiki@wiki-tools --scope project` (from a clone of wiki-tools: `claude plugin enable wiki@wiki-tools --scope project`), then restart `claude` here.
 4. Pick the mode:
@@ -143,7 +143,7 @@ End with a numbered, copy-pasteable guide. Include only the steps that apply:
 Also list files that adopt mode left in place, and any open questions.
 
 ## Check mode
-1. Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/wiki-check.sh`. If it prints only `wiki-check: no Python 3.9 or later found ...` instead of a report, that is the one failure: report it with the fix it names (the guard refuses every Bash, Write and Edit call until Python is installed), and stop.
+1. Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/wiki-check.sh`. If it prints only `wiki-check: no Python 3.11 or later found ...` instead of a report, that is the one failure: report it with the fix it names (the guard refuses every Bash, Write and Edit call until Python is installed), and stop.
 2. Check that the shared conventions are actually loaded: they are if your instructions contain the heading "Ask for context, don't guess" from wiki-conventions.md and "Data model" from wiki-layout.md. If not, the plugin's SessionStart hook didn't run: check that the plugin is enabled (step 0.3), then tell the user to restart `claude` here.
    - If wiki-check reports that CLAUDE.md still imports the schema by path (a wiki set up before the plugin loaded it), propose removing those lines. After the user's go, remove them and commit CLAUDE.md alone with the message `Load the shared schema from the plugin`.
 3. Report every FAIL with its fix as a short numbered list, and say which ones only the user can do (settings, files under `.claude/sources/`, commits of `.claude/` files, installing Python). Pass on an INFO line about Markdown files outside the wiki layout too, with its fix.

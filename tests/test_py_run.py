@@ -7,10 +7,11 @@ from Python to bash (step 6's first Windows check)."""
 import os
 import re
 import shutil
+import sys
 
 import pytest
 
-from conftest import IS_WIN, SCRIPTS, SCRIPTS_P, TESTS, copytree, git, posix, write
+from conftest import CACHE, FLOOR, IS_WIN, SCRIPTS, SCRIPTS_P, TESTS, copytree, git, posix, write
 
 ECHO_ARGS = r'''import sys
 sys.stdout.buffer.write(("exe=%s\n" % sys.executable.replace("\\", "/")).encode())
@@ -88,16 +89,42 @@ def caches(tmp_path):
                     "py-run/writes-no-cache")
 def test_caches(run, prt, caches):
     fake, data, cfg, cfgdir = caches
-    write(data / "python", fake + "\n")
+    write(data / CACHE, fake + "\n")
     assert prx(run, prt, "echo_args", env={"CLAUDE_PLUGIN_DATA": posix(data)}).merged == b"fake-python\n"
-    write(cfg / "python", fake + "\n")
+    write(cfg / CACHE, fake + "\n")
     r = prx(run, prt, "echo_args", env={"CLAUDE_PLUGIN_DATA": None, "CLAUDE_CONFIG_DIR": cfgdir})
     assert r.merged == b"fake-python\n"
-    write(data / "python", "/bin/sh\n")
-    write(cfg / "python", "relative/python\n")
+    write(data / CACHE, "/bin/sh\n")
+    write(cfg / CACHE, "relative/python\n")
     r = prx(run, prt, "echo_args", env={"CLAUDE_PLUGIN_DATA": posix(data), "CLAUDE_CONFIG_DIR": cfgdir})
     assert re.match(rb"exe=.*python", r.merged.split(b"\n")[0])
-    assert (data / "python").read_bytes() == b"/bin/sh\n"
+    assert (data / CACHE).read_bytes() == b"/bin/sh\n"
+
+
+@pytest.mark.checks("py-run/old-cache-never-read")
+def test_old_cache_never_read(run, prt, caches):
+    """A cache from before the floor rose (the old name, `python`) is never
+    read, in either place: the probe finds the real Python."""
+    fake, data, cfg, cfgdir = caches
+    write(data / "python", fake + "\n")
+    write(cfg / "python", fake + "\n")
+    r = prx(run, prt, "echo_args", env={"CLAUDE_PLUGIN_DATA": posix(data), "CLAUDE_CONFIG_DIR": cfgdir})
+    assert r.rc == 0 and b"fake-python" not in r.merged
+    assert re.match(rb"exe=.*python", r.merged.split(b"\n")[0])
+
+
+@pytest.mark.checks("py-run/below-floor-rejected")
+def test_below_floor_rejected(run, prt, tmp_path):
+    """The probe's floor: the real Python with its version set back to just
+    under the floor is rejected, as in py-launch.sh."""
+    for c in ("python3", "py"):
+        write(tmp_path / "bin" / c, "#!/bin/sh\nexit 1\n").chmod(0o755)
+    write(tmp_path / "bin" / "python", '#!/bin/sh\nexec "%s" -I -S -c "import sys; sys.version_info = '
+          '(3, 10, 0, \'final\', 0); exec(sys.argv[1])" "$4"\n' % posix(sys.executable)).chmod(0o755)
+    env = {"CLAUDE_PLUGIN_DATA": posix(tmp_path / "data"), "CLAUDE_CONFIG_DIR": posix(tmp_path / "cfg"),
+           "PATH": str(tmp_path / "bin") + os.pathsep + os.environ.get("PATH", "")}
+    r = prx(run, prt, "echo_args", env=env)
+    assert r.rc == 1 and r.merged.startswith(b"echo_args: no Python 3.11 or later found"), r.merged
 
 
 @pytest.fixture(scope="module")
@@ -114,15 +141,22 @@ def nopy(tmp_path_factory):
 def test_no_python(run, prt, nopy):
     r = prx(run, prt, "echo_args", env=nopy)
     assert r.rc == 1
-    assert r.merged.startswith(b"echo_args: no Python 3.9 or later found")
+    assert r.merged.startswith(b"echo_args: no Python 3.11 or later found")
 
 
-@pytest.mark.checks("py-run/same-candidates")
+@pytest.mark.checks("py-run/same-candidates", "py-run/same-floor")
 def test_same_candidates():
-    """The same probe as py-launch.sh: same candidates, same order."""
-    a = re.search(r"^ *for _pl_c in (.*); do$", (SCRIPTS / "py-launch.sh").read_text(), re.M).group(1)
-    b = re.search(r"^ *for c in (.*); do$", (SCRIPTS / "py-run.sh").read_text(), re.M).group(1)
+    """The same probe as py-launch.sh: same candidates, same order, the same
+    floor (and the one the tests and wiki_check.py's cache name assume)."""
+    pl, pr = (SCRIPTS / "py-launch.sh").read_text(), (SCRIPTS / "py-run.sh").read_text()
+    a = re.search(r"^ *for _pl_c in (.*); do$", pl, re.M).group(1)
+    b = re.search(r"^ *for c in (.*); do$", pr, re.M).group(1)
     assert a == b
+    fa = re.findall(r"^_pl_floor=(.*)$", pl, re.M)
+    fb = re.findall(r"^_pr_floor=(.*)$", pr, re.M)
+    assert fa == fb == [FLOOR]
+    assert '"/plugins/data/wiki-wiki-tools/%s"' % CACHE in (SCRIPTS / "wiki_check.py").read_text()
+    assert "sys.version_info < (%s)" % FLOOR.replace(".", ", ") in (SCRIPTS / "guard.py").read_text()
 
 
 # The bridge: lib-source.sh sources py-run.sh lazily, safe under set -u.
@@ -162,7 +196,7 @@ def test_bridge_internal_error(run, tmp_path):
 def test_bridge_no_python(run, ls, nopy):
     r = run(["bash", "-c", '. "$1/lib-source.sh"; SRC_PLUGIN=$2; src_validate_instance "$3" good', "_",
              SCRIPTS_P, posix(ls / "plugin"), posix(ls / "wiki")], cwd=ls / "wiki", env=nopy, merged=True)
-    assert r.rc == 1 and r.merged.startswith(b"sourcelib: no Python 3.9 or later found")
+    assert r.rc == 1 and r.merged.startswith(b"sourcelib: no Python 3.11 or later found")
 
 
 @pytest.mark.checks("py-run/wrapper-no-python")

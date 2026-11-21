@@ -9,7 +9,7 @@ import shutil
 
 import pytest
 
-from conftest import PLUGIN, SCRIPTS, copytree, git, posix, write
+from conftest import CACHE, PLUGIN, SCRIPTS, copytree, git, posix, write
 
 
 def text(r):
@@ -75,9 +75,12 @@ def test_good(good, cli):
     assert "outside the wiki layout" not in out
 
 
-@pytest.mark.checks("wiki-check/python-cached", "wiki-check/python-not-cached")
+@pytest.mark.checks("wiki-check/python-cached", "wiki-check/python-not-cached", "wiki-check/python-old-cache")
 def test_python_cache(good, cli, tmp_path):
-    write(tmp_path / "cfg/plugins/data/wiki-wiki-tools/python", "/opt/py/python3\n")
+    # A cache from before the floor rose (`python`) isn't the hooks' cache.
+    write(tmp_path / "old/plugins/data/wiki-wiki-tools/python", "/opt/py/python3.9\n")
+    assert "INFO no interpreter cached yet" in text(wc(cli, good[1], {"CLAUDE_CONFIG_DIR": posix(tmp_path / "old")}))
+    write(tmp_path / "cfg/plugins/data/wiki-wiki-tools" / CACHE, "/opt/py/python3\n")
     assert "INFO the guard hooks have cached `/opt/py/python3`" in text(
         wc(cli, good[1], {"CLAUDE_CONFIG_DIR": posix(tmp_path / "cfg")}))
     assert "INFO no interpreter cached yet" in text(wc(cli, good[1], {"CLAUDE_CONFIG_DIR": posix(tmp_path / "none")}))
@@ -92,7 +95,7 @@ def test_python_missing(good, run, tmp_path):
             env={"CLAUDE_PLUGIN_DATA": None, "CLAUDE_CONFIG_DIR": posix(tmp_path / "cfg"),
                  "PATH": str(tmp_path / "bin") + os.pathsep + os.environ.get("PATH", "")})
     assert r.rc == 1
-    assert r.merged.startswith(b"wiki-check: no Python 3.9 or later found (tried python, python3, py -3). Install it")
+    assert r.merged.startswith(b"wiki-check: no Python 3.11 or later found (tried python, python3, py -3). Install it")
 
 
 def _append(rel, data):

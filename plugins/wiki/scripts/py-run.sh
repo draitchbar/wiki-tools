@@ -14,10 +14,12 @@
 # guard's CORE_SCRIPTS or an allow rule: it would run any .py beside it.
 #
 # The interpreter (no cache is written): the path in
-# $CLAUDE_PLUGIN_DATA/python (the hooks and the tests set it), else the
-# hooks' cache ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/data/wiki-wiki-tools/python,
+# $CLAUDE_PLUGIN_DATA/python-3.11 (the hooks and the tests set it), else the
+# hooks' cache ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/data/wiki-wiki-tools/python-3.11,
 # if it is absolute, executable and named python*; else the same probe as
-# py-launch.sh (python, python3, `py -3`; 3.9 or later; not the Store alias).
+# py-launch.sh (python, python3, `py -3`; 3.11 or later; not the Store
+# alias). The floor, _pr_floor, names the cache file, as in py-launch.sh: a
+# cache from before the floor rose (the old `python`) is never read.
 # No Python: exit 1 with a message (not "refusing": a script isn't a guard).
 #
 # Windows (Git Bash): Git Bash rewrites a native program's arguments that
@@ -30,6 +32,10 @@
 # Builtins only on the fast path: every process start costs ~25 ms in Git
 # Bash.
 
+# The Python floor: the cache's name, the probe and the message (the same
+# as py-launch.sh's _pl_floor; a test checks it).
+_pr_floor=3.11
+
 # _pr_ok PATH: an absolute path to an executable named python*.
 _pr_ok() {
   case "$1" in /*|[A-Za-z]:/*) ;; *) return 1 ;; esac
@@ -41,8 +47,8 @@ _pr_ok() {
 _pr_find() {
   local f c out
   _pr_py=
-  for f in ${CLAUDE_PLUGIN_DATA:+"$CLAUDE_PLUGIN_DATA/python"} \
-           "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/plugins/data/wiki-wiki-tools/python"; do
+  for f in ${CLAUDE_PLUGIN_DATA:+"$CLAUDE_PLUGIN_DATA/python-$_pr_floor"} \
+           "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/plugins/data/wiki-wiki-tools/python-$_pr_floor"; do
     [ -f "$f" ] || continue
     IFS= read -r _pr_py < "$f" || true
     _pr_py=${_pr_py%$'\r'}
@@ -50,7 +56,7 @@ _pr_find() {
     _pr_py=
   done
   # Same candidates, in the same order, as py-launch.sh (a test checks it).
-  local probe='import sys; print(("ok " if sys.version_info >= (3, 9) else "old ") + sys.executable.replace(chr(92), "/"))'
+  local probe='import sys; print(("ok " if sys.version_info >= ('"${_pr_floor/./, }"') else "old ") + sys.executable.replace(chr(92), "/"))'
   for c in python python3 "py -3"; do
     # shellcheck disable=SC2086 # "py -3" is two words
     out=$($c -I -S -c "$probe" 2>/dev/null </dev/null) || continue
@@ -75,7 +81,7 @@ _pr_native() {
 }
 
 # The no-Python message, after "<script>: ".
-_pr_nopy='no Python 3.9 or later found (tried python, python3, py -3). Install it (Windows: from python.org, and turn off the python3 App execution alias), then start Claude again'
+_pr_nopy="no Python $_pr_floor or later found (tried python, python3, py -3). Install it (Windows: from python.org, and turn off the python3 App execution alias), then start Claude again"
 
 # _pr_call NAME ARGS...: run NAME.py from this folder; its exit code.
 # $_pr_label, if set, names the script in the no-Python message instead

@@ -365,7 +365,8 @@ class Check:
                 % (v[0], v[1], v[2], sys.executable.replace("\\", "/")))
         cfg = os.environ.get("CLAUDE_CONFIG_DIR") or \
             (os.environ.get("HOME") or os.path.expanduser("~")) + "/.claude"
-        cache = cfg + "/plugins/data/wiki-wiki-tools/python"
+        # py-launch.sh's cache, named after its floor (_pl_floor).
+        cache = cfg + "/plugins/data/wiki-wiki-tools/python-3.11"
         if os.path.isfile(cache):
             first = read_text(cache).split("\n", 1)[0].replace("\r", "")
             self.info("the guard hooks have cached `%s`" % first)
