@@ -41,7 +41,7 @@ Read each issue with its comments, then the code it names: check that the proble
 | A contained change in one script or skill with a known cause and a clear fix, plus its test | `sonnet` |
 | Anything in the guard or the push check; an open choice you decided; a cause not yet found; a change across several scripts; exit codes or messages that callers or tests read; Windows or Git Bash behaviour | `opus` |
 
-Between two rows, take the lower one (the stronger model): a failed attempt costs more than the model does. An issue whose first attempt failed (step 5) is retried one row down. Your own model, as coordinator, stays as the user set it.
+Between two rows, take the lower one (the stronger model): a failed attempt costs more than the model does. An issue whose first attempt failed (step 5) is retried one row down; on `opus` already, there is no retry. Your own model, as coordinator, stays as the user set it.
 
 Show the user one table before going on (issue, severity, cost, verdict, model, open choices decided), then carry on without waiting.
 
@@ -61,7 +61,7 @@ Whoever fixes an issue gets this brief; a subagent knows nothing else, so write 
 - A script, hook or wrapper change needs a test or fixture (`AGENTS.md`). For a bug: the test fails before the fix and passes after; report both runs.
 - A guard change says in the commit message and the pull request body whether any rule is weakened. A change of messages only says that too.
 - Green before the commit: `bash tests/run-tests.sh`, `ruff check .`; with a `.sh` change also `bash tests/run-tests.sh --e2e` and `shellcheck -S warning`. A tool that isn't installed is reported as not run, never as passed.
-- The commit: no personal data; the agent's own `Co-authored-by` trailer and no other; no `Claude-Session:` trailer, session link or model name, in the commit or the pull request.
+- The commit: no personal data; the agent's own `Co-authored-by` trailer and no other; no `Claude-Session:` trailer or session link, and no model name outside that trailer, in the commit or the pull request.
 - `git push -u origin <branch>`, never `--no-verify`. If the hook, a guard or the push is blocked or fails: stop and report; no way around it.
 - The pull request, base `main`: what was wrong, the fix and why this one, any open choice decided and how to overrule it, any step beyond the issue's text, how it was checked (the results as they came out, and what wasn't run), `Closes #<n>`. A change under `.github/workflows/` or `scripts/pii*` is flagged for the owner (`CONTRIBUTING.md`, "Trust").
 - The report back: the pull request, what changed and why, each check's result, anything not done or unsure. Don't wait for CI or the review.
@@ -74,7 +74,7 @@ Until each has green CI on its head (Linux and Windows, plain and e2e, lint, pii
 - **CI red:** find the cause and fix it, through the issue's subagent (send it the failure) or yourself on that branch. Never skip or disable a test, push an empty commit, or re-run more than once.
 - **Review findings:** check each against the code. Fix what is real and in proportion; answer the others on the pull request with what you found. A finding about security or a weakened guard goes to the user.
 - **Conflict** (another pull request merged first): merge `origin/main` into the branch; no rebase or force-push.
-- A first attempt that failed (the fix was wrong, not a slip in the brief): retry once on the next stronger model, with what went wrong in the brief.
+- A first attempt that failed (the fix was wrong, not a slip in the brief): retry once on the next stronger model, with what went wrong in the brief. If it already ran on `opus`, don't retry: stop on that pull request and tell the user.
 - A fix that grows past the issue, or two failed attempts: stop on that pull request and tell the user what blocks it.
 
 ## 6. Hand over
