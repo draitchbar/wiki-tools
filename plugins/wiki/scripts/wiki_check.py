@@ -30,6 +30,8 @@ Environment (for tests): WIKI_CHECK_TEMPLATE overrides the settings
 template path; CLAUDE_CONFIG_DIR (as in Claude Code) moves ~/.claude.
 """
 
+from __future__ import annotations
+
 import datetime
 import os
 import re
@@ -141,6 +143,7 @@ class Check:
             else:
                 self.fail("`%s` is missing" % f, "re-run /wiki:init, or create it as described "
                           "in the wiki plugin's schema/wiki-layout.md")
+        n: int | None  # also lint's error count below, None if it didn't run
         try:
             n = sum(1 for e in os.listdir(root + "/templates") if e.endswith(".md"))
         except OSError:

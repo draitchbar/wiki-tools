@@ -47,6 +47,7 @@ The review's outcome: the protected words `hooks.json` and `disableAllHooks` wer
 **Why.** On Windows every process start in Git Bash costs about 25 ms and a Python start 100–250 ms, so pipelines of `sed`, `awk` and `grep` made the guard and the scripts take seconds per call; one Python process does the same work in milliseconds. The names stay because contracts, settings and the guard name them. PowerShell would have meant a second implementation beside bash and platform-specific skills.
 
 - **Repo tooling** follows the same rules outside the plugin: `scripts/pii_check.py` behind `scripts/pii-check.sh`, which finds Python through the plugin's `py-run.sh` (the wikis never run it).
+- **Type checking** is mypy (`mypy.ini`, `mypy>=2,<3`), a dev tool like ruff and pytest: CI's lint job and contributors run it; the plugin never imports or runs it, and the wikis never need it. Annotations cost nothing at run time: `from __future__ import annotations`, and `typing` imported only under `TYPE_CHECKING` (importing it adds about 3 ms to every guard start).
 
 **Consequences.** No other Python without a decision recorded here. Python is a prerequisite for every wiki; `/wiki:init` checks for it.
 
@@ -84,7 +85,7 @@ Windows paths get no special treatment: every test uses `tmp_path` with forward 
 **Consequences.** On Windows a restricted `PATH` still has Git's folders in front; a test can't assume bash sees only what it was given.
 
 ## 8. Changes through pull requests, checked on both platforms
-**Decision.** `main` changes only through pull requests. CI (`.github/workflows/ci.yml`) runs lint (`ruff check .`, `shellcheck -S warning` on every `*.sh`, no CRLF) and the suite, normally and with `--e2e`, on Linux and Windows; Claude reviews each pull request (`claude-review.yml`). Lint must also be clean before committing. Line endings are LF everywhere (`.gitattributes`).
+**Decision.** `main` changes only through pull requests. CI (`.github/workflows/ci.yml`) runs lint (`ruff check .`, `mypy`, `shellcheck -S warning` on every `*.sh`, no CRLF) and the suite, normally and with `--e2e`, on Linux and Windows; Claude reviews each pull request (`claude-review.yml`). Lint must also be clean before committing. Line endings are LF everywhere (`.gitattributes`).
 
 **Why.** Every script must run under Linux bash and Git Bash on Windows, and most Windows problems only show on Windows.
 

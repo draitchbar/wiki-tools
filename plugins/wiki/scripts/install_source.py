@@ -35,6 +35,8 @@ Same output as the bash version (checked by recording every call of the
 test suite on both).
 """
 
+from __future__ import annotations
+
 import os
 import re
 import shutil
@@ -214,7 +216,7 @@ def write(target_arg, scratch, plugin):
     except Exception as e:
         sourcelib.err("sourcelib: internal error: %s: %s" % (type(e).__name__, e))
         miss, blocked = None, []
-    lists = {}
+    lists: dict[str, list[str]] = {}
     for lst, r in miss or []:
         ls = lists.setdefault(lst, [])
         ln = '      "%s",' % r

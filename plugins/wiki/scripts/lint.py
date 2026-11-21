@@ -59,6 +59,8 @@ Rules kept from the bash version, which its findings depend on:
 - the log.md window is 30 days of the real clock, not WIKI_LINT_TODAY.
 """
 
+from __future__ import annotations
+
 import collections
 import datetime
 import os
@@ -170,7 +172,9 @@ def status_types(root):
 
 
 def _val(s):
-    s = s[_VAL_HEAD.match(s).end():]
+    m = _VAL_HEAD.match(s)
+    assert m is not None  # the caller's _KEY match guarantees the ':'
+    s = s[m.end():]
     return _VAL_QUOTES.sub("", s)
 
 
@@ -346,7 +350,7 @@ def report(root, plugin, history=None):
         # A page with as_of: is a dated analysis, historical by design.
         age = days_since(up, today) if up else None
         if not f["as_of"] and age is not None and age > STALE_DAYS:
-            hits = set()
+            hits: set[str] = set()
             for ln in body_lines(texts[p]):
                 hits.update(lower(m.group(0)) for m in STALE_WORDS.finditer(ln))
             if hits:
@@ -391,7 +395,7 @@ def report(root, plugin, history=None):
     # rename old entries keep the old name.
     pairs = sorted({"%s\t%s" % (t, src) for src, t in set(links)
                     if src != "log.md" and t not in known}, key=_key)
-    by = {}
+    by: dict[str, list[str]] = {}
     for ln in pairs:
         t, src = ln.split("\t", 1)
         by.setdefault(t, []).append(src)
@@ -411,7 +415,7 @@ def report(root, plugin, history=None):
 
     # index.md's Updated column mirrors each page's updated: (the fixed
     # /wiki:init table format only; a slug shared by two pages is skipped).
-    by_slug = {}
+    by_slug: dict[str, list[str]] = {}
     for s, p in slugs:
         by_slug.setdefault(s, []).append(p)
     for t, d in index_rows(texts.get("index.md", "")):
@@ -462,7 +466,7 @@ def report(root, plugin, history=None):
             o += ["", "### %s (%d)" % (title, len(lines)), ""] + lines
 
     # Clusters for the judgement pass: one per top-level folder of wiki/.
-    cl = {}
+    cl: dict[str, list[str]] = {}
     for p in pages:
         k = p.split("/", 1)[0] if "/" in p else "(top level)"
         cl.setdefault(k, []).append("`%s`" % p)
@@ -511,7 +515,7 @@ def questions(root, all_, texts, page_slugs, today):
                          if q.kind else "no kind")
         if q.raised_date is None:
             probs.append("raised `%s` has no YYYY-MM-DD date" % q.raised if q.raised else "no raised")
-        elif age < 0:
+        elif age is not None and age < 0:  # age is None only when raised_date is
             probs.append("raised %s is in the future" % q.raised_date.isoformat())
         for t in links_of(q.pages):
             if t not in page_slugs:

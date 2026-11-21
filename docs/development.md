@@ -41,8 +41,11 @@ Lint must be clean before committing:
 
 ```bash
 ruff check .                                          # Python (ruff.toml)
+mypy                                                  # Python types (mypy.ini)
 git ls-files -z '*.sh' | xargs -0 shellcheck -S warning   # bash (.shellcheckrc)
 ```
+
+Install them once: `python -m pip install --user --upgrade ruff "mypy>=2,<3"` (shellcheck from your package manager, or `shellcheck-py`). mypy runs from the repo root and checks the files `mypy.ini` lists: strict, except the modules its relaxed sections name until `docs/plans/type-checking.md` makes them strict. Like ruff and pytest it is a dev tool only; the plugin never imports it. Annotations in the plugin's Python follow `AGENTS.md`'s run-time rule: `from __future__ import annotations`, and `typing` only under `if TYPE_CHECKING:`, so a hook never pays for importing it.
 
 Keep LF line endings everywhere (`.gitattributes`).
 

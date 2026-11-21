@@ -82,6 +82,8 @@ This is a guardrail, not a security boundary: an obfuscated command can
 still get through.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 
@@ -343,7 +345,7 @@ class Context:
             return ""
         if not C.is_abs(p):
             p = norm(self.call.cwd) + "/" + p
-        s = []
+        s: list[str] = []
         for i, f in enumerate(p.split("/")):
             if f == "" and i > 0:
                 continue
