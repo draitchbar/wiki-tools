@@ -85,6 +85,54 @@ def test_due_raw_and_check_needed(cli, wiki):
         SKIPPED[:3] + ["- gmail: Check needed (/wiki:ingest gmail)"] + SKIPPED[3:])
 
 
+def show(cli, w, key):
+    r = cli("sources", "show", key, cwd=w)
+    return r.merged.decode("utf-8", "surrogateescape").replace("\r", "")
+
+
+def test_check_needed_same_day_ingest(cli, wiki):
+    """A second ingest on the day of the first leaves last_checked_<key> as
+    it is, so its commit is found by its history row (issue #45). A row of
+    another key, also one this key is a part of, is no ingest of this one."""
+    log = wiki / "raw/sync-log.md"
+    gm = wiki / ".claude/sources/instances/gmail.md"
+
+    def commit(date, msg):
+        git(wiki, "add", "-A")
+        git(wiki, "commit", "-qm", msg, date=date)
+
+    def gmail_skipped():
+        rc, out = due(cli, wiki)
+        assert rc == 0
+        return "- gmail: Check needed (/wiki:ingest gmail)\n" in out
+
+    write(log, log.read_text().replace("last_checked_gmail: 2026-10-02", "last_checked_gmail: 2026-10-03")
+          + "cursor_gmail: 2026-10-03T08:00:00Z\n\n## History\n| Date | Source | What |\n|---|---|---|\n"
+          "| 2026-10-03 | gmail | 3 threads |\n")
+    commit("2026-10-03T09:00:00", "Ingest gmail")
+    assert "Check needed" not in show(cli, wiki, "gmail")
+    assert not gmail_skipped()
+
+    write(gm, gm.read_bytes() + b"\nNotes.\n")
+    commit("2026-10-03T12:00:00", "Edit the gmail instance")
+    needed = "Check needed: the instance file changed (2026-10-03) since the last ingest (2026-10-03).\n"
+    assert needed in show(cli, wiki, "gmail")
+    assert gmail_skipped()
+
+    write(log, log.read_text() + "| 2026-10-03 | gmail-archive | nothing new |\n| 2026-10-03 | my-gmail | 1 thread |\n")
+    commit("2026-10-03T13:00:00", "Ingest other sources")
+    assert needed in show(cli, wiki, "gmail")
+    assert gmail_skipped()
+
+    write(log, log.read_text().replace("cursor_gmail: 2026-10-03T08:00:00Z", "cursor_gmail: 2026-10-03T14:00:00Z")
+          + "| 2026-10-03 | gmail | nothing new |\n")
+    commit("2026-10-03T15:00:00", "Ingest gmail: nothing new")
+    assert "Check needed" not in show(cli, wiki, "gmail")
+    rc, out = due(cli, wiki)
+    assert rc == 0
+    assert "- gmail: last checked 2026-10-03\n" in out.split("Not due:")[0]
+
+
 def test_due_nothing(cli, tmp_path):
     w = copytree(TESTS / "guard-wiki", tmp_path / "dw")
     git(w, "init", "-q")
