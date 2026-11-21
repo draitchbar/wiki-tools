@@ -10,7 +10,7 @@ The plugin, `wiki`, gives each wiki:
 
 ## Install (once per machine)
 
-You need Claude Code, git and Python 3.9 or later. On Windows: Git for Windows (Claude Code runs the hooks in Git Bash) and Python from python.org, with the `python3` App execution alias turned off in Settings.
+You need Claude Code, git and Python 3.11 or later. On Windows: Git for Windows (Claude Code runs the hooks in Git Bash) and Python from python.org, with the `python3` App execution alias turned off in Settings.
 
 ```bash
 claude plugin marketplace add draitchbar/wiki-tools

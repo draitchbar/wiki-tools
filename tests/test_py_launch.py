@@ -5,10 +5,11 @@ plugin folder is written (in-process, with the other guard tests' helpers)."""
 
 import json
 import re
+import sys
 
 import pytest
 
-from conftest import PLUGIN, PLUGIN_BASH, PLUGIN_P, TESTS, copytree, hooks_guard_command, posix, write
+from conftest import CACHE, PLUGIN, PLUGIN_BASH, PLUGIN_P, SCRIPTS, TESTS, copytree, hooks_guard_command, posix, write
 
 PUSH = '{"tool_name":"Bash","tool_input":{"command":"git push"}}'
 LS = '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
@@ -34,7 +35,7 @@ def pl(tmp_path_factory, run):
         return posix(t / "fk" / name)
 
     def setcache(value, newline=True):
-        write(pdata / "python", value + ("\n" if newline else ""))
+        write(pdata / CACHE, value + ("\n" if newline else ""))
 
     return t, hook, fk, setcache, pdata
 
@@ -47,14 +48,15 @@ def pl(tmp_path_factory, run):
                     "py-launch/store-alias-only", "py-launch/store-alias-message", "py-launch/old-python-only",
                     "py-launch/py-only-pass", "py-launch/py-only-push", "py-launch/none",
                     "py-launch/order-python-first", "py-launch/order-python3-not-run", "py-launch/no-plugin-data",
-                    "py-launch/empty-stdin", "py-launch/timing-log")
+                    "py-launch/empty-stdin", "py-launch/timing-log", "py-launch/old-cache-never-read",
+                    "py-launch/below-floor-rejected", "py-launch/at-floor-used")
 def test_launcher(pl, run):
     """One story, as the old section: each step leaves the cache the next expects."""
     t, hook, fk, setcache, pdata = pl
     assert hook(LS).rc == 0
-    realpy = (pdata / "python").read_text().rstrip("\n")
+    realpy = (pdata / CACHE).read_text().rstrip("\n")
     assert re.fullmatch(r"(/|[A-Za-z]:/).*/python[^/]*", realpy), realpy
-    assert (pdata / "python").read_text().count("\n") == 1
+    assert (pdata / CACHE).read_text().count("\n") == 1
     none = posix(t / "fk/none")
     (t / "fk/none").mkdir(parents=True)
     # A warm cache, used with no python on PATH at all.
@@ -66,12 +68,19 @@ def test_launcher(pl, run):
     # Stale, relative or non-python cache entries: ignored, probed again, rewritten.
     setcache(posix(t / "gone/python3"))
     assert hook(LS).rc == 0
-    assert (pdata / "python").read_text().rstrip("\n") == realpy
+    assert (pdata / CACHE).read_text().rstrip("\n") == realpy
     setcache("python3")
     assert hook(LS).rc == 0
-    assert (pdata / "python").read_text().rstrip("\n") == realpy
+    assert (pdata / CACHE).read_text().rstrip("\n") == realpy
     setcache(run(["bash", "-c", "command -v true"]).out.decode().strip())
     assert hook(PUSH).rc == 2
+    # A cache from before the floor rose (the old file name, `python`) is
+    # never read: its interpreter doesn't run, the new cache is written.
+    (pdata / CACHE).unlink(missing_ok=True)
+    write(pdata / "python", fk("oldcache", "python", ': > "%s"; exit 0' % posix(t / "oldcache-ran")) + "/python\n")
+    assert hook(PUSH).rc == 2
+    assert not (t / "oldcache-ran").exists()
+    assert (pdata / CACHE).read_text().rstrip("\n") == realpy
     # A cached interpreter that fails: blocked, whatever the call.
     setcache(fk("exit1", "python", 'echo "Traceback (most recent call last):" >&2; '
                                    'echo "SyntaxError: invalid syntax" >&2; exit 1') + "/python")
@@ -80,27 +89,34 @@ def test_launcher(pl, run):
     setcache(fk("exit127", "python", "exit 127") + "/python")
     assert hook(LS).rc == 2
     # Probing: the Store alias, an old Python, `py -3` only, nothing.
-    (pdata / "python").unlink(missing_ok=True)
+    (pdata / CACHE).unlink(missing_ok=True)
     store = fk("store", "python3", 'echo "Python was not found; run without arguments to install from the '
                                    'Microsoft Store." >&2; exit 9009')
     r = hook(LS, path=store)
-    assert r.rc == 2 and b"no Python 3.9 or later found" in r.err
+    assert r.rc == 2 and b"no Python 3.11 or later found" in r.err
     assert hook(LS, path=fk("old", "python3", 'echo "old $0"')).rc == 2
+    # The probe's floor: the real Python with its version set back to just
+    # under the floor is rejected; set to the floor, it is used.
+    (pdata / CACHE).unlink(missing_ok=True)
+    r = hook(LS, path=aged(fk, realpy, "v310", (3, 10)))
+    assert r.rc == 2 and b"no Python 3.11 or later found" in r.err
+    assert not (pdata / CACHE).exists()
+    assert hook(LS, path=aged(fk, realpy, "v311", (3, 11))).rc == 0
     pyonly = fk("pyonly", "py", '[ "$1" = -3 ] && shift; exec "%s" "$@"' % realpy)
     assert hook(LS, path=pyonly).rc == 0
-    (pdata / "python").unlink(missing_ok=True)
+    (pdata / CACHE).unlink(missing_ok=True)
     assert hook(PUSH, path=pyonly).rc == 2
     # No cache and no Python: blocked. (The call before may have cached the
     # interpreter: on Windows Git's bin/bash.exe puts its own folders before
     # the test's PATH, so mkdir and mv are found; the old runner's bash didn't.)
-    (pdata / "python").unlink(missing_ok=True)
+    (pdata / CACHE).unlink(missing_ok=True)
     assert hook(LS, path=none).rc == 2
     # Probe order: python before python3 (on Windows python3 is usually the
     # Store alias, slow to fail). A working python means python3 never runs.
     fk("order", "python", 'exec "%s" "$@"' % realpy)
     order = fk("order", "python3", ': > "%s"; exit 9009' % posix(t / "python3-ran"))
-    if (pdata / "python").exists():
-        (pdata / "python").unlink(missing_ok=True)
+    if (pdata / CACHE).exists():
+        (pdata / CACHE).unlink(missing_ok=True)
     assert hook(LS, path=order).rc == 0
     assert not (t / "python3-ran").exists()
     # No CLAUDE_PLUGIN_DATA: probes every time, caches nothing.
@@ -111,6 +127,39 @@ def test_launcher(pl, run):
     setcache(realpy)
     hook(PUSH, extra={"WIKI_HOOK_TIMING": "1"})
     assert re.match(r"guard [0-9]+ rc=2 %s " % re.escape(realpy), (pdata / "hook-timing.log").read_text())
+
+
+def aged(fk, realpy, name, version):
+    """A fake `python` folder: the real Python, with sys.version_info set to
+    VERSION before the probe (its fourth argument, after -I -S -c) runs."""
+    return fk(name, "python", 'exec "%s" -I -S -c "import sys; sys.version_info = (%d, %d, 0, \'final\', 0); '
+                              'exec(sys.argv[1])" "$4"' % ((realpy,) + version))
+
+
+# The guard's own version check, before any sibling import: exit 2 with a
+# message, which py-launch.sh passes on (not "guard.py failed (exit 1)").
+GUARD_AT_310 = ("import runpy, sys; sys.version_info = (3, 10, 0, 'final', 0); "
+                "runpy.run_path(sys.argv[1], run_name='__main__')")
+GUARD_MSG = rb"^wiki guard: Python 3\.11 or later is needed, .+ is 3\.10\. Install it \(Windows: from python\.org\), " \
+            rb"then start Claude again; refusing \(fail closed\)\.\r?\n$"
+
+
+@pytest.mark.checks("guard/version-check")
+def test_guard_version_check(run):
+    r = run([sys.executable, "-I", "-S", "-c", GUARD_AT_310, posix(SCRIPTS / "guard.py")], input=LS.encode())
+    assert r.rc == 2 and re.match(GUARD_MSG, r.err), r.err
+
+
+@pytest.mark.checks("py-launch/guard-version-check")
+def test_guard_version_check_launched(pl):
+    """Through py-launch.sh: a cached interpreter that runs guard.py as 3.10."""
+    t, hook, fk, _, _ = pl
+    realpy = posix(sys.executable)
+    old = fk("guard310", "python", 'exec "%s" -I -S -c "%s" "$5"' % (realpy, GUARD_AT_310))
+    data = t / "pdata-guard310"
+    write(data / CACHE, old + "/python\n")
+    r = hook(LS, data_dir=posix(data))
+    assert r.rc == 2 and re.match(GUARD_MSG, r.err), r.err
 
 
 @pytest.mark.parametrize("name", [pytest.param("../guard", id="py-launch/bad-name"),

@@ -2,6 +2,8 @@
 
 Status: designed 2026-11-16 and reviewed the same day (one review round; changes from it are folded in, see "Review"). Intent grilled with the owner. Companion proposal for the wikis: `docs/plans/wiki-venv.md`.
 
+**Note (2026-11-21):** the Python floor is now 3.11 (`docs/plans/type-checking.md`, task 2). Read every 3.9 below as 3.11: the lock compiles for `--python-version 3.11`, the new CI job is the existing `test (ubuntu-latest, plain, 3.11)` run through the venv, and the `pytest<9` pin loses its reason (pytest 9 supports 3.10 and later).
+
 ## Intent (settled)
 
 - **Scope:** this repo only. The plugin stays standard library only (`docs/adr.md`, 4); nothing here changes what a wiki runs.

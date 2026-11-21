@@ -25,6 +25,8 @@ key and catalog order is C order; a key is matched literally in
 raw/sync-log.md (sed took it as a regex).
 """
 
+from __future__ import annotations
+
 import datetime
 import os
 import re
@@ -496,9 +498,9 @@ def op_check_settings(w, args):
         err("sourcelib: internal error: %s: %s" % (type(e).__name__, e))
         out("settings.json: NOT valid JSON: ")
         return 1
-    have, e = sourcelib.settings_rules(text)
-    if e is not None:
-        out("settings.json: NOT valid JSON: %s" % e)
+    have, jerr = sourcelib.settings_rules(text)
+    if jerr is not None:
+        out("settings.json: NOT valid JSON: %s" % jerr)
         return 1
     out("settings.json: valid JSON, %d permission rules" % len(have))
     bad = 0
@@ -510,7 +512,7 @@ def op_check_settings(w, args):
     else:
         out("misspelled keys: none")
     hs = set(have)
-    reader = set()
+    reader: set[str] = set()
     need = sourcelib.needed_rules(w.root, w.plugin, reader)
     user = sourcelib.user_rules() if reader else []
     if reader:
@@ -523,7 +525,7 @@ def op_check_settings(w, args):
         out("missing (rules your sources need):\n" + "\n".join(miss))
     else:
         out("missing: none")
-    counts = {}
+    counts: dict[str, int] = {}
     for ln in have:
         counts[ln] = counts.get(ln, 0) + 1
     dup = ["  " + ln.replace("\t", ": ", 1)

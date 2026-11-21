@@ -43,6 +43,8 @@ norm() lowercases ASCII letters only, so the guard's matching doesn't depend
 on the locale.
 """
 
+from __future__ import annotations
+
 import json
 
 # Built-in tools that don't run commands, write files or read files: the
@@ -86,6 +88,17 @@ class HookCall:
     # every tool call.
     __slots__ = ("kind", "shell", "command", "paths", "contents", "pattern", "subagent", "cwd", "tool",
                  "inputs")
+    # Declared for mypy only: no values, so __slots__ still works.
+    tool: str
+    kind: str
+    shell: str
+    command: str
+    paths: tuple[str, ...]
+    contents: tuple[str, ...]
+    pattern: str
+    subagent: str
+    cwd: str
+    inputs: dict[str, str]
 
 
 def _clean(s):

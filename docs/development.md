@@ -33,7 +33,7 @@ Claude Code then runs the plugin straight from `plugins/wiki/`, so **uncommitted
 
 ## Pull requests and CI
 
-`main` changes only through pull requests. CI (`.github/workflows/ci.yml`) runs lint and the tests, normally and with `--e2e`, on Linux and Windows; Claude reviews each pull request (`.github/workflows/claude-review.yml`).
+`main` changes only through pull requests. CI (`.github/workflows/ci.yml`) runs lint and the tests, normally and with `--e2e`, on Linux and Windows, and once more on Linux on the Python floor, 3.11; Claude reviews each pull request (`.github/workflows/claude-review.yml`).
 
 Once the review has no blocking finding open, its summary comment starts with a **reviewer guide** for the person who approves: the goal, the blast radius (`none`, `contributors`, `one source`, `all wikis`, `guard` or `irreversible`), the risk of a bug, the cost of maintenance, what to focus on, and a demo. It is written once and again only when a push changes it; until then the comment says the guide is unchanged or withheld. The guide is the review agent's reading of the diff, not a check: it says what it did not assess, and it never advises on merging. Why: `docs/adr.md`, 17.
 
@@ -41,8 +41,11 @@ Lint must be clean before committing:
 
 ```bash
 ruff check .                                          # Python (ruff.toml)
+mypy                                                  # Python types (mypy.ini)
 git ls-files -z '*.sh' | xargs -0 shellcheck -S warning   # bash (.shellcheckrc)
 ```
+
+Install them once: `python -m pip install --user --upgrade ruff "mypy>=2,<3"` (shellcheck from your package manager, or `shellcheck-py`). mypy runs from the repo root and checks the files `mypy.ini` lists: strict, except the modules its relaxed sections name until `docs/plans/type-checking.md` makes them strict. Like ruff and pytest it is a dev tool only; the plugin never imports it. Annotations in the plugin's Python follow `AGENTS.md`'s run-time rule: `from __future__ import annotations`, and `typing` only under `if TYPE_CHECKING:`, so a hook never pays for importing it.
 
 Keep LF line endings everywhere (`.gitattributes`).
 

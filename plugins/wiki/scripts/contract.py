@@ -32,6 +32,8 @@ Output matches the bash function's byte for byte. --plugin stands in for
 lib-source.sh's SRC_PLUGIN (default: this script's plugin folder).
 """
 
+from __future__ import annotations
+
 import os
 import re
 import sys
@@ -51,7 +53,7 @@ class ContractError(Exception):
     """A type that can't be resolved; str(e) is lib-source.sh's message."""
 
 
-_cache = {}
+_cache: dict[str, list[str]] = {}
 
 
 def _lines(path):

@@ -1,7 +1,16 @@
-# Python lint (CI and local: `ruff check .`). Python 3.9+, standard library only.
-target-version = "py39"
+# Python lint (CI and local: `ruff check .`). Python 3.11+, standard library only.
+target-version = "py311"
 line-length = 100
 
 [lint]
-select = ["E", "F", "W", "B"]
+select = ["E", "F", "W", "B", "ANN"]
 ignore = ["E501"]
+
+[lint.per-file-ignores]
+# Not annotated yet: each leaves the list when its task in
+# docs/plans/type-checking.md makes it strict.
+"plugins/wiki/scripts/{contract,decode_download,guard,hookjson,install_source,lint,py_version,sourcelib,sources,sync_status,wiki_check}.py" = ["ANN"]
+"plugins/wiki/sources/ms-teams/snapshot.py" = ["ANN"]
+"scripts/pii_check.py" = ["ANN"]
+# The tests are out of scope.
+"tests/**" = ["ANN"]

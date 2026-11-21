@@ -1,7 +1,7 @@
 """Print the interpreter py-launch.sh found, as "Python <version> <path>".
 
 For wiki-check.sh, which runs it through the launcher to check that the
-guard hooks will find Python 3.9 or later.
+guard hooks will find Python 3.11 or later.
 """
 
 import sys

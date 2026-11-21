@@ -40,6 +40,8 @@ and key order is C order; settings-rules counts characters where mawk
 counts bytes (only the quoted character in `unexpected "c"` can differ).
 """
 
+from __future__ import annotations
+
 import os
 import sys
 
@@ -71,7 +73,7 @@ class GitBashPath(Exception):
 
 # Paths: given spelling <-> native form (identity off Windows).
 
-_shown = []  # (native, as given) pairs that differ
+_shown: list[tuple[str, str]] = []  # (native, as given) pairs that differ
 
 
 def native(p):
@@ -104,7 +106,7 @@ def out(s):
     sys.stdout.buffer.write(_b(s))
 
 
-_sink = None  # a list while quietly() runs: err() collects instead of writing
+_sink: list[str] | None = None  # a list while quietly() runs: err() collects instead of writing
 
 
 def err(s):
@@ -407,6 +409,8 @@ def reader_errors(f, c):
                 if items or deny else [])
     res = []
     ops = dict(p for p in map(contract.operation, contract.list_(c, "operations")) if p)
+    limited: set[str]
+    free: set[str]
     bound, limited, free = set(), set(), set()
     for it in items:
         p = contract.reader_item(it)
@@ -591,7 +595,7 @@ def _fields(ln):
 
 def _by_list(have):
     """settings_rules lines ("<list>\t<rule>") as {list: [rule]}."""
-    by = {}
+    by: dict[str, list[str]] = {}
     for ln in have:
         lst, _, r = ln.partition("\t")
         by.setdefault(lst, []).append(r)
@@ -634,7 +638,7 @@ def settings_check(root, plugin, sf):
     for a settings.json that isn't valid JSON, reported elsewhere, a rule
     counts if it is quoted in it) and blocked_rules ([] when sf is missing or
     invalid)."""
-    reader = set()
+    reader: set[str] = set()
     need = needed_rules(root, plugin, reader)
     user = user_rules() if reader else []
     if not os.path.isfile(sf):

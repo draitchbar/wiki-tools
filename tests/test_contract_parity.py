@@ -66,7 +66,7 @@ def tree(tmp_path_factory, run):
     chunks = r.out.split(b"\0")[:-1]
     assert len(chunks) == len(files)
     out = {}
-    for f, c in zip(files, chunks):
+    for f, c in zip(files, chunks, strict=True):
         name = posix(f)
         for pre in (posix(TESTS) + "/", posix(t) + "/"):
             if name.startswith(pre):

@@ -4,7 +4,7 @@ Status: proposal, 2026-11-16, reviewed the same day (one round, folded in). Park
 
 ## What a wiki needs today
 
-Nothing from PyPI. The guard and every script are Python 3.9+ standard library (`docs/adr.md`, 4). The optional tools a wiki can use are:
+Nothing from PyPI. The guard and every script are Python 3.11+ standard library (`docs/adr.md`, 4). The optional tools a wiki can use are:
 
 | Tool | Used by | Today |
 |---|---|---|

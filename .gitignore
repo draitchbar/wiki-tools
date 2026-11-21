@@ -2,3 +2,4 @@ __pycache__/
 .claude/worktrees/
 .claude/settings.local.json
 .github/copilot/settings.local.json
+.mypy_cache/

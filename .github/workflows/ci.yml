@@ -1,6 +1,8 @@
 # Tests and lint on every PR and on main. Required checks for main's ruleset:
 # "lint", "test (ubuntu-latest, plain)", "test (ubuntu-latest, e2e)",
-# "test (windows-latest, plain)" and "test (windows-latest, e2e)".
+# "test (windows-latest, plain)", "test (windows-latest, e2e)" and
+# "test (ubuntu-latest, plain, 3.11)", the last on the plugin's Python floor
+# (the others run 3.13).
 # The two test modes run as separate jobs, and each runs its modules in
 # parallel (pytest-xdist, docs/adr.md, 15): the Windows suite is slow.
 name: ci
@@ -26,9 +28,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: python -m pip install ruff shellcheck-py
+      - run: python -m pip install ruff shellcheck-py "mypy>=2,<3"
       - name: ruff (Python)
         run: ruff check --output-format=github .
+      - name: mypy (Python types)
+        run: mypy
       - name: shellcheck (bash)
         run: git ls-files -z '*.sh' | xargs -0 shellcheck -S warning
       - name: LF line endings only
@@ -38,11 +42,17 @@ jobs:
           fi
 
   test:
+    # Explicit, so the 3.13 jobs keep their names and the floor's job adds
+    # ", 3.11".
+    name: test (${{ matrix.os }}, ${{ matrix.mode }}${{ matrix.python != '3.13' && format(', {0}', matrix.python) || '' }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]   # windows: Git Bash
         mode: [plain, e2e]
+        python: ["3.13"]
+        include:
+          - {os: ubuntu-latest, mode: plain, python: "3.11"}   # the floor
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -51,7 +61,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python }}
       - run: python -m pip install pytest pytest-xdist
       - run: git config --global user.name ci && git config --global user.email ci@example.invalid
       - name: tests (${{ matrix.mode }})

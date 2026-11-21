@@ -19,6 +19,8 @@ Exit 0 and the number of bytes written on stdout; 4 no base64 content
 found; 5 not base64; 6 decoding failed (DEST removed); 3 internal error.
 """
 
+from __future__ import annotations
+
 import base64
 import binascii
 import json
@@ -57,7 +59,7 @@ def find_b64(text):
     except ValueError:
         data = None
     if isinstance(data, (dict, list)):
-        found = []
+        found: list[str] = []
         _contents(data, found)
         return max((_SPACE.sub("", c) for c in found), key=len, default="")
     if _CONTENT.search(text):
