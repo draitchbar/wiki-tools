@@ -20,7 +20,7 @@ The index of plans: what is in progress, what is planned, and what is parked, ea
 
 - **A repository-local venv for the dev tools** (`docs/plans/dev-venv.md`): pytest, pytest-xdist, ruff and shellcheck-py in a gitignored `.venv`, fully pinned and hashed in one lock (`uv pip compile --universal`) that installs on Python 3.9 and up, set up by `scripts/dev-setup.sh` here, in CI and in agent sessions; a CI job on 3.9. Designed and reviewed 2026-11-16.
 
-- **Type checking for the plugin's Python:** none of the ~175 functions (about 3,650 lines in 12 modules) is annotated today. Add a checker (mypy or pyright) to CI as a test-only dependency, like pytest, never the plugin's; record the decision in `docs/adr.md`, 4. Annotate module by module, `contract.py`, `sourcelib.py` and `guard.py` first, with `from __future__ import annotations` for 3.9; once a module passes, ruff's `ANN` rules keep it annotated. Ruff's `ANN` alone only checks that annotations exist, not that they are right, so it isn't enough by itself. Example of what types would catch: the three `git()` helpers return different shapes. Annotations cost nothing at run time, so the guard is no slower. Open: mypy or pyright; how strict.
+- **Type checking for the plugin's Python** ([plan](plans/type-checking.md)): mypy, strict, module by module, as a dev-only tool (never the plugin's); the Python floor rises to 3.11 (mypy 2 no longer targets 3.9, and 3.10 is past its end of life). A spike first, then the floor and mypy in CI at a baseline level (the first PR), then the modules to strict, the guard's parser first; ruff's `ANN` rules keep each finished module annotated.
 
 ## Parked, with triggers
 
