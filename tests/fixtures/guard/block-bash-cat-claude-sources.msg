@@ -1,1 +1,1 @@
-wiki guard: command touches protected '.claude/sources'. Sources are read only as their SOURCE.md says (a wrapper script, MCP tools or a reader); guard and source files are edited by the user.
+wiki guard: command touches protected '.claude/sources'. The guard matches the command's text, so a command that only reads (cat, git log) is refused too: read such files with Read, Grep or Glob; other commands the user runs in a terminal. Sources are read only as their SOURCE.md says (a wrapper script, MCP tools or a reader); guard and source files are edited by the user.

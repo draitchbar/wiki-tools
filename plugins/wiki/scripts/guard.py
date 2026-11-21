@@ -64,7 +64,12 @@ agent_only message.
 
 Messages only (the command is refused either way): a Bash command that
 would be an allowed script call but for ; & | < > $ or a backtick is told
-which character, and where to look for passing it (the type's SOURCE.md).
+which character, and where to look for passing it (the type's SOURCE.md);
+one that chains an allowed script call to another command is told to run
+the script as a call of its own. A command naming a protected path or a
+guard word is told what to do instead: there is no exception for commands
+that only read (`cat`, `git log`), since the guard matches text and can't
+tell them apart safely (docs/guard.md, known false positives).
 
 Whitespace in commands is ASCII only, and lowercasing is ASCII only, so the
 Kelvin sign is not a k.
@@ -520,7 +525,7 @@ class Context:
         plain = _CHAIN_CHAR.sub("", cmd)
         got = self.allowed_script(plain)
         if got is None:
-            return None
+            return self.chained_part_message(cmd, m.group())
         c = got[0]
         name = self.script_path(plain).rsplit("/", 1)[-1]
         ch = "a backtick" if m.group() == "`" else "'%s'" % m.group()
@@ -533,6 +538,21 @@ class Context:
                 how = " For an argument that needs one, see %s's SOURCE.md." % t
         return ("the call of %s contains %s. A script call must be plain: no ; & | < > $ or "
                 "backtick, one call per Bash call.%s" % (name, ch, how))
+
+    def chained_part_message(self, cmd, ch):
+        """For a command one part of which, between ; & | < > $ or
+        backticks, is an allowed script call (`git commit ... && bash
+        <plugin>/scripts/sources.sh due`): a message saying the script needs
+        a call of its own, else None. ch is the command's first such
+        character. Only words the message, as chained_message."""
+        for part in _CHAIN_CHAR.split(cmd):
+            if self.allowed_script(part) is not None:
+                name = self.script_path(part).rsplit("/", 1)[-1]
+                return ("the call of %s is chained to another command (%s). A script call must "
+                        "be plain: no ; & | < > $ or backtick, one call per Bash call. Run %s "
+                        "as a Bash call of its own." % (
+                            name, "a backtick" if ch == "`" else "'%s'" % ch, name))
+        return None
 
 
 class Sources:
@@ -784,8 +804,9 @@ def protected_shell(call, ctx):
     cmd = norm(call.command)
     if ctx.shell_exempt(cmd):
         return None
-    hit = ctx.protected_hit(cmd) or contains_any(cmd, ctx.plugin_forms + ctx.sources.guard_words)
-    if not hit:
+    hit = ctx.protected_hit(cmd) or contains_any(cmd, ctx.plugin_forms)
+    word = "" if hit else contains_any(cmd, ctx.sources.guard_words)
+    if not (hit or word):
         return None
     if call.shell == "bash":
         msg = ctx.chained_message(cmd)
@@ -794,9 +815,17 @@ def protected_shell(call, ctx):
         ps = ""
     else:
         ps = " The wiki's scripts run only through the Bash tool (Git Bash), not PowerShell."
-    return ("command touches protected '%s'. Sources are read only as their SOURCE.md says "
-            "(a wrapper script, MCP tools or a reader); guard and source files are edited "
-            "by the user.%s" % (hit, ps))
+    # What to do instead. Read, Grep and Glob are named only for a path:
+    # a guard word is a command's name, not a file.
+    if hit:
+        how = ("a command that only reads (cat, git log) is refused too: read such files with "
+               "Read, Grep or Glob; other commands the user runs in a terminal")
+    else:
+        how = ("any command containing this word is refused, a commit message too: leave the "
+               "word out, or the user runs the command in a terminal")
+    return ("command touches protected '%s'. The guard matches the command's text, so %s. "
+            "Sources are read only as their SOURCE.md says (a wrapper script, MCP tools or a "
+            "reader); guard and source files are edited by the user.%s" % (hit or word, how, ps))
 
 
 def roots_shell(call, ctx):

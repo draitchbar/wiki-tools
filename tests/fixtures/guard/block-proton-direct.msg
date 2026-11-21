@@ -1,1 +1,1 @@
-wiki guard: command touches protected 'proton-drive'. Sources are read only as their SOURCE.md says (a wrapper script, MCP tools or a reader); guard and source files are edited by the user.
+wiki guard: command touches protected 'proton-drive'. The guard matches the command's text, so any command containing this word is refused, a commit message too: leave the word out, or the user runs the command in a terminal. Sources are read only as their SOURCE.md says (a wrapper script, MCP tools or a reader); guard and source files are edited by the user.
