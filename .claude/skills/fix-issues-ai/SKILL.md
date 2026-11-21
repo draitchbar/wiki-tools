@@ -1,6 +1,6 @@
 ---
 name: fix-issues-ai
-description: Fix GitHub issues of this repo and hand back pull requests for approval. Arguments, one or more issue numbers or titles (`45 48`, `"false Check needed"`). Triages each issue (severity against the cost of fixing, meaning the complexity the fix adds to the code, above all closer coupling between parts of the plugin, not tokens or time), closes what isn't worth fixing with the reasons, fixes the rest one pull request per issue, and follows each until CI is green and the review is answered. Never merges. Only for a wiki-tools session, and only when the user runs /fix-issues-ai.
+description: Fix GitHub issues of this repo and hand back pull requests for approval. Arguments, one or more issue numbers or titles (`45 48`, `"false Check needed"`). Triages each issue (severity against the cost of fixing), closes what isn't worth fixing with the reasons, fixes the rest one pull request per issue, and follows each until CI is green and the review is answered. Never merges. Only for a wiki-tools session, and only when the user runs /fix-issues-ai.
 argument-hint: "<issue number or title>..."
 disable-model-invocation: true
 ---
@@ -24,10 +24,7 @@ Repo rules: `AGENTS.md` and `CONTRIBUTING.md`. They win over this skill where th
 - `git fetch origin main`. Every branch starts from `origin/main`.
 
 ## 2. Triage
-Read each issue with its comments, then the code it names: check that the problem is still there and that the issue's line numbers, names and proposed fix still fit `main`. Then judge:
-- **Severity:** what goes wrong for a wiki's user, how often, and whether they would notice. Silent wrong results rank above loud refusals, those above cosmetics.
-- **Cost of fixing:** the complexity the fix leaves in the code, never the tokens or time it takes to write. Most of all, closer coupling between parts of the plugin: scripts that come to depend on a shared helper, on each other's exit codes or messages, or a skill on one source. Then new options or indirection, what could regress (exit codes callers read, pinned messages, the guard), and whether the fix weakens a guard. Lines and files touched count only as a sign of these.
-- **Verdict:** fix, or won't fix when that cost outweighs the severity. A fix that is long to write but leaves the code no more complex or coupled is cheap. A refactor with no effect a user would see, which adds options or puts several scripts behind one function, is the usual won't-fix. When unsure, fix.
+Read each issue with its comments, then the code it names: check that the problem is still there and that the issue's line numbers, names and proposed fix still fit `main`. Then judge it by the triage criteria below: severity, cost of fixing, verdict.
 
 **An open choice.** If an issue leaves a design question open, decide it: take the option that changes less and weakens no guard (a clearer message before a new exception). Record the choice and the reason for the pull request body (step 4) and the report (step 6); the user overrules it at review.
 
@@ -45,8 +42,30 @@ Between two rows, take the lower one (the stronger model): a failed attempt cost
 
 Show the user one table before going on (issue, severity, cost, verdict, model, open choices decided), then carry on without waiting.
 
+## Triage criteria
+An issue is fixed when its severity outweighs the cost of fixing it, and closed as won't fix when it doesn't.
+
+**Severity** is what goes wrong for someone using a wiki:
+- what happens, how often, and whether they would notice;
+- silent wrong results (a source never ingested, a wrong answer) rank above loud refusals, and those above cosmetics;
+- an enhancement with no effect a user would see has none.
+
+**Cost of fixing** is the complexity the fix leaves in the code. It is never the tokens or the time the fix takes to write. In order of weight:
+1. **Closer coupling between parts of the plugin.** Scripts that come to depend on a shared helper, or on each other's exit codes, messages or file formats; a skill that comes to depend on one source; the guard on a script's internals. This weighs most: coupled parts can no longer be read, tested or changed alone.
+2. **New options and indirection.** A flag per caller that differs, a helper whose callers each need a special case, a second way to do what one way did.
+3. **A weaker guard.** A new exception, or a rule that needs parsing the guard didn't need before.
+4. **What could regress.** Exit codes callers read, messages tests pin, behaviour on Windows.
+
+Lines and files touched count only as a sign of these. A fix that is long to write but leaves the code no more complex or coupled is cheap.
+
+**Verdict.**
+- Fix when the severity is real and the cost is low, also when the fix is long.
+- Won't fix when the cost outweighs the severity. The usual case is a refactor no user would see, which adds options or puts several scripts behind one function.
+- Between the two, look for a cheaper fix that keeps the issue's intent (a clearer message before a new exception) and fix that.
+- When still unsure, fix.
+
 ## 3. Won't fix
-For each won't-fix issue: comment with the reasons from the triage (severity, what the fix would save, what it would cost and risk, and what would make it worth reopening), then close it as not planned (`gh issue close <n> --reason "not planned"`). No personal data in the comment.
+For each won't-fix issue: comment with the reasons from the triage (the severity, what the fix would save, the coupling or complexity it would add and what it would risk, and what would make it worth reopening), then close it as not planned (`gh issue close <n> --reason "not planned"`). No personal data in the comment.
 
 ## 4. Fix, one pull request per issue
 One branch and one pull request per issue, never grouped. Branch `<agent>/issue-<n>-<slug>`, with `claude` or `copilot` and a slug of two to four words, no personal data.
