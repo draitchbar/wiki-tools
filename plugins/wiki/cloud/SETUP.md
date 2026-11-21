@@ -1,0 +1,97 @@
+# Running a wiki in a Claude Code cloud session
+
+A guided setup for opening a wiki at claude.ai/code (web or phone) or running it from a routine (a scheduled cloud task) while the user's machine is off. Written for the agent in a local wiki session that walks the user through it; the user can follow it alone just as well.
+
+**Status, 2026-11-21 (Claude Code 2.1.330):** it works. A spike loaded the plugin, the schema, the sync status and the guard in cloud sessions and ran a scheduled `/wiki:ingest all --unattended` in a real wiki (**What was checked**). It rests on `CLAUDE_CODE_PLUGIN_DIRS`, which Claude Code documents for containers and CI, not for cloud sessions, so a Claude Code update may break it. Several things are still untested (**Still to test**); the most important is that a cloud session's commits aren't saved yet. The research behind it: `docs/plans/cloud-wikis.md` in wiki-tools.
+
+## For the agent guiding the setup
+
+- `${CLAUDE_PLUGIN_ROOT}` on this page is the plugin's folder, the parent of the `cloud/` folder this page is in; nothing fills it in here, so write the path out.
+- Go through **Is this wiki a fit?** with the user first, then **Setup**, one step at a time; check each step before the next.
+- Steps marked **user** are the user's: pushing, creating the GitHub repo, GitHub app access, and everything in the claude.ai settings. The guard refuses `git push`, and a session can't change claude.ai settings.
+- Fill in the setup script's `REF` with the user, and show the script whole, ready to paste.
+- Never put secrets into the wiki or the script. If the user asks about a source this page marks as not available in the cloud, say so and point to **Still to test**.
+
+## How it works
+
+- A cloud session is a fresh Ubuntu VM per session, with the wiki's repository cloned from GitHub into `/home/user/<repo>`. It ignores the plugins a repository's `.claude/settings.json` enables, so the wiki's `enabledPlugins` does nothing there.
+- The cloud **environment** brings the plugin instead: its setup script (run as root before Claude Code starts) clones the public wiki-tools repository and copies `plugins/wiki/` to `/opt/wiki-plugin`, and its environment variable `CLAUDE_CODE_PLUGIN_DIRS=/opt/wiki-plugin` loads it, as `--plugin-dir` would. The plugin then shows as `wiki@inline`.
+- From there it runs as locally: the guard on every tool call, the schema and the sync status at session start, the `/wiki:*` skills, with `${CLAUDE_PLUGIN_ROOT}` filled in as `/opt/wiki-plugin`.
+- The environment caches the setup script's result as a filesystem snapshot when it finishes within about five minutes, and rebuilds it when the script changes and after about seven days.
+- The wiki's own `.claude/settings.json` (permission rules) applies as long as the wiki is the session's **only** repository. With a second repository attached, the session starts in the folder above both and the wiki's settings and sync status are lost.
+
+## Is this wiki a fit?
+
+1. **Sources.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh list` and compare with the table. `sources.sh` doesn't know about the cloud yet: it reports every source as available on Linux.
+
+   | Source type | In a cloud session |
+   |---|---|
+   | `raw` | Only what is committed: Markdown and text, `raw/ocr/*.txt`. PDFs, Office files and images are gitignored, so they stay local. |
+   | `gmail`, `google-drive`, `ms-teams`, `jira` | Through the claude.ai connectors the session or routine is given. Untested in the cloud. Don't ingest Gmail there until results can be saved: its `wiki-ingested` label is written at Gmail, so an unsaved run would lose those threads. |
+   | `proton-files` | No: the reader needs a local sign-in. Options are in the research. |
+   | `local-folder`, `onenote` | No: local folders, local sign-in. |
+   | `codebase` | No: the clone would be a second repository, and `gh` has no login there. |
+
+   A source that isn't available is skipped by `/wiki:ingest all --unattended` with a note; the spike saw a Proton source fail cleanly because its reader wasn't there.
+2. **Privacy.** The wiki's content goes to a private GitHub repository and into Anthropic-hosted VMs. That is the user's decision per wiki. A work wiki also needs its organisation to allow cloud sessions (on Team and Enterprise an Owner turns them on; they aren't available with zero data retention, the HIPAA configuration or customer-managed keys).
+3. **What it is for, today.** Reading, querying and researching the wiki from the web or the phone, and checks (`/wiki:sync-status`, `wiki-check.sh`, lint). Ingests run, but their commits stay in the VM (**Still to test**, saving results).
+
+## Setup
+
+1. **user: the wiki on GitHub, private.** Check with `git remote -v`. If there is no remote, the user creates a private repository and pushes from a terminal, e.g. `gh repo create <name> --private --source . --push`.
+2. **user: GitHub access for Claude.** If the Claude GitHub app is installed for selected repositories only, add this one (GitHub, Settings, Applications, Claude, Repository access).
+3. **user: a cloud environment** at claude.ai/code (the environment selector, add environment). One environment can serve several wikis.
+   - **Name:** e.g. `wikis`.
+   - **Network access:** the default. It allows GitHub.
+   - **Environment variables:** `CLAUDE_CODE_PLUGIN_DIRS=/opt/wiki-plugin`
+   - **Setup script:** the script below, with `REF` set. `main` takes whatever is current when the snapshot is built; a commit pins it (the user gets the current one with `git ls-remote https://github.com/draitchbar/wiki-tools refs/heads/main`). To update the plugin later, change `REF`: a changed script rebuilds the snapshot.
+4. **user: a first session** at claude.ai/code, with this wiki as the only repository and the new environment. Ask Claude there to check, and stop if any check fails:
+   - the session started with the wiki schema (`wiki-conventions`, `wiki-layout`) and the sync status;
+   - `/wiki:sync-status` runs;
+   - `eval "git push --dry-run origin HEAD"` is refused with "wiki guard: git push is not allowed in wiki sessions". **If not, the plugin didn't load and the session is unguarded: stop using it.**
+   - `bash /opt/wiki-plugin/scripts/wiki-check.sh` passes, except for rules that name a reader by a path on the user's machine (expected: that reader isn't in the cloud).
+5. **user, optional: a routine** at claude.ai/code/routines: this wiki as its repository, the environment, only the connectors the wiki's sources need (none for a `raw`-only wiki), the prompt `/wiki:ingest all --unattended`, a schedule of hourly or slower. A routine's prompt starts the manual-only `/wiki:ingest`. Each run is a session in the user's history, and its results aren't saved yet.
+
+### The setup script
+
+```bash
+#!/bin/bash
+# wiki-tools: puts the wiki plugin at /opt/wiki-plugin for
+# CLAUDE_CODE_PLUGIN_DIRS=/opt/wiki-plugin. Fails loudly: a session
+# without the plugin would be unguarded.
+set -eu
+REF=main   # or a commit, for the same plugin every time
+SRC=/opt/wiki-tools
+DEST=/opt/wiki-plugin
+rm -rf "$SRC" "$DEST"
+git clone -q https://github.com/draitchbar/wiki-tools.git "$SRC"
+git -C "$SRC" checkout -q "$REF"
+cp -r "$SRC/plugins/wiki" "$DEST"
+test -f "$DEST/.claude-plugin/plugin.json"
+test -f "$DEST/hooks/hooks.json"
+echo "wiki plugin at $DEST from wiki-tools $(git -C "$SRC" rev-parse --short HEAD)"
+```
+
+## What was checked
+
+A spike on 2026-11-21, Claude Code 2.1.330, in an environment with this setup (its script also tried other ways of fetching the plugin), in a throwaway session and in a real wiki; results in `tests/live/results.md` in wiki-tools.
+
+- The setup script took about 10 s; a later session reused the snapshot ("Setup script cached from previous run").
+- A public repository outside the session can be cloned (`git clone`, `raw.githubusercontent.com`, and `claude plugin marketplace add`); in a session, `codeload` archives get 403.
+- With the variable set, the plugin loaded as `wiki@inline`: the model-invocable `wiki:` skills, both schema files (about 1,500 and 1,300 words), the sync status in a wiki, `${CLAUDE_PLUGIN_ROOT}` filled in.
+- The guard refused `git push` (plain and through `eval`), writing `.claude/settings.json`, and any command naming `claude`; it let an ordinary Write through. `sources.sh list` and `due` and `wiki-check.sh` ran.
+- A routine whose prompt is `/wiki:lint` or `/wiki:ingest all --unattended` started the skill. The unattended ingest skipped a Gmail source (Check needed), failed a Proton source cleanly (reader missing), wrote and committed nothing, and sent a push notification with its summary.
+- Repo-declared plugins and the routines API's `enabled_plugins` field don't bring a plugin in; a session can't start a nested `claude` to test one (auto mode refuses it).
+
+## Still to test
+
+- **A failing setup script.** The script exits non-zero on purpose. Untested: whether the session then fails to start, or starts without the plugin and so unguarded. A project hook in the wiki that refuses everything when `CLAUDE_CODE_REMOTE` is `true` and the plugin is missing would close the gap; not built.
+- **Saving results.** The guard refuses `git push`, and a VM is thrown away, so a cloud session's commits are lost. Untested: the web UI's own push or pull request button (outside the Bash tool, so outside the guard). Not built: a guard exception for cloud sessions that pushes to a `claude/` branch, which needs branch protection on the default branch and a decision on how runs' branches are merged (the research, "If the spike passes").
+- **Connector sources.** Gmail, Google Drive, Teams and Jira through claude.ai connectors in a cloud session or routine: whether their tool names match the contracts', and the permission rules. A plugin synced from the claude.ai account failed to reach its own MCP server through the session's network proxy.
+- **Typing skills** (`/wiki:ingest`, `/wiki:clarify` and the other manual-only skills) in the web UI and on the phone.
+- **Permission prompts.** Routines run in auto mode; the wikis rely on the user's answer in a few places (e.g. the reader binding).
+- **Git identity.** Commits are made as `Claude <noreply@anthropic.com>`, not the user. Untested: `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL` as environment variables.
+- **Cloud-only tools.** The guard doesn't classify `ListConnectors`, `ListPlugins`, `ListSkills`, `SearchMcpRegistry`, `SearchPlugins`, `SearchSkills`, `SuggestConnectors`, `SuggestPluginInstall` and `SuggestSkills`, so it refuses them (fail closed).
+- **Sources and the cloud.** `sources.sh` and the contracts' `platforms` don't know the cloud; source files that name a reader by a local path fail there.
+- **Reading fetched files.** `pdftotext` and LibreOffice aren't in the VM; the setup script could install `poppler-utils` and `libreoffice`.
+- **Proton Drive.** Researched, not built: a password-protected public link read through Proton's SDK without an account, or the reader's session kept in a 1Password vault (a service account) and written back after each refresh, with a viewer-only Proton account. A session stored read-only in an environment variable lasts one run at most, since Proton's refresh tokens work once.

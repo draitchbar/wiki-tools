@@ -37,6 +37,10 @@ Sources start at `last_checked_<key>: never`. The first `/wiki:ingest <key>` of 
 
 The shared starting template for people and organisations is `plugins/wiki/templates/pages/entity.md`; every other page type is designed per wiki by `/wiki:init`.
 
+## Cloud sessions
+
+A wiki can run in a Claude Code cloud session (claude.ai/code on the web or phone, or a routine on a schedule) when its environment brings the plugin: a setup script clones wiki-tools and `CLAUDE_CODE_PLUGIN_DIRS` loads `plugins/wiki/`. The guided setup, what was checked and what is still untested: `plugins/wiki/cloud/SETUP.md`. In a wiki session, ask Claude to walk you through it; it reads the page from the plugin. Saving a cloud session's commits is not solved yet. To reach a wiki on your own machine from the web or phone instead, Remote Control works unchanged.
+
 ## Known issues
 
 - **No OCR on Windows (deliberately out of scope for now).** `ocr.sh` needs `ocrmypdf` and Tesseract's language data, which are installed on Linux only.
