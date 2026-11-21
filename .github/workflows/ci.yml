@@ -2,7 +2,7 @@
 # "lint", "test (ubuntu-latest, plain)", "test (ubuntu-latest, e2e)",
 # "test (windows-latest, plain)" and "test (windows-latest, e2e)".
 # The two test modes run as separate jobs, and each runs its modules in
-# parallel (pytest-xdist, docs/adr.md, 10): the Windows suite is slow.
+# parallel (pytest-xdist, docs/adr.md, 15): the Windows suite is slow.
 name: ci
 
 on:

@@ -7,7 +7,7 @@ Status: designed 2026-11-16 and reviewed the same day (one review round; changes
 - **Scope:** this repo only. The plugin stays standard library only (`docs/adr.md`, 4); nothing here changes what a wiki runs.
 - **Why:** reproducibility (the same tool versions locally, in CI and in agent sessions) and isolation (nothing installed into the user's or the system's Python; no `pip install --user`, no `--break-system-packages` under PEP 668).
 - **What goes in:** the dev tools CI installs today: `pytest`, `pytest-xdist`, `ruff`, `shellcheck-py`.
-- **Pinning:** every package, transitive ones included, pinned exactly, with hashes. This reverses "unpinned" in `docs/adr.md`, 7 and in the xdist decision (today a second "10", see "Housekeeping"); both are amended when the work is done.
+- **Pinning:** every package, transitive ones included, pinned exactly, with hashes. This reverses "unpinned" in `docs/adr.md`, 7 and in the xdist decision (15); both are amended when the work is done.
 - **Python range:** one lock that installs on every supported Python, 3.9 up, on Linux and Windows. CI gains a Linux job on 3.9, the first run of the suite on the plugin's stated floor.
 - **No silent installs:** Python (and `uv`, if used) are prerequisites the user installs. Scripts check for them and stop with a message; packages are installed only into `.venv`, only by a script someone runs on purpose.
 - **One path everywhere:** laptops, CI and cloud agent sessions run the same setup script.
@@ -105,10 +105,6 @@ New `tests/test_dev_env.py` (end to end through bash): staleness (current, stale
 2. `dev-env.sh`, `dev-setup.sh`, `lint.sh`, `run-tests.sh` changes, tests.
 3. CI and Dependabot (owner review).
 4. Docs, AGENTS.md, ADRs.
-
-## Housekeeping (separate, small)
-
-`docs/adr.md` has two sections numbered 10 ("Two coding agents" and "Parallel tests"). Renumber the second to 11 in its own small PR before this work amends it.
 
 ## Review (2026-11-16, one round)
 
