@@ -4,7 +4,7 @@ Installing wiki-tools on a machine, setting up a wiki, and the known limits.
 
 ## Per machine
 
-Two ways to install. **From GitHub** (`claude plugin marketplace add draitchbar/wiki-tools`): Claude Code keeps its own copy of the plugin. To update it, run `claude plugin marketplace update wiki-tools` (refreshes the marketplace's listing), then `claude plugin update wiki@wiki-tools --scope project` in each wiki, and restart `claude` there; `git pull` doesn't apply. Automatic updates are off by default for a marketplace like this one; `/plugin`, tab Marketplaces, turns them on. **From a clone**, for changing the plugin: the rest of this section. Clone wherever you like; nothing depends on the path, and no environment variable is needed. The examples use `~/src/wiki-tools`.
+Install from GitHub: `claude plugin marketplace add draitchbar/wiki-tools`. Claude Code keeps its own copy of the plugin. To update it, run `claude plugin marketplace update wiki-tools` (refreshes the marketplace's listing), then `claude plugin update wiki@wiki-tools --scope project` in each wiki, and restart `claude` there. Automatic updates are off by default for a marketplace like this one; `/plugin`, tab Marketplaces, turns them on. To change the plugin, run it from a clone instead (`docs/development.md`, "Running the plugin from a clone").
 
 | | Linux | Windows |
 |---|---|---|
@@ -12,15 +12,7 @@ Two ways to install. **From GitHub** (`claude plugin marketplace add draitchbar/
 | OCR | `sudo apt install ocrmypdf` plus the Tesseract language packs your documents need (e.g. `tesseract-ocr-dan`); `/wiki:ingest` passes the languages from the wiki's CLAUDE.md | none; scans are read as page images |
 | Sources | whatever the wikis' source types need, listed in each type's Caveats; e.g. codebase: a git clone of the repository, and `gh auth login` for the account in `gh_user`; Proton Drive: a Proton Drive reader, e.g. the `proton` plugin from `aitchbar-ai-tools` loaded from a local clone, with the CLI and its sign-in as its README says, and its rule in your user settings; Jira: a Jira reader, e.g. the claude.ai "Atlassian MCP" connector connected, its read tools allowed and its write tools denied in your settings; OneNote: a OneNote reader (CLI, skill or MCP server) signed in with Graph `Notes.Read` or `Notes.Read.All`, its read operations allowed in your settings | the same |
 
-```bash
-git clone https://github.com/draitchbar/wiki-tools.git ~/src/wiki-tools
-bash ~/src/wiki-tools/tests/run-tests.sh          # optional: needs pytest (docs/development.md)
-claude plugin marketplace add ~/src/wiki-tools     # registers the marketplace only
-```
-
 Don't install or enable the plugin at user scope. Each wiki enables it in its own committed `.claude/settings.json` (see `plugins/wiki/templates/project-settings.json`).
-
-The marketplace is this local folder, so Claude Code runs the plugin straight from this working tree (checked 2026-11-03, Claude Code 2.1.317: skills, hooks and scripts all load from `plugins/wiki/`; the copy in `~/.claude/plugins/cache/` that `plugin update` writes is not used). So **uncommitted edits here are live in every wiki at once**, guard included, and a running wiki session mixes skills read at its start with scripts read at each call. The session-start status in a wiki says so when `plugins/wiki/` has uncommitted changes. After changing or pulling the plugin, restart `claude` in each wiki (or run `/reload-plugins` there); `claude plugin update` isn't needed.
 
 ## Setting up a wiki
 

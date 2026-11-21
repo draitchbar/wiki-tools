@@ -16,13 +16,6 @@ You need Claude Code, git and Python 3.9 or later. On Windows: Git for Windows (
 claude plugin marketplace add draitchbar/wiki-tools
 ```
 
-To change the plugin, or to have changes live in every wiki at once, run it from a clone instead (`docs/setup.md`):
-
-```bash
-git clone https://github.com/draitchbar/wiki-tools.git ~/src/wiki-tools   # any folder works
-claude plugin marketplace add ~/src/wiki-tools
-```
-
 Don't install or enable the plugin at user scope: each wiki enables it for itself, so the guards apply only in wiki sessions.
 
 ## Create a wiki
@@ -51,7 +44,7 @@ Claude can't push: you push the wiki yourself.
 
 ## Update
 
-From GitHub: Claude Code runs its own copy of the plugin, and `git pull` doesn't reach it. Refresh the marketplace, then update the plugin in each wiki:
+Claude Code runs its own copy of the plugin, and `git pull` doesn't reach it. Refresh the marketplace, then update the plugin in each wiki:
 
 ```bash
 claude plugin marketplace update wiki-tools
@@ -59,8 +52,6 @@ cd ~/wikis/<name> && claude plugin update wiki@wiki-tools --scope project
 ```
 
 Then restart `claude` in the wiki (or run `/reload-plugins`). Automatic updates are off for marketplaces outside Anthropic's own; you can turn them on in `/plugin`, tab Marketplaces.
-
-From a clone: `git pull` in the clone; the plugin runs straight from that folder, so changes are live in every wiki; restart `claude` in a wiki (or run `/reload-plugins`) to pick them up.
 
 ## More
 
