@@ -36,7 +36,7 @@ Set up this folder as an LLM wiki in the shared raw/wiki layout (`${CLAUDE_PLUGI
 ## 0. Prerequisites and mode
 1. `uname -s` (with the Bash tool). `Linux` and Git Bash on Windows (`MINGW*` or `MSYS*`) are supported; on anything else, stop: "/wiki:init supports Linux and Windows (Git Bash) only." On Windows, run every shell command in this skill with the Bash tool (Git Bash), never PowerShell: the wiki's scripts run only there. If a call is refused with "no Python 3.9 or later found", stop and show the user that message: the guard hooks need Python and refuse every Bash, Write and Edit call until it is installed.
 2. Find the folder root: the git toplevel, or the current folder if it isn't a repo yet.
-3. Read `.claude/settings.json` with the Read tool (the guard blocks Bash commands such as `grep` or `cat` on it) and check that it enables `wiki@wiki-tools`. If not, stop and show the user step 2 of the setup: `claude plugin install wiki@wiki-tools --scope project`, then restart `claude` here.
+3. Read `.claude/settings.json` with the Read tool (the guard blocks Bash commands such as `grep` or `cat` on it) and check that it enables `wiki@wiki-tools`. If not, stop and show the user step 2 of the setup (`docs/setup.md`, "Setting up a wiki"): installed from GitHub, `claude plugin install wiki@wiki-tools --scope project`; from a clone, no install, but `"enabledPlugins": {"wiki@wiki-tools": true}` in `.claude/settings.json`. Then restart `claude` here.
 4. Pick the mode:
    - **Check**: `CLAUDE.md`, `raw/sync-log.md` and `wiki/` exist. Go to **Check mode** at the end; skip everything else.
    - **New**: the folder contains nothing but `.claude/`, `.git/`, `.obsidian/`.

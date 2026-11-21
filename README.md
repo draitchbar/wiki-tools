@@ -33,6 +33,8 @@ claude plugin install wiki@wiki-tools --scope project
 claude
 ```
 
+From a clone, skip `claude plugin install` and enable the plugin in `.claude/settings.json` instead, so the wiki runs your clone and not a cached copy (`docs/setup.md`, "Setting up a wiki").
+
 Then run `/wiki:init <what the wiki is for>`. It agrees the wiki's purpose, page types and sources with you, creates the layout, and ends with a few steps only you can do: saving `.claude/settings.json` and the source files, committing them, and restarting `claude`. A folder with existing notes is adopted rather than started fresh.
 
 ## Use it
