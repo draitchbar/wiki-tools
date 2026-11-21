@@ -7,7 +7,7 @@
 #
 # With pytest-xdist installed the modules run in parallel, one module per
 # worker (-n auto --dist loadfile: a module's story fixture runs once);
-# -n 0 runs serially. Optional; CI installs it (docs/adr.md, 10).
+# -n 0 runs serially. Optional; CI installs it (docs/adr.md, 15).
 #
 # pytest is the only thing to install for the tests, not pinned:
 #   python -m pip install --user --upgrade pytest   (Windows: py -3 -m pip ...)
