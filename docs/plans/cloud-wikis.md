@@ -1,6 +1,6 @@
 # Research: running a wiki in a Claude Code cloud session
 
-Status: research, 2026-11-20, reviewed the same day (one round, folded in). Nothing here is built or decided. Facts marked **(docs)** come from the Claude Code documentation as fetched that day (`code.claude.com/docs/en/`: `claude-code-on-the-web`, `cloud-environments`, `routines`, `settings`, `plugins/install`, `plugins/org`, `plugins/loading`, `hooks`, `mcp`, `skills`, `remote-control`); nothing was tried in a real cloud session. Cloud scheduled tasks are a research preview, so the facts may change.
+Status: research, 2026-11-20, reviewed the same day (one round, folded in); **spike run 2026-11-21: option 2's second variant works** (**Spike results**), written up as a guided setup in `plugins/wiki/cloud/SETUP.md`. Nothing here is built beyond that page. Facts marked **(docs)** come from the Claude Code documentation as fetched that day (`code.claude.com/docs/en/`: `claude-code-on-the-web`, `cloud-environments`, `routines`, `settings`, `plugins/install`, `plugins/org`, `plugins/loading`, `hooks`, `mcp`, `skills`, `remote-control`); nothing was tried in a real cloud session. Cloud scheduled tasks are a research preview, so the facts may change.
 
 ## The question
 
@@ -87,6 +87,17 @@ A throwaway private wiki on GitHub with made-up content, set up as `/wiki:init` 
 7. **A scheduled task** with the prompt `/wiki:ingest all --unattended`: does it start the skill, is the guard there, does the connector load? With the guard working it can't push, so what counts is the run's transcript.
 
 Record the results where the other live checks are (`tests/live/results.md`), with the Claude Code version.
+
+### Spike results (2026-11-21, Claude Code 2.1.330)
+
+Run through one-off routines created with the routines API, which the session's own tools can do; the user only created the environment. Runs and outcomes: `tests/live/results.md`, "Cloud sessions"; the setup they proved: `plugins/wiki/cloud/SETUP.md`.
+
+- **Option 2, second variant, works:** a setup script clones the public wiki-tools (a plain `git clone` of a repository outside the session is allowed) into `/opt`, and `CLAUDE_CODE_PLUGIN_DIRS` set on the environment loads it. Steps 1 to 3 and 7 passed: skills, schema, sync status, the guard's own refusals, `sources.sh`, a reused snapshot, and a routine prompt starting a manual-only skill (`/wiki:lint`, `/wiki:ingest all --unattended`). Step 7 in a real wiki: Gmail skipped (Check needed), Proton failed cleanly, nothing committed.
+- **Option 2, first variant:** `claude plugin marketplace add draitchbar/wiki-tools` works in the setup script, but was not taken further; the guard refuses commands naming `.claude/plugins/`, where it installs.
+- **Not tried:** option 3 (a plugin folder in the wiki); the docs say repo-shared plugins need the trust dialog, which cloud sessions never show. Steps 4 (failing script), 5 (typing skills) and 6 (permissions) remain, with the design list below: **Still to test** in the setup page.
+- **New facts:** a routine's `enabled_plugins` field can't be set through the API; plugins synced from the claude.ai account do load in cloud sessions (a route ADR 1's user scope rules out); a second repository makes the session start above both clones, so the wiki's settings and sync status are lost; commits are made as `Claude <noreply@anthropic.com>`; nine cloud-only tools are unclassified in `hookjson.py`.
+- **GitHub Copilot's cloud agent, compared from its docs:** a plugin from another repository is a documented repo setting there (`.github/copilot/settings.json`), but plugin hooks in its sandbox are contradicted by the docs, hook timeouts fail open, manual-only skills don't work, OAuth MCP servers aren't supported and there are no Gmail or Google Drive connectors. Not a better home for these wikis today.
+- **Proton Drive:** the CLI signs in only through a browser (completable on another device) and its refresh tokens work once, so a session stored read-only in the environment lasts one run. Workable routes, both with read access limited to one folder: a password-protected public link read through Proton's SDK without an account (`experimental.authURLAccess`), or the session in a 1Password vault (a service account, its token in the environment) written back after each refresh, with a viewer-only Proton account. A network secret can't carry either: Proton and 1Password decrypt on the machine.
 
 ### If the spike passes: what a design must settle
 

@@ -17,6 +17,7 @@ plugins/wiki/
   templates/pages/entity.md       shared page template for people and organisations
   skills/{init,add-source,bind-reader,ingest,clarify,research,sync-status,commit-themes,lint,audit}/SKILL.md
   agents/{source-researcher,critic}.md  subagents /wiki:research dispatches (read-only research; independent critic)
+  cloud/SETUP.md                  guided setup for a wiki in a Claude Code cloud session (environment setup script, CLAUDE_CODE_PLUGIN_DIRS); what was checked, what is untested
   skills/ingest/reading-files.md  core rules for reading fetched files (pdftotext, LibreOffice, OCR)
   hooks/hooks.json                PreToolUse guard + SessionStart schema and status
   sources/                        standard source types
