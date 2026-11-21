@@ -1,6 +1,6 @@
 # Plan: type checking for the plugin's Python
 
-Status: planned 2026-11-21 and reviewed the same day (one round, folded in); task 1 (spike) done the same day, tasks 2–9 revised from it. Roadmap item: "Type checking for the plugin's Python" (`docs/roadmap.md`). Owner's decisions: the checker is **mypy**, the most used one; the annotations use the standard library's `typing` (nothing to install); the Python floor may rise, 3.9 is not a goal.
+Status: planned 2026-11-21 and reviewed the same day (one round, folded in); task 1 (spike) done the same day, tasks 2–9 revised from it; tasks 2 and 3 done the same day (PR 1), next task 4. Roadmap item: "Type checking for the plugin's Python" (`docs/roadmap.md`). Owner's decisions: the checker is **mypy**, the most used one; the annotations use the standard library's `typing` (nothing to install); the Python floor may rise, 3.9 is not a goal.
 
 ## Intent
 
