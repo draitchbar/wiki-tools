@@ -12,6 +12,7 @@ from conftest import PLUGIN, TESTS, copytree, git, home_env, posix, write
 
 JIRA = posix(PLUGIN / "sources" / "jira" / "SOURCE.md")
 GMAIL = posix(PLUGIN / "sources" / "gmail" / "SOURCE.md")
+GDRIVE = posix(PLUGIN / "sources" / "google-drive" / "SOURCE.md")
 T = "mcp__claude_ai_Atlassian_MCP__"
 OK = ["search: %ssearchJiraIssuesUsingJql" % T, "read issue: %sgetJiraIssue" % T,
       "list comments: %slistJiraIssueComments" % T]
@@ -77,6 +78,26 @@ def test_reader_only_tools(tmp_path):
     f = _inst(tmp_path, "gmail", OK)
     assert sourcelib.reader_errors(f, GMAIL) == [
         "only an access: tools instance has a reader binding ('reader', 'reader_deny')"]
+
+
+def test_one_tool_two_operations(tmp_path):
+    """One tool may do two operations, both unlimited (the Google Drive
+    connector's search_files: list folder and search by name). It validates,
+    and the wiki's settings allow it once."""
+    g = "mcp__claude_ai_Google_Drive__"
+    reader = ["get item: %sget_file_metadata" % g, "list folder: %ssearch_files" % g,
+              "search by name: %ssearch_files" % g, "read file: %sread_file_content" % g,
+              "download file: %sdownload_file_content" % g]
+    w = tmp_path / "w"
+    (w / ".claude/sources/instances").mkdir(parents=True)
+    f = posix(write(w / ".claude/sources/instances/drive.md",
+                    "\n".join(["---", "key: drive", "type: google-drive", "reader:"] + ["  - " + r for r in reader]
+                              + ["reader_deny:", "  - %strash_file" % g, "---", ""])))
+    assert sourcelib.reader_errors(f, GDRIVE) == []
+    need = sourcelib.needed_rules(posix(w), posix(PLUGIN))
+    assert [ln for ln in need if ln.startswith("allow\t%ssearch_files\t" % g)] == [
+        "allow\t%ssearch_files\t%ssearch_files" % (g, g)], need
+    assert "deny\t%strash_file\t%strash_file" % (g, g) in need, need
 
 
 def test_reader_rules(tmp_path):

@@ -26,7 +26,7 @@ def _section(text, name):
 
 @pytest.mark.checks("bind-reader/tool-neutral-types")
 def test_tool_neutral_types():
-    assert _tool_neutral() == ["jira", "onenote", "proton-files"]
+    assert _tool_neutral() == ["google-drive", "jira", "onenote", "proton-files"]
 
 
 @pytest.mark.parametrize("t", _tool_neutral())

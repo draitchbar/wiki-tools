@@ -329,7 +329,7 @@ Ready when the reader exists and passes in Claude, its status reports the grante
 
 Expected effort: medium, after the `gws` reader plugin ([roadmap](../roadmap.md)).
 
-Reader: the same `gws` reader plugin, with only the `drive.readonly` scope, so sharing, editing and deleting fail at Google in either client. Contract as for Gmail: tool-neutral, `guard_words: gws`. State already needs no writes. Establish folder ID/path equivalence, recursive paging, modification dates, Docs/Sheets/Slides export and download shape against the current connector; preserve citations and cache behavior and explain formats the reader cannot export.
+Reader: the same `gws` reader plugin, with only the `drive.readonly` scope, so sharing, editing and deleting fail at Google in either client. The contract is already tool-neutral (`access: tools`, 2026-11); what remains is `guard_words: gws`. State already needs no writes. Establish folder ID/path equivalence, recursive paging, modification dates, Docs/Sheets/Slides export and download shape against the current connector; preserve citations and cache behavior and explain formats the reader cannot export.
 
 Ready when the reader exists and passes in Claude with traversal/export/citation equivalence, and Copilot runs it through part B's shell route and guard. Tests: paged trees, changed documents, missing formats, a token with broader scopes (Check warns), and direct `gws` refused.
 
