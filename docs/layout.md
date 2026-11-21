@@ -9,6 +9,7 @@ What lives where in this repository. Everything the wikis need is under `plugins
 LICENSE, CONTRIBUTING.md          MIT; how collaborators work (by invitation)
 AGENTS.md, CLAUDE.md              rules for coding agents; CLAUDE.md only imports AGENTS.md, which imports CONTRIBUTING.md
 .claude/skills/new-source-type/   repo-local skill (Claude Code and Copilot CLI): add or promote a standard source type
+.claude/skills/fix-issues-ai/     repo-local skill (both agents): triage issues, fix each in its own pull request, follow it until ready to merge
 plugins/wiki/
   schema/                         shared wiki schema, loaded at session start by schema.sh
   templates/project-settings.json core of a wiki's .claude/settings.json (source rules come from the types)
