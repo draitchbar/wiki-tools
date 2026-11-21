@@ -21,7 +21,13 @@ git clone https://github.com/draitchbar/wiki-tools.git ~/src/wiki-tools
 claude plugin marketplace add ~/src/wiki-tools     # registers the marketplace only
 ```
 
-In each wiki, enable the plugin without installing it: add `"wiki@wiki-tools": true` under `enabledPlugins` in the wiki's `.claude/settings.json`, or create the file with just that entry if there is none. Don't run `claude plugin install`: it also writes a copy to `~/.claude/plugins/cache/`, and a session can start from that stale copy instead of the clone (seen 2026-11-20 on Windows, until `/reload-plugins`).
+In each wiki, enable the plugin without installing it:
+
+```bash
+claude plugin enable wiki@wiki-tools --scope project   # adds it to enabledPlugins in .claude/settings.json
+```
+
+Not `claude plugin install`: it also writes a copy to `~/.claude/plugins/cache/`, and a session can start from that stale copy instead of the clone (seen 2026-11-20 on Windows, until `/reload-plugins`). `enable` writes no copy and keeps the rest of the settings file (checked 2026-11-21 on Linux, Claude Code 2.1.330).
 
 Claude Code then runs the plugin straight from `plugins/wiki/`, so **uncommitted edits are live in every wiki at once**, guard included, and a running wiki session mixes skills read at its start with scripts read at each call. The session-start status in a wiki says so when `plugins/wiki/` has uncommitted changes. After changing or pulling the plugin, restart `claude` in each wiki or run `/reload-plugins` there.
 
