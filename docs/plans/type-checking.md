@@ -49,6 +49,8 @@ Answer, with evidence in "Spike results" below; no production code:
 - CI: a test job on Python 3.11 (Linux, plain), YAML in "Spike results", 6; the header comment of `ci.yml` lists it. **A new required check, "test (ubuntu-latest, plain, 3.11)": the owner adds it to `main`'s ruleset.**
 - The commit message says users on Python older than 3.11 must upgrade: the guard blocks until they do.
 
+Left out of PR 1: `claude-review.yml`'s prompt still says "Python 3.9+". The review action doesn't run on a PR that changes that file, so the one-line change to "3.11+" goes in a PR of its own.
+
 ### 3. mypy in CI, at the baseline level
 
 - `mypy.ini` from "Spike results", 1: `strict = True` with every module in a relaxed section, which leaves `check_untyped_defs` and strict's other checks of unannotated code. Fix the 66 as "Spike results", 2, assigns them; `sourcelib.py`'s `settings_rules` state waits for task 5 behind a `disable_error_code` line naming it.
