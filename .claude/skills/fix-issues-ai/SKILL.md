@@ -33,7 +33,17 @@ Read each issue with its comments, then the code it names: check that the proble
 
 **A stale proposal.** If the issue's fix no longer fits (a number now taken, a function since moved), keep its intent and adapt; say so in the pull request body.
 
-Show the user one table before going on (issue, severity, cost, verdict, open choices decided), then carry on without waiting.
+**The model for the fix.** For each issue to fix, pick the model its subagent runs on, by the kind of work, not by the issue's length:
+
+| Kind of issue | Model (Claude Code's `model` for the subagent) |
+|---|---|
+| Mechanical, and the issue says exactly what to change: renumbering, a wrong reference, wording, a comment; docs only, no script, hook or test logic | `haiku` |
+| A contained change in one script or skill with a known cause and a clear fix, plus its test | `sonnet` |
+| Anything in the guard or the push check; an open choice you decided; a cause not yet found; a change across several scripts; exit codes or messages that callers or tests read; Windows or Git Bash behaviour | `opus` |
+
+Between two rows, take the lower one (the stronger model): a failed attempt costs more than the model does. An issue whose first attempt failed (step 5) is retried one row down. Your own model, as coordinator, stays as the user set it.
+
+Show the user one table before going on (issue, severity, cost, verdict, model, open choices decided), then carry on without waiting.
 
 ## 3. Won't fix
 For each won't-fix issue: comment with the reasons from the triage (severity, what the fix would save, what it would cost and risk, and what would make it worth reopening), then close it as not planned (`gh issue close <n> --reason "not planned"`). No personal data in the comment.
@@ -41,8 +51,8 @@ For each won't-fix issue: comment with the reasons from the triage (severity, wh
 ## 4. Fix, one pull request per issue
 One branch and one pull request per issue, never grouped. Branch `<agent>/issue-<n>-<slug>`, with `claude` or `copilot` and a slug of two to four words, no personal data.
 
-- **Claude Code:** one subagent per issue, all started in one message, each in its own worktree (`isolation: worktree`), in the background. You don't edit the files yourself.
-- **Copilot CLI, or no subagents:** fix the issues one after another yourself, each on its branch from `origin/main`.
+- **Claude Code:** one subagent per issue, all started in one message, each in its own worktree (`isolation: worktree`), in the background, on the model the triage chose (the subagent's `model`). You don't edit the files yourself.
+- **Copilot CLI, or no subagents:** fix the issues one after another yourself, each on its branch from `origin/main`. The session's model does all of them; if the triage put an issue in the last row and the session runs a small model, say so before starting it, so the user can switch (`/model`).
 
 Whoever fixes an issue gets this brief; a subagent knows nothing else, so write all of it out:
 - The issue number, its text, your triage notes, and the decision on any open choice, as decided ("implement this, don't reopen it").
@@ -64,11 +74,12 @@ Until each has green CI on its head (Linux and Windows, plain and e2e, lint, pii
 - **CI red:** find the cause and fix it, through the issue's subagent (send it the failure) or yourself on that branch. Never skip or disable a test, push an empty commit, or re-run more than once.
 - **Review findings:** check each against the code. Fix what is real and in proportion; answer the others on the pull request with what you found. A finding about security or a weakened guard goes to the user.
 - **Conflict** (another pull request merged first): merge `origin/main` into the branch; no rebase or force-push.
+- A first attempt that failed (the fix was wrong, not a slip in the brief): retry once on the next stronger model, with what went wrong in the brief.
 - A fix that grows past the issue, or two failed attempts: stop on that pull request and tell the user what blocks it.
 
 ## 6. Hand over
 When every pull request is ready, or blocked and reported, stop following and tell the user:
-- a table: issue, outcome (the pull request, or closed as won't fix), state;
+- a table: issue, outcome (the pull request, or closed as won't fix), the model that fixed it, state;
 - per pull request, what to look at before merging: open choices you decided, steps beyond the issue's text, behaviour that changes, wording you are unsure of;
 - what wasn't checked (a tool missing locally, the push hook run without a personal denylist).
 
