@@ -189,18 +189,27 @@ def check_needed(w, k, f):
     _, st = git(w.root, "status", "--porcelain", "--", rel)
     if st.rstrip("\n"):
         return "Check needed: the instance file has uncommitted changes since the last ingest (%s)." % last
-    # Exact commit times: the instance file vs the last commit that changed
-    # its last_checked line; by date if that line was never committed.
+    # Exact commit times: the instance file vs the last ingest commit, the
+    # later of the last commit that added a history row of this key (every
+    # ingest adds one; a second ingest on one day leaves the last_checked
+    # line as it is) and the last that changed its last_checked line (a log
+    # with other rows); by date if neither was ever committed. The patterns
+    # read the same as basic and as extended regex ([|], no {n}), and a key
+    # ([a-z0-9-]) needs no escaping; the cell borders keep other keys out.
     _, changed = git(w.root, "log", "-1", "--format=%ct %cs", "--", rel)
-    _, stamped = git(w.root, "log", "-1", "--format=%ct", "-G^last_checked_%s:" % k,
-                     "--", "raw/sync-log.md")
-    changed, stamped = changed.rstrip("\n"), stamped.rstrip("\n")
+    changed = changed.rstrip("\n")
     if not changed:
         return None
     ct, _, cs = changed.partition(" ")
+    day = "-".join("[0-9]" * n for n in (4, 2, 2))
+    stamped = []
+    for pat in ("^[|] *%s *[|] *%s *[|]" % (day, k), "^last_checked_%s:" % k):
+        _, o = git(w.root, "log", "-1", "--format=%ct", "-G" + pat, "--", "raw/sync-log.md")
+        if o.rstrip("\n"):
+            stamped.append(o.rstrip("\n"))
     if stamped:
         try:
-            need = not int(ct) <= int(stamped)
+            need = not int(ct) <= max(int(t) for t in stamped)
         except ValueError:
             need = True
     else:
