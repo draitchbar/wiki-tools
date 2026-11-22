@@ -1,6 +1,6 @@
 # Proposal: third-party Python for the wikis, and a plugin-managed venv
 
-Status: proposal, 2026-11-16, reviewed the same day (one round, folded in). Parked: not for building until its trigger. Companion to `docs/plans/dev-venv.md`, which is planned.
+Status: proposal, 2026-11-16, reviewed the same day (one round, folded in). Parked: not for building until its trigger. Companion to the dev tools' venv (`docs/adr.md`, 19), which is built.
 
 ## What a wiki needs today
 

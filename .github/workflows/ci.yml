@@ -5,6 +5,9 @@
 # (the others run 3.13).
 # The two test modes run as separate jobs, and each runs its modules in
 # parallel (pytest-xdist, docs/adr.md, 15): the Windows suite is slow.
+# The tools (pytest, pytest-xdist, ruff, mypy, shellcheck) come from uv.lock,
+# installed into .venv by `uv sync --locked` on the Python setup-python
+# gives; uv never downloads one (docs/adr.md, 19).
 name: ci
 
 on:
@@ -20,26 +23,30 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Also in pyproject.toml; here too, since a variable set by an action or the
+# runner image would override the file.
+env:
+  UV_PYTHON_DOWNLOADS: never
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        id: py
         with:
           python-version: "3.13"
-      - run: python -m pip install ruff shellcheck-py "mypy>=2,<3"
-      - name: ruff (Python)
-        run: ruff check --output-format=github .
-      - name: mypy (Python types)
-        run: mypy
-      - name: shellcheck (bash)
-        run: git ls-files -z '*.sh' | xargs -0 shellcheck -S warning
-      - name: LF line endings only
-        run: |
-          if git ls-files -z | xargs -0 grep -lI $'\r' --; then
-            echo "::error::CRLF line endings in the files above"; exit 1
-          fi
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: "0.13.7"   # as required-version in pyproject.toml
+          require-checksums: true
+          enable-cache: true
+      - run: uv sync --locked
+        env:
+          UV_PYTHON: ${{ steps.py.outputs.python-path }}
+      - name: lint (ruff, mypy, shellcheck, LF line endings)
+        run: bash scripts/dev-lint.sh
 
   test:
     # Explicit, so the 3.13 jobs keep their names and the floor's job adds
@@ -60,9 +67,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        id: py
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install pytest pytest-xdist
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: "0.13.7"   # as required-version in pyproject.toml
+          require-checksums: true
+          enable-cache: true
+      - run: uv sync --locked
+        env:
+          UV_PYTHON: ${{ steps.py.outputs.python-path }}
       - run: git config --global user.name ci && git config --global user.email ci@example.invalid
       - name: tests (${{ matrix.mode }})
         run: bash tests/run-tests.sh ${{ matrix.mode == 'e2e' && '--e2e' || '' }}

@@ -52,9 +52,12 @@ plugins/wiki/
     wiki-check.sh                 setup check for /wiki:init check mode (read-only); also lists Markdown outside the layout and checks the guard hook and the scripts find Python; a launcher for wiki_check.py
     wiki_check.py                 the work of wiki-check.sh, lint in-process
 scripts/pii-check.sh, pii_check.py  repo tooling, not the plugin: the personal-data check (docs/development.md, "Personal data")
+scripts/dev-env.sh                repo tooling: finds uv and .venv, stops when .venv is out of date with uv.lock (sourced by run-tests.sh and dev-lint.sh)
+scripts/dev-lint.sh               repo tooling: the lint CI runs (ruff, mypy, shellcheck, LF line endings), from .venv
+pyproject.toml, uv.lock           the dev tools (the dev group) and their lock, installed into .venv by `uv sync --locked` (docs/development.md, "Dev environment"); never the plugin's
 .githooks/pre-push                runs the personal-data check on every push (switched on per clone)
 .github/workflows/                ci.yml (lint, tests), pii.yml (personal-data check), claude-review.yml
-tests/                            run-tests.sh (runs pytest), conftest.py and test_*.py, codebase_story.py (the codebase modules' shared setup), fixtures and fixture wikis, fakes
+tests/                            run-tests.sh (runs pytest from .venv), conftest.py and test_*.py, codebase_story.py (the codebase modules' shared setup), fixtures and fixture wikis, fakes
 docs/                             these pages, the ADR, the roadmap, a security review
 docs/plans/                       one file per detailed plan, indexed in the roadmap
 ```
