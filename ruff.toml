@@ -7,5 +7,5 @@ select = ["E", "F", "W", "B", "ANN"]
 ignore = ["E501"]
 
 [lint.per-file-ignores]
-# The tests are out of scope.
+# The tests are outside type checking (docs/adr.md, 20).
 "tests/**" = ["ANN"]
