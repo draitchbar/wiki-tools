@@ -35,7 +35,7 @@ Claude Code then runs the plugin straight from `plugins/wiki/`, so **uncommitted
 
 `main` changes only through pull requests. CI (`.github/workflows/ci.yml`) runs lint and the tests, normally and with `--e2e`, on Linux and Windows; Claude reviews each pull request (`.github/workflows/claude-review.yml`).
 
-Once the review has no blocking finding open, its summary comment starts with a **reviewer guide** for the person who approves: the goal, the blast radius (`none`, `contributors`, `one source`, `all wikis`, `guard` or `irreversible`), the risk of a bug, the cost of maintenance, what to focus on, and a demo. It is written once and again only when a push changes it; until then the comment says the guide is unchanged or withheld. The guide is the review agent's reading of the diff, not a check: it says what it did not assess, and it never advises on merging. Why: `docs/adr.md`, 17.
+Once the review has no blocking finding open, its summary comment starts with a **reviewer guide** for the person who approves, in sections: the goal, a description of how the pull request reaches it, a table of the blast radius (`none`, `contributors`, `one source`, `all wikis`, `guard` or `irreversible`), the risk of a bug and the cost of maintenance, what to focus on, and a demo. A title or description that doesn't match the diff is a blocking finding, so the guide waits until it is fixed. It is written once and again only when a push changes it; until then the comment says the guide is unchanged or withheld. The guide is the review agent's reading of the diff, not a check: it says what it did not assess, and it never advises on merging. Why: `docs/adr.md`, 17.
 
 Lint must be clean before committing:
 
