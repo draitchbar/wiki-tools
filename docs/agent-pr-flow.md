@@ -35,13 +35,13 @@ An implementer knows nothing but its brief (subagents don't see the conversation
 - First, in a new worktree: `uv sync --locked` (it has no `.venv`). Green before the commit: `bash tests/run-tests.sh` and `bash scripts/dev-lint.sh`; with a `.sh` change also `bash tests/run-tests.sh --e2e`. A check that couldn't run (no uv, say) is reported as not run, never as passed.
 - Evidence, not claims: each check as the command and its result.
 - The commit: no personal data; the agent's own `Co-authored-by` trailer and no other; no `Claude-Session:` trailer or session link, and no model name outside that trailer.
-- A push: `git push -u origin <branch>`, never `--no-verify`. If the hook, a guard or the push is blocked or fails: stop and report; no way around it.
+- A push, only where the skill says to push: `git push -u origin <branch>`, never `--no-verify`. If the hook, a guard or the push is blocked or fails: stop and report; no way around it.
 - The report back: what changed and why, each check's result, changes to existing tests or fixtures, anything not done or unsure.
 
 Before passing a report on, the coordinator reads the diff itself: it does what the report says, stays inside the task, and weakens no guard unsaid.
 
 ## The pull request text
-The repo squash-merges, with the pull request's title and description as the commit on `main`. So the description: no personal data, no session links, nothing that only means something during review; kept current after every fix; ends with the agent's attribution lines. How it was checked: the commands and their results as they came out, and what wasn't run. A change under `.github/workflows/` or `scripts/pii*` is flagged for the owner (`CONTRIBUTING.md`, "Trust").
+The repo squash-merges, with the pull request's title and description as the commit on `main`. So the description: no personal data, no session links, no model name, nothing that only means something during review; kept current after every fix; ends with the agent's attribution lines. How it was checked: the commands and their results as they came out, and what wasn't run. A change under `.github/workflows/` or `scripts/pii*` is flagged for the owner (`CONTRIBUTING.md`, "Trust").
 
 ## Following a pull request
 Until it has green CI on its head (Linux and Windows, plain and e2e, lint, pii), no merge conflict, and every finding of the Claude review answered:

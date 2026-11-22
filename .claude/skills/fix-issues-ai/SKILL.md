@@ -74,7 +74,7 @@ Whoever fixes an issue gets the brief in `docs/agent-pr-flow.md`, "The brief", w
 - The issue number, its text, your triage notes, and the decision on any open choice.
 - The smallest change that fixes the issue. Nothing else in the pull request.
 - `git push -u origin <branch>` (the brief's push rules).
-- The pull request, base `main`, as in "The pull request text": what was wrong, the fix and why this one, any open choice decided and how to overrule it, any step beyond the issue's text, how it was checked, `Closes #<n>`; no model name.
+- The pull request, base `main`, as in "The pull request text": what was wrong, the fix and why this one, any open choice decided and how to overrule it, any step beyond the issue's text, how it was checked, `Closes #<n>`.
 - The report back also names the pull request. Don't wait for CI or the review.
 
 Before you pass a report on, read the pull request's diff yourself (there, after the brief).
