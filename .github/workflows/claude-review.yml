@@ -178,9 +178,8 @@ jobs:
             with `gh pr comment`: the reviewer guide or its one line first, then
             what isn't inline, or "✅ No new findings." Always post that summary
             comment, on every run, as your last step. The emojis named here keep
-            their meaning and are used for nothing else; other emojis may be
-            added where they make a comment easier to scan (e.g. one before
-            each guide heading), sparingly. Use Markdown so comments scan easily: bold labels,
+            their meaning and are used for nothing else; beyond those, use
+            emojis as you see fit to make comments easier to read. Use Markdown so comments scan easily: bold labels,
             a bullet per finding or point, `code` for file, function and command
             names; no tables or headings beyond the guide's ("## Reviewer
             guide", its "### " sections and the Assessment table) and
