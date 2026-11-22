@@ -86,7 +86,7 @@ For `/wiki:bind-reader`. Test only the parameters the instance uses. The safe it
 10. **read file** on the safe file: a text rendering.
 11. **search files by name** (optional), the safe file's exact name, under the drop rule: keep only results with its folder's `driveId`. It must find the safe file.
 
-**Stop** at the first failure of an operation a used parameter needs (the table above), as for a required operation: an instance whose parameters can't all be read isn't bound. A failure of **show scope** or a search is reported, not a stop.
+**Stop** at the first operation a used parameter needs that can't be mapped to a tool or fails its test (the table above), as for a required operation: an instance whose parameters can't all be read isn't bound. A failure of **show scope** or a search is reported, not a stop.
 
 **Known reader: the Microsoft 365 connector** (claude.ai's). Its tools are named here by their short names; the full name's prefix differs by surface (`mcp__claude_ai_Microsoft_365__` in a local Claude Code session, `mcp__Microsoft_365__` in a cloud session): bind the names this session has. Its operations:
 - **show scope**: `get_granted_scopes`;
