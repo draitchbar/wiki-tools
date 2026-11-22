@@ -339,3 +339,17 @@ def test_config_no_uv_run():
     assert "tests/run-tests.sh" in files
     bad = [f for f in files if re.search(r"\buv\s+run\b", (REPO / f).read_text(encoding="utf-8"))]
     assert bad == []
+
+
+@pytest.mark.checks("dev-env/config-ci-uv")
+def test_config_ci_uv():
+    """CI's setup-uv: pinned by commit SHA, installing the uv that
+    pyproject.toml's required-version names, in every job."""
+    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    steps = re.findall(r"uses: astral-sh/setup-uv@(\S+)(.*?)(?=\n      - |\Z)", ci, re.S)
+    assert len(steps) == 2, steps   # lint, test
+    want = toml("pyproject.toml")["tool"]["uv"]["required-version"][2:]
+    for ref, body in steps:
+        assert re.fullmatch(r"[0-9a-f]{40}", ref), ref
+        assert re.search(r'^\s+version: "%s"' % re.escape(want), body, re.M), body
+        assert "python-version" not in body
