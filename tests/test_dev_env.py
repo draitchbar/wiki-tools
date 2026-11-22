@@ -267,14 +267,30 @@ def test_lint_one_fails(tool, run, lint, tmp_path):
 
 @pytest.mark.checks("dev-env/lint-crlf")
 def test_lint_crlf(run, lint, tmp_path):
+    """Committed CRLF or mixed endings fail, named; a binary file with a CR
+    doesn't. Git's view of the index, not grep (Git Bash's can miss a CR)."""
     root, env = lint
-    write(root / "crlf.txt", b"a\r\nb\r\n")
-    git(root, "add", "crlf.txt")
+    write(root / "c r l f.txt", b"a\r\nb\r\n")
+    write(root / "mixed.txt", b"a\r\nb\n")
+    write(root / "bin.dat", b"\0\r\n")
+    git(root, "add", "c r l f.txt", "mixed.txt", "bin.dat")
     git(root, "commit", "-q", "-m", "crlf")
-    r = lint_run(run, root, env)
+    r = lint_run(run, root, env, GITHUB_ACTIONS="true")
     assert r.rc == 1, r
-    assert b"crlf.txt\n" in r.out
+    out = r.out.decode().splitlines()
+    i = out.index("== LF line endings")
+    assert out[i + 1:] == ["c r l f.txt", "mixed.txt", "::error::CRLF line endings in the files above"]
     assert r.err.decode().splitlines()[-1] == "dev-lint: failed: LF"
+
+
+@pytest.mark.checks("dev-env/lint-crlf-work-tree-only")
+def test_lint_crlf_work_tree_only(run, lint, tmp_path):
+    """CRs only in the work tree (a Windows checkout's core.autocrlf) are
+    never committed: clean."""
+    root, env = lint
+    write(root / "x" / "a b.sh", b"echo a\r\n")
+    r = lint_run(run, root, env)
+    assert r.rc == 0, r
 
 
 @pytest.mark.checks("dev-env/lint-stale")

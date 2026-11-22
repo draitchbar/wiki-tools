@@ -54,8 +54,23 @@ else
   failed+=(shellcheck)
 fi
 
+# Git's own view of each committed file's line endings (`i/crlf` or
+# `i/mixed` in the index; binary files are `i/-text`), not grep: Git Bash's
+# grep can miss a CR, and a Windows checkout's core.autocrlf would put CRs
+# in the work tree that are never committed.
+crlf() {
+  local info path n=0
+  while IFS= read -r -d '' info; do
+    path=${info#*$'\t'}
+    case ${info%%[[:space:]]*} in
+      i/crlf|i/mixed) printf '%s\n' "$path"; n=$((n + 1)) ;;
+    esac
+  done < <(git ls-files --eol -z)
+  [ "$n" -gt 0 ]
+}
+
 printf '== %s\n' 'LF line endings'
-if git ls-files -z | xargs -0 grep -lI $'\r' --; then
+if crlf; then
   if [ -n "$gh" ]; then
     echo "::error::CRLF line endings in the files above"
   else
