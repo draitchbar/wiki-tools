@@ -27,11 +27,14 @@ never the text, which would publish it a second time. Exit: 0 clean,
 1 hits (or, with --require-denylist, no denylist), 2 usage or git error.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import subprocess
 import sys
 import unicodedata
+from typing import Literal, overload  # git()'s overloads: not a guard module
 from urllib.parse import unquote
 
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
@@ -56,9 +59,9 @@ HOSTNAME = re.compile(r"(?i)\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:home|lan|corp|inte
 SESSION = re.compile(r"(?i)claude\.ai/code/session_[A-Za-z0-9]")
 
 
-def general_hits(text):
+def general_hits(text: str) -> list[str]:
     """The general rules text breaks, by name, in order of first match."""
-    hits = []
+    hits: list[str] = []
     for m in EMAIL.finditer(text):
         e = m.group(0).rstrip(".")
         dom = e.rsplit("@", 1)[1]
@@ -83,14 +86,14 @@ _FOLD = {"\u00f8": "o", "\u00e6": "a", "\u00e5": "a", "\u00df": "ss", "\u0111": 
 _PAIRS = re.compile(r"oe|ae|aa")
 
 
-def fold(text):
+def fold(text: str) -> str:
     """Case, accents and Danish letters folded; o/oe, ae and aa/a alike."""
     t = unicodedata.normalize("NFKD", text.casefold())
     t = "".join(_FOLD.get(c, c) for c in t if not unicodedata.combining(c))
     return _PAIRS.sub(lambda m: m.group(0)[0], t)
 
 
-def tokens(text):
+def tokens(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", fold(unquote(text)))
 
 
@@ -100,8 +103,8 @@ class Denylist:
 
     SHORT = 6   # a one-word term shorter than this must be a whole word
 
-    def __init__(self, text):
-        self.terms = []
+    def __init__(self, text: str) -> None:
+        self.terms: list[tuple[int, list[str]]] = []
         n = 0
         for line in text.splitlines():
             line = line.strip()
@@ -112,15 +115,15 @@ class Denylist:
             if t:
                 self.terms.append((n, t))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.terms)
 
-    def hits(self, text):
+    def hits(self, text: str) -> list[int]:
         toks = tokens(text)
         if not toks:
             return []
         joined = " ".join(toks)
-        found = []
+        found: list[int] = []
         for n, t in self.terms:
             whole = "".join(t)
             if len(t) > 1 and (" " + " ".join(t) + " ") in (" " + joined + " "):
@@ -132,7 +135,7 @@ class Denylist:
         return found
 
 
-def load_denylist():
+def load_denylist() -> Denylist:
     text = os.environ.get("PII_DENYLIST", "")
     if not text.strip():
         path = os.environ.get("PII_DENYLIST_FILE") or os.path.join(
@@ -147,7 +150,7 @@ def load_denylist():
 
 # --- scanning --------------------------------------------------------------
 
-def lines(text):
+def lines(text: str) -> list[str]:
     """Lines split on \\n only: str.splitlines() also splits on form feeds and
     Unicode separators, which would hide what follows them from a rule."""
     out = text.split("\n")
@@ -157,18 +160,18 @@ def lines(text):
 
 
 class Scan:
-    def __init__(self, deny):
+    def __init__(self, deny: Denylist) -> None:
         self.deny = deny
         self.count = 0
 
-    def safe(self, name, mask="<path>"):
+    def safe(self, name: str, mask: str = "<path>") -> str:
         """A path or ref name fit to print: itself unless a rule matches it."""
         return mask if general_hits(name) or self.deny.hits(name) else name
 
-    def text(self, where, text, identity=False):
+    def text(self, where: str, text: str, identity: bool = False) -> None:
         """Check one piece of text; identity: an author or committer email,
         which must be a noreply address."""
-        rules = []
+        rules: list[str] = []
         if identity:
             if not NOREPLY.match(text.strip()):
                 rules.append("email address that isn't a noreply address")
@@ -180,7 +183,13 @@ class Scan:
             print("pii-check: %s: %s" % (where, r))
 
 
-def git(*args, binary=False):
+@overload
+def git(*args: str, binary: Literal[False] = False) -> str: ...
+@overload
+def git(*args: str, binary: Literal[True]) -> bytes: ...
+
+
+def git(*args: str, binary: bool = False) -> bytes | str:
     r = subprocess.run(["git", "-c", "core.quotepath=off"] + list(args),
                        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if r.returncode != 0:
@@ -196,7 +205,7 @@ class GitError(Exception):
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)")
 
 
-def scan_commit(scan, sha):
+def scan_commit(scan: Scan, sha: str) -> None:
     short = sha[:10]
     meta = git("show", "-s", "--format=%an%x00%ae%x00%cn%x00%ce%x00%B", sha)
     an, ae, cn, ce, msg = meta.split("\0", 4)
@@ -204,8 +213,8 @@ def scan_commit(scan, sha):
     scan.text("commit %s author email" % short, ae, identity=True)
     scan.text("commit %s committer name" % short, cn)
     scan.text("commit %s committer email" % short, ce, identity=True)
-    for i, line in enumerate(lines(msg), 1):
-        scan.text("commit %s message line %d" % (short, i), line)
+    for i, mline in enumerate(lines(msg), 1):
+        scan.text("commit %s message line %d" % (short, i), mline)
     parents = git("rev-list", "--parents", "-n", "1", sha).split()
     base = parents[1] if len(parents) > 1 else EMPTY_TREE
     names = git("diff", "--name-status", "-z", "-M", "--no-ext-diff", base, sha).split("\0")
@@ -228,12 +237,12 @@ def scan_commit(scan, sha):
             line += 1
 
 
-def scan_range(scan, args):
+def scan_range(scan: Scan, args: list[str]) -> None:
     for sha in git("rev-list", "--reverse", *args).split():
         scan_commit(scan, sha)
 
 
-def scan_tree(scan, rev):
+def scan_tree(scan: Scan, rev: str) -> None:
     for path in git("ls-tree", "-r", "-z", "--name-only", rev).split("\0"):
         if path:
             scan.text("%s path %s" % (rev, scan.safe(path)), path)
@@ -247,7 +256,7 @@ def scan_tree(scan, rev):
         scan.text("%s:%s" % (scan.safe(path), parts[1]), parts[2])
 
 
-def scan_pre_push(scan, remote, refs):
+def scan_pre_push(scan: Scan, remote: str, refs: str) -> None:
     for raw in lines(refs):
         f = raw.split()
         if len(f) != 4:
@@ -277,7 +286,7 @@ USAGE = ("usage: pii-check.sh [--require-denylist] range REV-LIST-ARGS... | tree
          " text LABEL | pre-push REMOTE")
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     args = list(argv)
     require = False
     if args and args[0] == "--require-denylist":
