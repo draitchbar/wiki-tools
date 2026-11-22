@@ -10,7 +10,7 @@ LICENSE, CONTRIBUTING.md          MIT; how collaborators work (by invitation)
 AGENTS.md, CLAUDE.md              rules for coding agents; CLAUDE.md only imports AGENTS.md, which imports CONTRIBUTING.md
 .claude/skills/new-source-type/   repo-local skill (Claude Code and Copilot CLI): add or promote a standard source type
 .claude/skills/fix-issues-ai/     repo-local skill (both agents): triage issues, fix each in its own pull request, follow it until ready to merge
-.claude/skills/implement-feature-ai/  repo-local skill (both agents): a goal or roadmap item, grilled, designed or planned, built by subagents in one pull request
+.claude/skills/implement-feature-ai/  repo-local skill (both agents): a goal or roadmap item, its open choices settled (the user asked only what is unsure and hard to revert), designed or planned, built by subagents in one pull request
 plugins/wiki/
   schema/                         shared wiki schema, loaded at session start by schema.sh
   templates/project-settings.json core of a wiki's .claude/settings.json (source rules come from the types)
