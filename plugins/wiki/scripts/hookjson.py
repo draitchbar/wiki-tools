@@ -72,7 +72,7 @@ _INPUT_KEYS = ("command", "file_path", "notebook_path", "path", "pattern", "glob
                "new_string", "new_source")
 
 
-def kind(tool):
+def kind(tool: str) -> str:
     """shell, write, read, harmless, mcp or unknown."""
     if tool in _KINDS:
         return _KINDS[tool]
@@ -101,18 +101,18 @@ class HookCall:
     inputs: dict[str, str]
 
 
-def _clean(s):
+def _clean(s: str) -> str:
     return s.replace("\r", ";").replace("\n", ";").replace("\t", " ")
 
 
-def _opt(v):
+def _opt(v: object) -> object:
     """An absent or null field is ""."""
     return "" if v is None else v
 
 
-def parse(raw):
+def parse(raw: bytes) -> HookCall | None:
     try:
-        data = json.loads(raw.decode("utf-8", errors="replace"))
+        data: object = json.loads(raw.decode("utf-8", errors="replace"))
     except ValueError:
         return None
     if not isinstance(data, dict):
@@ -120,12 +120,12 @@ def parse(raw):
     tool = data.get("tool_name")
     if not isinstance(tool, str) or not tool:
         return None
-    ti = data.get("tool_input")
+    ti: object = data.get("tool_input")
     if ti is None:
         ti = {}
     if not isinstance(ti, dict):
         return None
-    top = {}
+    top: dict[str, str] = {}
     for k in ("cwd", "agent_id"):
         v = _opt(data.get(k))
         if not isinstance(v, str):
@@ -148,14 +148,14 @@ def parse(raw):
     if h.kind not in _CHECKED:
         return h
 
-    vals = {}
+    vals: dict[str, str] = {}
     for k in _INPUT_KEYS:
         v = _opt(ti.get(k))
         if not isinstance(v, str):
             return None
         vals[k] = _clean(v)
     new_strings = [vals["new_string"]]
-    edits = ti.get("edits")
+    edits: object = ti.get("edits")
     if edits is None:
         edits = []
     if not isinstance(edits, list):
@@ -186,11 +186,11 @@ def parse(raw):
 _ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
 
-def lower(s):
+def lower(s: str) -> str:
     """ASCII letters lowercased."""
     return s.translate(_ASCII_LOWER)
 
 
-def norm(s):
+def norm(s: str) -> str:
     """Lowercase (ASCII), backslashes to slashes, for path matching."""
     return lower(s.replace("\\", "/"))

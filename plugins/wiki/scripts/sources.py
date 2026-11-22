@@ -543,10 +543,10 @@ def op_check_settings(w, args):
         out("in both allow and deny (deny wins):\n" + "\n".join(both))
     else:
         out("conflicts: none")
-    blocked = ["  allow: %s (deny: %s)" % m for m in blocked]
-    if blocked:
+    blk = ["  allow: %s (deny: %s)" % m for m in blocked]
+    if blk:
         bad = 1
-        out("blocked by deny (rules your sources need; deny wins):\n" + "\n".join(blocked))
+        out("blocked by deny (rules your sources need; deny wins):\n" + "\n".join(blk))
     else:
         out("blocked by deny: none")
     seen, broad = set(), []

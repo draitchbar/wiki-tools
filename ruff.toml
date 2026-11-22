@@ -9,7 +9,7 @@ ignore = ["E501"]
 [lint.per-file-ignores]
 # Not annotated yet: each leaves the list when its task in
 # docs/plans/type-checking.md makes it strict.
-"plugins/wiki/scripts/{contract,decode_download,guard,hookjson,install_source,lint,py_version,sourcelib,sources,sync_status,wiki_check}.py" = ["ANN"]
+"plugins/wiki/scripts/{decode_download,install_source,lint,sources,sync_status,wiki_check}.py" = ["ANN"]
 "plugins/wiki/sources/ms-teams/snapshot.py" = ["ANN"]
 "scripts/pii_check.py" = ["ANN"]
 # The tests are out of scope.

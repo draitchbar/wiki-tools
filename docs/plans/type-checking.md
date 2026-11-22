@@ -1,6 +1,6 @@
 # Plan: type checking for the plugin's Python
 
-Status: planned 2026-11-21 and reviewed the same day (one round, folded in); task 1 (spike) done the same day, tasks 2–9 revised from it; tasks 2 and 3 done the same day (PR 1), next task 4. Roadmap item: "Type checking for the plugin's Python" (`docs/roadmap.md`). Owner's decisions: the checker is **mypy**, the most used one; the annotations use the standard library's `typing` (nothing to install); the Python floor may rise, 3.9 is not a goal.
+Status: planned 2026-11-21 and reviewed the same day (one round, folded in); task 1 (spike) done the same day, tasks 2–9 revised from it; tasks 2 and 3 done the same day (PR 1, merged as #64); 2026-11-22: three PRs instead of six, and the run-time rule narrowed (owner); task 4 done the same day; task 5 done the same day; task 6 done the same day, PR 2 ready; next task 7 (PR 3). Roadmap item: "Type checking for the plugin's Python" (`docs/roadmap.md`). Owner's decisions: the checker is **mypy**, the most used one; the annotations use the standard library's `typing` (nothing to install); the Python floor may rise, 3.9 is not a goal.
 
 ## Intent
 
@@ -21,12 +21,16 @@ Status: planned 2026-11-21 and reviewed the same day (one round, folded in); tas
 
 ## Pull requests and tasks
 
-One commit per task. Three pull requests or more, each green and shippable on its own:
+One commit per task, one sub-agent session per task. Three pull requests, each green and shippable on its own (the owner's choice after PR 1, 2026-11-22):
 
-- **PR 1, the ground:** tasks 1–3 (spike, floor, mypy in CI at the baseline level).
-- **PR 2:** task 4 (the guard's parser to strict). **PR 3:** task 5 (`sourcelib.py`). **PR 4:** task 6 (`guard.py`). **PR 5:** tasks 7–8. **PR 6:** task 9 (`scripts/pii*`, owner review, `CONTRIBUTING.md`, "Trust") and closing.
+- **PR 1, the ground:** tasks 1–3 (spike, floor, mypy in CI at the baseline level). Merged as #64.
+- **PR 2, the guard path:** tasks 4–6 (`contract`, `hookjson`, `py_version`, `sourcelib`, `guard`): the code that blocks or allows, reviewed as one. Task 4 also narrows the run-time rule (below).
+- **PR 3, the scripts:** tasks 7–9 (`sources`, `sync_status`, `install_source`, `lint`, `wiki_check`, `decode_download`, `snapshot`, `pii_check`; `scripts/pii*` needs the owner's review, `CONTRIBUTING.md`, "Trust") and closing.
+- **When PR 3 is up: a full review** that every function and method in scope is annotated (parameters and return), by reading the code, not only by trusting mypy and ruff: a relaxation or `# type: ignore` / `# noqa: ANN` left behind would hide one.
 
-Each task: `bash tests/run-tests.sh` green, plus `--e2e` where a launcher or another `.sh` changes; `ruff check .`; `shellcheck -S warning`; from task 3 on, `mypy` green.
+**The run-time rule, narrowed (owner, 2026-11-22):** `from __future__ import annotations` in every module; `typing` only under `TYPE_CHECKING = False` / `if TYPE_CHECKING:` in the guard's modules (`guard.py`, `contract.py`, `hookjson.py`), where a hook pays about 3 ms per import; elsewhere a plain `from typing import ...` (`cast`, `@overload`, a `TypedDict` base). Supersedes "Spike results", 3's rule for the other modules. `AGENTS.md` and `docs/development.md` say so.
+
+Each task: `bash tests/run-tests.sh` green (the tools from `.venv`, `uv sync --locked`; `bash scripts/dev-lint.sh` runs the lint), plus `--e2e` where a launcher or another `.sh` changes; `ruff check .`; `shellcheck -S warning`; from task 3 on, `mypy` green.
 
 ### 1. Spike (time-boxed: half a day)
 
