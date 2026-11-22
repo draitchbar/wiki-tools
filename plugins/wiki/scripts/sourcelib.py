@@ -312,10 +312,10 @@ def validate_contract(f):
                 seen.add(p[0])
     elif lst("operations"):
         ce("only access: tools lists 'operations'")
-    p = lst("platforms")
-    if not p:
+    plats = lst("platforms")
+    if not plats:
         ce("no platforms listed")
-    for x in words(p):
+    for x in words(plats):
         if x not in ("linux", "windows", "macos"):
             ce("unknown platform '%s'" % x)
     mode = fld("mode")

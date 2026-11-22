@@ -4,6 +4,8 @@ For wiki-check.sh, which runs it through the launcher to check that the
 guard hooks will find Python 3.11 or later.
 """
 
+from __future__ import annotations
+
 import sys
 
 v = sys.version_info
