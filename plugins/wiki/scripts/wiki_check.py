@@ -45,6 +45,14 @@ import lint  # noqa: E402
 import sourcelib  # noqa: E402
 from sourcelib import git, read_text  # noqa: E402
 
+# Names for the annotations only (never evaluated): nothing to import at run time.
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from typing import TypeVarTuple
+
+    Ts = TypeVarTuple("Ts")
+
 _SCHEMA_IMPORT = re.compile(r"@.*/schema/wiki-(conventions|layout)\.md")
 _TEMPLATE_RULE = re.compile(r'"(mcp__[A-Za-z_]+|Bash\([^"]*\)|Read\([^"]*\))"')
 _DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", re.ASCII)
@@ -61,17 +69,17 @@ class Die(Exception):
     """`wiki-check: <message>` on stderr, exit 1."""
 
 
-def _read_lines(path):
+def _read_lines(path: str) -> list[str]:
     """`while IFS= read -r line`: newline-terminated lines only."""
     return read_text(path).split("\n")[:-1]
 
 
-def _grep_lines(path):
+def _grep_lines(path: str) -> list[str]:
     """The lines grep sees: the last one even without a newline."""
     return lint._lines(read_text(path))
 
 
-def _ok_date(v):
+def _ok_date(v: str) -> bool:
     if not _DATE.fullmatch(v):
         return False
     try:
@@ -81,14 +89,21 @@ def _ok_date(v):
     return True
 
 
-def _plugin_enabled(settings):
+def _plugin_enabled(settings: str) -> bool:
     """True if the settings file at this path enables the wiki plugin
     (False if it can't be read)."""
     return _ENABLED in _SPACE.sub("", read_text(settings))
 
 
 class Check:
-    def __init__(self, plugin_shown):
+    plugin_shown: str
+    plugin: str
+    here: str
+    root: str
+    fails: int
+    out: list[str]
+
+    def __init__(self, plugin_shown: str) -> None:
         self.plugin_shown = plugin_shown
         self.plugin = sourcelib.native(plugin_shown)
         self.here = plugin_shown + "/scripts"           # as bash spells it
@@ -103,31 +118,31 @@ class Check:
         self.fails = 0
         self.out = []
 
-    def ok(self, m):
+    def ok(self, m: str) -> None:
         self.out.append("- PASS %s" % m)
 
-    def fail(self, m, fix):
+    def fail(self, m: str, fix: str) -> None:
         self.out.append("- FAIL %s. Fix: %s" % (m, fix))
         self.fails += 1
 
-    def info(self, m):
+    def info(self, m: str) -> None:
         self.out.append("- INFO %s" % m)
 
-    def tracked(self, f):
+    def tracked(self, f: str) -> bool:
         rc, _ = git(self.root, "ls-files", "--error-unmatch", "--", f)
         return rc == 0
 
-    def changed(self, f):
+    def changed(self, f: str) -> bool:
         _, o = git(self.root, "status", "--porcelain", "--", f)
         return o != ""
 
-    def errs(self, fn, *args):
+    def errs(self, fn: Callable[[*Ts], bool], *args: *Ts) -> tuple[bool, str]:
         """`errs=$(fn ... 2>&1)` with "$root/" removed, lines joined by ;."""
         ok, lines = sourcelib.quietly(fn, *args)
         text = "\n".join(lines).rstrip("\n").replace(self.root + "/", "")
         return ok, ";".join(text.split("\n")) if text else ""
 
-    def run(self):
+    def run(self) -> int:
         root = self.root
         instances = contract.instances(root)
 
@@ -319,6 +334,9 @@ class Check:
 
         # 7. Structural lint (errors only; warnings are normal on a young wiki).
         if os.path.isdir(root + "/wiki"):
+            # Read below only when n is not None, so after log_history returned;
+            # bound on every path all the same.
+            hist: list[lint.LogEdit] = []
             try:
                 hist = lint.log_history(root)
                 _, n = lint.report(root, self.plugin, hist)
@@ -342,7 +360,7 @@ class Check:
         if not dirty.strip("\n"):
             self.ok("setup files are committed")
         else:
-            names = []
+            names: list[str] = []
             for ln in dirty.rstrip("\n").split("\n"):
                 fs = [x for x in _AWK_FS.split(ln) if x]
                 names.append(fs[1] if len(fs) > 1 else "")
@@ -381,7 +399,7 @@ class Check:
         return 0 if self.fails == 0 else 1
 
 
-def sourcelib_platform():
+def sourcelib_platform() -> str:
     """src_platform (as sources.py has it)."""
     p = sys.platform
     if p.startswith("linux"):
@@ -394,14 +412,14 @@ def sourcelib_platform():
     return pf.system().lower()
 
 
-def _main(argv):
+def _main(argv: list[str]) -> int:
     plugin = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace("\\", "/")
     if argv[:1] == ["--plugin"] and len(argv) > 1:
         plugin, argv = argv[1], argv[2:]
     return Check(plugin).run()
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     try:
         rc = _main(argv)
     except Die as e:
