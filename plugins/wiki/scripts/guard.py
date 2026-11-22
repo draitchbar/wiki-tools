@@ -106,6 +106,17 @@ import contract as C  # noqa: E402
 import hookjson  # noqa: E402
 from hookjson import lower, norm  # noqa: E402
 
+# Annotation-only names: typing is never imported at run time (AGENTS.md).
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
+    from typing import NoReturn
+
+    from hookjson import HookCall
+
+    # A check: the reason to refuse the call, or None.
+    Check = Callable[[HookCall, "Context"], str | None]
+
 # Whitespace in commands: ASCII only, so `bash<U+2003><plugin>/scripts/lint.sh`
 # is not a plain script call.
 WS = "[ \t\n\v\f\r]"
@@ -160,7 +171,7 @@ CORE_SCRIPTS = ("scripts/ocr.sh", "scripts/sync-status.sh", "scripts/lint.sh",
 LOOKALIKE_ENDS = tuple("/" + s for s in CORE_SCRIPTS)
 
 
-def block(msg):
+def block(msg: str) -> NoReturn:
     b = ("wiki guard: %s\n" % msg)
     try:
         data = b.encode("utf-8", errors="surrogateescape")
@@ -171,21 +182,21 @@ def block(msg):
     sys.exit(2)
 
 
-def drive_form(p):
+def drive_form(p: str) -> str | None:
     """/c/x -> c:/x (sed 's#^/\\([a-z]\\)/#\\1:/#'), else None."""
     if len(p) >= 3 and p[0] == "/" and "a" <= p[1] <= "z" and p[2] == "/":
         return p[1] + ":/" + p[3:]
     return None
 
 
-def slash_form(p):
+def slash_form(p: str) -> str | None:
     """c:/x -> /c/x, else None."""
     if len(p) >= 3 and "a" <= p[0] <= "z" and p[1:3] == ":/":
         return "/" + p[0] + "/" + p[3:]
     return None
 
 
-def native(p):
+def native(p: str) -> str:
     """A path the filesystem can open: Git Bash's /c/x is c:/x on Windows."""
     if os.name == "nt":
         m = re.match(r"/([A-Za-z])/", p)
@@ -194,7 +205,7 @@ def native(p):
     return p
 
 
-def listable(d):
+def listable(d: str) -> bool:
     """False if d is a folder that can't be listed; a missing one is fine."""
     try:
         os.listdir(d)
@@ -205,21 +216,21 @@ def listable(d):
     return True
 
 
-def contains_any(text, needles):
+def contains_any(text: str, needles: Iterable[str]) -> str:
     for n in needles:
         if n and n in text:
             return n
     return ""
 
 
-def glob_files(d, name=None):
+def glob_files(d: str, name: str | None = None) -> list[str]:
     """Regular files <d>/*/<name> (name given) or <d>/*.md, sorted; hidden
     entries skipped, as a shell glob does."""
     try:
         entries = sorted(os.listdir(d), key=lambda s: s.encode("utf-8", errors="surrogateescape"))
     except OSError:
         return []
-    out = []
+    out: list[str] = []
     for e in entries:
         if e.startswith("."):
             continue
@@ -234,7 +245,7 @@ def glob_files(d, name=None):
     return out
 
 
-def first_line(path):
+def first_line(path: str) -> str:
     try:
         with open(path, "rb") as f:
             line = f.readline()
@@ -252,16 +263,26 @@ class Context:
     __slots__ = ("call", "plugin", "plugin_forms", "protected_paths", "home_prefixes",
                  "_wiki_root", "_sources", "_scripts")
 
-    def __init__(self, call):
+    call: HookCall
+    plugin: str
+    plugin_forms: list[str]
+    protected_paths: list[str]
+    home_prefixes: list[str]
+    _wiki_root: str | None
+    _sources: Sources | None
+    # allowed_script's answers, by command.
+    _scripts: dict[str, tuple[str, str] | None]
+
+    def __init__(self, call: HookCall) -> None:
         self.call = call
         self.plugin = C.PLUGIN
         p = norm(self.plugin)
         forms = [p, drive_form(p) or "", slash_form(p) or ""]
         home = norm(C._home())
-        homes = []
+        homes: list[str] = []
         if home:
             homes = [home, drive_form(home) or "", slash_form(home) or ""]
-            tilde = []
+            tilde: list[str] = []
             for f in forms:
                 for hf in homes:
                     if f and hf and f.startswith(hf + "/"):
@@ -285,12 +306,12 @@ class Context:
         self._scripts = {}
 
     @property
-    def wiki_root(self):
+    def wiki_root(self) -> str:
         if self._wiki_root is None:
             self._wiki_root = self._find_wiki_root()
         return self._wiki_root
 
-    def _find_wiki_root(self):
+    def _find_wiki_root(self) -> str:
         d = os.environ.get("CLAUDE_PROJECT_DIR", "")
         if d and os.path.isdir(native(d)):
             return native(d)
@@ -309,21 +330,21 @@ class Context:
         return ""
 
     @property
-    def sources(self):
+    def sources(self) -> Sources:
         """Every source file, for shell, write and MCP calls (Sources)."""
         if self._sources is None:
             self._sources = Sources(self)
         return self._sources
 
     @property
-    def broken(self):
+    def broken(self) -> str:
         return self.sources.broken
 
     # Paths.
 
     @staticmethod
-    def root_forms(inst):
-        out = []
+    def root_forms(inst: str) -> list[str]:
+        out: list[str] = []
         for r in C.values(inst, "roots"):
             if not r:
                 continue
@@ -339,7 +360,7 @@ class Context:
                     out.append(f)
         return out
 
-    def abs_path(self, v):
+    def abs_path(self, v: str) -> str:
         p = norm(C.expand(v))
         if not p:
             return ""
@@ -358,11 +379,11 @@ class Context:
             s.append(f)
         return "/".join(s) or "/"
 
-    def agent_only_read_roots(self):
+    def agent_only_read_roots(self) -> list[str]:
         """The roots of every instance of an agent_only type, for Read, Grep
         and Glob: found from the contracts' agent_only line, without reading
         every source file."""
-        types = []
+        types: list[str] = []
         for f in (glob_files(self.plugin + "/sources", "SOURCE.md")
                   + glob_files(self.wiki_root + "/.claude/sources/types", "SOURCE.md")):
             if any(_AGENT_ONLY.fullmatch(ln) for ln in C._lines(f)):
@@ -372,13 +393,13 @@ class Context:
         if not types:
             return []
         type_re = re.compile(r"type:\s*(" + "|".join(types) + r")\s*")
-        roots = []
+        roots: list[str] = []
         for f in glob_files(C.instance_dir(self.wiki_root)):
             if any(type_re.fullmatch(ln) for ln in C._lines(f)):
                 roots += self.root_forms(f)
         return roots
 
-    def protected_hit(self, text):
+    def protected_hit(self, text: str) -> str:
         """The first protected path text (normalised) names, or "": a
         protected path anywhere in it, or a protected segment
         (.claude/plugins)."""
@@ -390,7 +411,7 @@ class Context:
             return m.group()
         return _SKILLS if self.wiki_skills(text) else ""
 
-    def wiki_skills(self, text):
+    def wiki_skills(self, text: str) -> bool:
         """True if text names .claude/skills other than the user's
         ~/.claude/skills (in any home spelling, with no ".." after it)."""
         i = text.find(_SKILLS)
@@ -400,7 +421,7 @@ class Context:
             i = text.find(_SKILLS, i + 1)
         return False
 
-    def _user_skills(self, text, i):
+    def _user_skills(self, text: str, i: int) -> bool:
         rest = text[i + len(_SKILLS):]
         m = _PATH_END.search(rest)
         if ".." in (rest[:m.start()] if m else rest):
@@ -413,7 +434,7 @@ class Context:
                     return True
         return False
 
-    def under_root(self, path):
+    def under_root(self, path: str) -> str:
         for r in self.sources.roots:
             if r and (path == r or path.startswith(r + "/")):
                 return r
@@ -422,7 +443,7 @@ class Context:
     # Script calls. cmd is normalised.
 
     @staticmethod
-    def script_path(cmd):
+    def script_path(cmd: str) -> str | None:
         if not _PLAIN.fullmatch(cmd):
             return None
         m = _SCRIPT_QUOTED.fullmatch(cmd) or _SCRIPT_BARE.fullmatch(cmd)
@@ -435,14 +456,14 @@ class Context:
             return None
         return s
 
-    def allowed_script(self, cmd):
+    def allowed_script(self, cmd: str) -> tuple[str, str] | None:
         """(contract, script name) of a plain call of an allowed script, or
-        None. A core script gives ("", ""). Remembered per command."""
+        None. A core script gives ("", its name). Remembered per command."""
         if cmd not in self._scripts:
             self._scripts[cmd] = self._allowed_script(cmd)
         return self._scripts[cmd]
 
-    def _allowed_script(self, cmd):
+    def _allowed_script(self, cmd: str) -> tuple[str, str] | None:
         s = self.script_path(cmd)
         if s is None:
             return None
@@ -453,7 +474,7 @@ class Context:
                 break
         if rel:
             if rel in CORE_SCRIPTS:
-                return ("", "")
+                return ("", rel.rsplit("/", 1)[-1])
             if not (rel.startswith("sources/") and rel.endswith(".sh") and "/" in rel[len("sources/"):]):
                 return None
             c = "%s/sources/%s/SOURCE.md" % (self.plugin, rel.split("/")[1])
@@ -483,14 +504,14 @@ class Context:
             return None
         return (c, name)
 
-    def bash_script(self, cmd):
+    def bash_script(self, cmd: str) -> tuple[str, str] | None:
         """allowed_script(cmd) for a Bash call, None for PowerShell: the
         wiki's scripts run only through the Bash tool (Git Bash)."""
         if self.call.shell != "bash":
             return None
         return self.allowed_script(cmd)
 
-    def diagnostic_ok(self, cmd):
+    def diagnostic_ok(self, cmd: str) -> bool:
         if "--output" in cmd:
             return False
         if _DIAG_GIT.fullmatch(cmd):
@@ -501,14 +522,14 @@ class Context:
             return False
         return bool(_DIAG_SOURCES.search(cmd))
 
-    def shell_exempt(self, cmd):
+    def shell_exempt(self, cmd: str) -> bool:
         """True for a shell command the checks after agent_only_ops let
         through: a read-only diagnostic while a source file is broken
         (broken_sources let it pass), or a plain call of an allowed script."""
         return bool(self.broken) or self.bash_script(cmd) is not None
 
     @staticmethod
-    def main_session_op(cmd):
+    def main_session_op(cmd: str) -> str:
         """The third word of `bash <script> <key> <op> ...`, or "" unless the
         key and the operation are plain words. Like sed -E, the script word
         is the longest match of "..." or a word."""
@@ -527,7 +548,7 @@ class Context:
             return ""
         return fields[1]
 
-    def chained_message(self, cmd):
+    def chained_message(self, cmd: str) -> str | None:
         """For a command that would be an allowed script call but for ; & |
         < > $ or a backtick: a message naming the character, else None.
         Only words the message: the command is refused either way."""
@@ -538,8 +559,7 @@ class Context:
         got = self.allowed_script(plain)
         if got is None:
             return self.chained_part_message(cmd, m.group())
-        c = got[0]
-        name = self.script_path(plain).rsplit("/", 1)[-1]
+        c, name = got
         ch = "a backtick" if m.group() == "`" else "'%s'" % m.group()
         how = ""
         if c:  # a contract's wrapper, not a core script
@@ -551,15 +571,16 @@ class Context:
         return ("the call of %s contains %s. A script call must be plain: no ; & | < > $ or "
                 "backtick, one call per Bash call.%s" % (name, ch, how))
 
-    def chained_part_message(self, cmd, ch):
+    def chained_part_message(self, cmd: str, ch: str) -> str | None:
         """For a command one part of which, between ; & | < > $ or
         backticks, is an allowed script call (`git commit ... && bash
         <plugin>/scripts/sources.sh due`): a message saying the script needs
         a call of its own, else None. ch is the command's first such
         character. Only words the message, as chained_message."""
         for part in _CHAIN_CHAR.split(cmd):
-            if self.allowed_script(part) is not None:
-                name = self.script_path(part).rsplit("/", 1)[-1]
+            got = self.allowed_script(part)
+            if got is not None:
+                name = got[1]
                 return ("the call of %s is chained to another command (%s). A script call must "
                         "be plain: no ; & | < > $ or backtick, one call per Bash call. Run %s "
                         "as a Bash call of its own." % (
@@ -577,7 +598,15 @@ class Sources:
 
     __slots__ = ("broken", "guard_words", "roots", "agent_roots", "limits", "free", "named")
 
-    def __init__(self, ctx):
+    broken: str
+    guard_words: list[str]
+    roots: list[str]
+    agent_roots: list[str]
+    limits: dict[str, dict[tuple[str, str], list[str]]]
+    free: set[str]
+    named: set[str]
+
+    def __init__(self, ctx: Context) -> None:
         self.broken = ""
         self.guard_words = []
         self.roots = []
@@ -631,7 +660,7 @@ class Sources:
             if C.field(c, "agent_only") == "yes":
                 self.agent_roots += ctx.root_forms(f)
 
-    def add_reader(self, f, k):
+    def add_reader(self, f: str, k: str) -> None:
         """An access: tools instance's reader list (reader_deny becomes deny
         rules, not a guard check)."""
         items = C.list_(f, "reader")
@@ -650,7 +679,7 @@ class Sources:
             else:
                 self.free.add(tool)
 
-    def set_broken(self, f, reason):
+    def set_broken(self, f: str, reason: str) -> None:
         if self.broken:
             return
         self.broken = (
@@ -660,7 +689,7 @@ class Sources:
             "install-source-file.sh or an editor, outside Claude." % (f, reason))
 
 
-def source_script(s):
+def source_script(s: str) -> bool:
     """case */sources/*/*.sh (a shell * also matches "/")."""
     i = s.find("/sources/")
     while i >= 0:
@@ -678,7 +707,7 @@ def source_script(s):
 # only what its checks need: git push and Read/Grep/Glob never read every
 # source file.
 
-def no_push(call, ctx):
+def no_push(call: HookCall, ctx: Context) -> str | None:
     """git push in a shell command. First, so no exception can let one
     through."""
     if call.kind != "shell":
@@ -688,14 +717,14 @@ def no_push(call, ctx):
     return None
 
 
-def shell_has_command(call, ctx):
+def shell_has_command(call: HookCall, ctx: Context) -> str | None:
     """A shell call without a command (fail closed)."""
     if call.kind == "shell" and not call.command:
         return "%s call without a command; refusing (fail closed)." % call.tool
     return None
 
 
-def write_has_path(call, ctx):
+def write_has_path(call: HookCall, ctx: Context) -> str | None:
     """A write call without file_path (fail closed)."""
     if call.kind == "write" and not call.paths:
         field = "notebook_path" if call.tool == "NotebookEdit" else "file_path"
@@ -703,7 +732,7 @@ def write_has_path(call, ctx):
     return None
 
 
-def known_tool(call, ctx):
+def known_tool(call: HookCall, ctx: Context) -> str | None:
     """A tool the guard doesn't classify (fail closed)."""
     if call.kind == "unknown":
         return ("tool '%s' is not known to the wiki guard; refusing (fail closed). If it is "
@@ -711,7 +740,7 @@ def known_tool(call, ctx):
     return None
 
 
-def nested_claude(call, ctx):
+def nested_claude(call: HookCall, ctx: Context) -> str | None:
     """A shell command that starts a nested claude session: it would run
     without this guard's settings, or change the plugins."""
     if call.kind == "shell" and _CLAUDE_CMD.search(norm(call.command)):
@@ -720,7 +749,7 @@ def nested_claude(call, ctx):
     return None
 
 
-def agent_only_read(call, ctx):
+def agent_only_read(call: HookCall, ctx: Context) -> str | None:
     """A main-session Read, Grep or Glob on an agent_only root."""
     if call.kind != "read" or call.subagent or not ctx.wiki_root:
         return None
@@ -740,7 +769,7 @@ def agent_only_read(call, ctx):
     return None
 
 
-def broken_sources(call, ctx):
+def broken_sources(call: HookCall, ctx: Context) -> str | None:
     """While a source file can't be used, every shell and write call is
     refused (fail closed), except a read-only diagnostic in a shell."""
     if call.kind not in ("shell", "write") or not ctx.broken:
@@ -750,7 +779,7 @@ def broken_sources(call, ctx):
     return ctx.broken
 
 
-def agent_only_ops(call, ctx):
+def agent_only_ops(call: HookCall, ctx: Context) -> str | None:
     """In the main session, an agent_only type's wrappers run only the
     operations its contract lists under main_ops."""
     if call.kind != "shell" or call.subagent or ctx.broken:
@@ -771,7 +800,7 @@ def agent_only_ops(call, ctx):
             % (wop or "?", name, " ".join(ops)))
 
 
-def reader_tools(call, ctx):
+def reader_tools(call: HookCall, ctx: Context) -> str | None:
     """An MCP call to a tool the reader bindings name only with limits,
     with none of their values."""
     if call.kind != "mcp" or not ctx.wiki_root:
@@ -791,7 +820,7 @@ def reader_tools(call, ctx):
                 tool, " or ".join("%s=%s" % p for p in allowed), ", ".join(keys)))
 
 
-def lookalike_script(call, ctx):
+def lookalike_script(call: HookCall, ctx: Context) -> str | None:
     """A core-script name or */sources/*/*.sh outside the plugin (Bash): the
     wikis' settings allow wrappers by wildcard, so a lookalike must not
     run."""
@@ -807,7 +836,7 @@ def lookalike_script(call, ctx):
     return None
 
 
-def protected_shell(call, ctx):
+def protected_shell(call: HookCall, ctx: Context) -> str | None:
     """A shell command naming a protected path, a protected word or a guard
     word. A Bash command that would be an allowed script call but for a
     chaining character is told which one."""
@@ -840,7 +869,7 @@ def protected_shell(call, ctx):
             "reader); guard and source files are edited by the user.%s" % (hit or word, how, ps))
 
 
-def roots_shell(call, ctx):
+def roots_shell(call: HookCall, ctx: Context) -> str | None:
     """A shell command naming a filesystem instance's root."""
     if call.kind != "shell":
         return None
@@ -857,7 +886,7 @@ def roots_shell(call, ctx):
             "script (see its SOURCE.md)." % hit)
 
 
-def protected_write(call, ctx):
+def protected_write(call: HookCall, ctx: Context) -> str | None:
     """A write call on a protected path or anywhere in the plugin folder, as
     for shell commands: its skills, schema and templates are what every
     wiki session is told."""
@@ -870,7 +899,7 @@ def protected_write(call, ctx):
     return None
 
 
-def roots_write(call, ctx):
+def roots_write(call: HookCall, ctx: Context) -> str | None:
     """A write call inside a filesystem instance's root. The path is made
     absolute and its ".." resolved first, as for agent_only reads, so
     <wiki>/../Scans/x can't get past."""
@@ -882,7 +911,7 @@ def roots_write(call, ctx):
     return None
 
 
-def guard_words_write(call, ctx):
+def guard_words_write(call: HookCall, ctx: Context) -> str | None:
     """Non-Markdown content naming a guard word: a helper script around a
     source's CLI, which no shell check would see when it runs."""
     if call.kind != "write" or norm(call.paths[0]).endswith(".md"):
@@ -894,7 +923,7 @@ def guard_words_write(call, ctx):
     return None
 
 
-CHECKS = [
+CHECKS: list[Check] = [
     no_push,
     shell_has_command,
     write_has_path,
@@ -913,7 +942,7 @@ CHECKS = [
 ]
 
 
-def decide(call):
+def decide(call: HookCall) -> tuple[Check, str] | tuple[None, None]:
     """(check, reason) for the first check in CHECKS that refuses the call,
     or (None, None)."""
     ctx = Context(call)
@@ -924,7 +953,7 @@ def decide(call):
     return None, None
 
 
-def main():
+def main() -> NoReturn:
     call = hookjson.parse(sys.stdin.buffer.read())
     if call is None:
         block("could not parse hook input; refusing (fail closed).")
