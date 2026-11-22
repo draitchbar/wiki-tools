@@ -42,7 +42,7 @@ LIST_ETC = [
     # google-drive (access: tools): no tool rules until an instance is bound.
     ("settings-gdrive-note", "google-drive (access: tools) names no tools", ["settings", "google-drive"]),
     ("catalog-gdrive", "- google-drive (standard, tools): Google Drive", ["catalog"]),
-    ("catalog-teams", "- ms-teams (standard, mcp): Microsoft Teams", ["catalog"]),
+    ("catalog-teams", "- ms-teams (standard, tools): Microsoft Teams", ["catalog"]),
     # jira (access: tools): no tool rules; the reader is settled per wiki.
     ("catalog-jira", "- jira (standard, tools): Jira", ["catalog"]),
     ("settings-jira-note", "jira (access: tools) names no tools", ["settings", "jira"]),
@@ -60,9 +60,17 @@ LIST_ETC = [
     ("list-research", '- code: type codebase (standard), research (/wiki:research code "<question>"; '
                       'not ingested), valid', ["list"]),
     ("catalog-codebase", "- codebase (standard, filesystem): Codebase", ["catalog"]),
-    ("settings-teams-deny", '"mcp__claude_ai_Microsoft_365__teams_send_chat_message"', ["settings", "ms-teams"]),
+    # ms-teams (access: tools): only the walk file's cache rule; teams's
+    # binding gives the connector's rules, Outlook and people tools denied.
+    ("settings-teams-note", "ms-teams (access: tools) names no tools", ["settings", "ms-teams"]),
     ("settings-teams-edit", '"Edit(~/.cache/wiki-sources/*/*/walk.tsv)"', ["settings", "ms-teams"]),
-    ("settings-teams-script", '"Bash(bash */sources/ms-teams/snapshot.sh *)"', ["settings", "ms-teams"]),
+    ("settings-teams-key", '"mcp__claude_ai_Microsoft_365__read_resource"', ["settings", "ms-teams", "--key", "teams"]),
+    ("settings-teams-key-deny-outlook", '"mcp__claude_ai_Microsoft_365__outlook_email_search",',
+     ["settings", "ms-teams", "--key", "teams"]),
+    ("settings-teams-key-deny-write", '"mcp__claude_ai_Microsoft_365__teams_send_chat_message",',
+     ["settings", "ms-teams", "--key", "teams"]),
+    ("settings-teams-key-deny-me", '"mcp__claude_ai_Microsoft_365__get_me"', ["settings", "ms-teams", "--key", "teams"]),
+    ("show-teams-valid", "Source teams: valid", ["show", "teams"]),
     ("settings-narrow-key", '"Edit(~/.cache/wiki-sources/sw/code/**)"', ["settings", "codebase", "--key", "code"]),
     ("settings-narrow-read", '"Read(~/.cache/wiki-sources/sw/code/**)"', ["settings", "codebase", "--key", "code"]),
     ("settings-narrow-teams", '"Edit(~/.cache/wiki-sources/sw/x/walk.tsv)"', ["settings", "ms-teams", "--key", "x"]),
@@ -78,6 +86,7 @@ COUNTS = [  # name, args, a regex no line may match
     ("settings-proton-no-allow", ["settings", "proton-files"], r"Bash\(bash|read\.sh|wiki-sources"),
     ("settings-jira-no-tools", ["settings", "jira"], r"mcp__|Bash\(|wiki-sources"),
     ("settings-gdrive-no-tools", ["settings", "google-drive"], r"mcp__|Bash\(|wiki-sources"),
+    ("settings-teams-no-tools", ["settings", "ms-teams"], r"mcp__|Bash\("),
     ("settings-tools-empty", ["settings", "onenote"], r"mcp__|Bash\("),
     ("settings-tools-quiet", ["settings", "gmail"], r"access: tools"),
     # Bound: no note for jira; executeRead once.

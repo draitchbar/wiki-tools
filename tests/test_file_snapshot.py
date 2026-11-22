@@ -34,6 +34,7 @@ def fs(tmp_path_factory, run):
     write(inst / "mail.md", "---\nkey: mail\ntype: gmail\nlabels: X\n---\n")
     write(inst / "tickets.md", "---\nkey: tickets\ntype: jira\nsite: example.atlassian.net\n"
                                "scopes:\n  - mine | project = X\n---\n")
+    write(inst / "chats.md", "---\nkey: chats\ntype: ms-teams\nfolders:\n  - Files | file:///b!d/\n---\n")
     write(inst / "notes.md", "---\nkey: notes\ntype: onenote\nsections:\n  - Book > Section\n---\n")
     write(inst / "local-notes.md", "---\nkey: local-notes\ntype: notes-tool\nsections:\n  - Book > Section\n---\n")
     write(inst / "local-files.md", "---\nkey: local-files\ntype: notes-files\nsections:\n  - Book > Section\n---\n")
@@ -76,6 +77,7 @@ def test_refused_type(key, want, fs):
 @pytest.mark.parametrize("key", [
     pytest.param("tickets", id="file-snapshot/accepts-tools-type-jira"),
     pytest.param("notes", id="file-snapshot/accepts-tools-type-onenote"),
+    pytest.param("chats", id="file-snapshot/accepts-tools-type-ms-teams"),
     pytest.param("local-notes", id="file-snapshot/accepts-tools-type-local"),
 ])
 def test_accepts_tools_type(key, fs):
