@@ -37,7 +37,7 @@ jobs:
 
             Review this pull request against the rules in CLAUDE.md (POSIX bash that
             also runs under Git Bash, Python only where CLAUDE.md allows it, stdlib
-            only, Python 3.9+, LF endings, a test for every script/hook change, no
+            only, Python 3.11+, LF endings, a test for every script/hook change, no
             weakened guard without saying so). Look for, in this order:
             1. Correctness bugs.
             2. Missing tests.

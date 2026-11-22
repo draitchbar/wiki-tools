@@ -1,8 +1,8 @@
 # Tests and lint on every PR and on main. Required checks for main's ruleset:
 # "lint", "test (ubuntu-latest, plain)", "test (ubuntu-latest, e2e)",
-# "test (windows-latest, plain)", "test (windows-latest, e2e)" and
-# "test (ubuntu-latest, plain, 3.11)", the last on the plugin's Python floor
-# (the others run 3.13).
+# "test (windows-latest, plain)" and "test (windows-latest, e2e)", all on
+# Python 3.13. Nothing runs on the plugin's floor, 3.11; mypy and ruff check
+# against it (docs/adr.md, 20).
 # The two test modes run as separate jobs, and each runs its modules in
 # parallel (pytest-xdist, docs/adr.md, 15): the Windows suite is slow.
 # The tools (pytest, pytest-xdist, ruff, mypy, shellcheck) come from uv.lock,
@@ -49,17 +49,11 @@ jobs:
         run: bash scripts/dev-lint.sh
 
   test:
-    # Explicit, so the 3.13 jobs keep their names and the floor's job adds
-    # ", 3.11".
-    name: test (${{ matrix.os }}, ${{ matrix.mode }}${{ matrix.python != '3.13' && format(', {0}', matrix.python) || '' }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]   # windows: Git Bash
         mode: [plain, e2e]
-        python: ["3.13"]
-        include:
-          - {os: ubuntu-latest, mode: plain, python: "3.11"}   # the floor
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -69,7 +63,7 @@ jobs:
       - uses: actions/setup-python@v5
         id: py
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "3.13"
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           version: "0.13.7"   # as required-version in pyproject.toml
