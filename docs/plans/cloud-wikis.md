@@ -46,10 +46,10 @@ Not documented: whether a setup script can install a plugin, or whether `claude`
 | Source | In the cloud |
 |---|---|
 | `raw` | Only what is committed: Markdown and text, `raw/ocr/*.txt`. `/wiki:init`'s `.gitignore` keeps PDFs, Office files and images out of the repo, so those never reach the VM; ingesting and auditing them stays local. |
-| `gmail` | Should work: claude.ai connector. To check: the tool names match the contract's (`mcp__claude_ai_…`). |
+| `gmail` | The connector loads, but its tools are named `mcp__Gmail__*`, not the contract's `mcp__claude_ai_Gmail__*` (seen 2026-11-22), so no deny rule matches: **Connector names**, below. |
 | `google-drive` | Should work with the claude.ai Google Drive connector, if the instance's binding names the same tools and its rules are in the wiki's settings. |
 | `ms-teams` | Should work with the claude.ai Microsoft 365 connector, if the instance's binding names the session's tools (`mcp__Microsoft_365__*` in a cloud session: re-bind there) and its rules are in the wiki's settings; folders only in part (the cache, above). |
-| `jira` | Should work with the Atlassian connector, if the instance's binding names the same tools and its rules are in the wiki's settings. |
+| `jira` | Not today: the Atlassian connector failed to connect in a cloud session (2026-11-22, Claude Code 2.1.330). Once it connects, the same naming question as `gmail`. |
 | `codebase` | No, as built. The clone would be a second repository in the session, which turns off the wiki's hooks and rules; the root in the instance is a per-machine path; `gh.sh` first asks `gh auth token -u <gh_user>`, which has no login to answer (`git.sh`'s fetch likewise), and its `gh pr` and `gh issue` calls are refused by the proxy. |
 | `local-folder` | No: the folders are on the user's machine. |
 | `proton-files`, `onenote` | No: their readers need a local sign-in. |
@@ -109,7 +109,23 @@ Run through one-off routines created with the routines API, which the session's 
 - **Setup script.** Where it lives (a file in wiki-tools the user pastes into the environment), what it installs (the plugin, `poppler-utils`, LibreOffice), and how a plugin update reaches a cached snapshot (it is rebuilt when the script changes and after about seven days).
 - **Platform.** A way for contracts and `sources.sh due` to say "not available in the cloud" (`platforms` today names operating systems).
 - **Cache-held state:** the `ms-teams` folder snapshot (`file-snapshot.sh`'s).
-- **Tools and connectors.** Classifying the cloud-only tools in `hookjson.py`; which connectors a task includes (all, by default).
+- **Tools and connectors.** Classifying the cloud-only tools in `hookjson.py`; which connectors a task includes (all, by default); the connectors' cloud tool names (**Connector names**, below).
 - **Settings.** Reader rules in the wiki's settings rather than the user's; `attribution.sessionUrl` off if the trailer isn't wanted.
 - **Auto mode** in place of the user's answer to a prompt.
 - **Privacy.** A cloud wiki's content is on GitHub and in an Anthropic-hosted VM. A decision per wiki; a work wiki also needs its organisation to allow cloud sessions.
+- **Pushing from a managed account.** A wiki on a GitHub Enterprise Managed User account can't get the Claude GitHub App, and `/web-setup` wasn't offered (Claude Code 2.1.330), so its cloud sessions may never push. The setup page should say a cloud wiki needs a repository the session can push to.
+
+### Connector names (2026-11-22)
+
+Seen in a wiki's cloud session: `/wiki:ingest gmail` stopped at Check, correctly, because the Gmail tools there are `mcp__Gmail__*`. Locally, on Linux and Windows alike, claude.ai connectors are `mcp__claude_ai_<Connector>__*` (the name comes from the connector, not the system; Google Drive was bound on Linux with those names). The guard lets MCP tools through apart from reader-binding limits and leaves denying write tools to the settings' deny rules, which are literal names. So in the cloud nothing denies `send_message`, `reply`, `trash` and the rest, and routines run in auto mode. Microsoft 365 is renamed the same way (`mcp__Microsoft_365__*`, the `ms-teams` row above); whether Google Drive is isn't known.
+
+Claude Code has no settings that change with the environment, so the environment has to supply them:
+
+- **Locally:** unchanged. The wiki's committed `.claude/settings.json` holds the local names' rules, the same on every machine.
+- **In the cloud:** the environment's setup script writes the cloud names' allow and deny rules into the clone's `.claude/settings.local.json` (gitignored, so per machine, as locally). The repository is cloned before the script runs (`tests/live/results.md`, "Cloud sessions", run 6). `sources.sh settings` would generate the lines; `check-settings` already reads both settings files.
+- **The contract** names the cloud tools in a list of their own, not mixed into `read_tools`, `bookkeeping_tools` and `forbidden_tools`; a bound instance likewise in its `reader` and `reader_deny`.
+- **Without the script** there are no cloud rules, but no plugin or guard either: the **Never unguarded** item above covers both.
+
+Rejected: both name sets in the committed `settings.json` (works, since denying a tool that doesn't exist is harmless, but mixes two environments in one file); a guard rule treating `mcp__claude_ai_X__` and `mcp__X__` as the same server (rests on an undocumented naming convention); a second instance per environment (doubles the state).
+
+To check in a spike (not run yet): whether a cloud session reads `.claude/settings.local.json` (the docs name only `settings.json`), and the clone's path when the script runs. If it doesn't, the fallback is the guard refusing the contract's cloud write tools itself when `CLAUDE_CODE_REMOTE` is `true`. Either way, a stricter guard that refuses any MCP tool no contract or binding names would also hold against a later rename; a separate decision, since it blocks unrelated connectors in wiki sessions.
