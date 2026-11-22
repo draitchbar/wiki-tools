@@ -61,7 +61,7 @@ The dev tools (pytest, pytest-xdist, ruff, mypy, shellcheck-py) are the `dev` de
 
 ## Agents
 
-The repo is developed with Claude Code and with GitHub Copilot CLI; every change must work in both (`CONTRIBUTING.md`). Their instructions and skills are written once: `CLAUDE.md` is the one line `@AGENTS.md`, `AGENTS.md` imports `CONTRIBUTING.md`, and both agents load skills from `.claude/skills/`. Copilot reads `AGENTS.md` and `CLAUDE.md` both, so it sees the rules twice; that is harmless. Why this layout: `docs/adr.md`, 10.
+The repo is developed with Claude Code and with GitHub Copilot CLI; every change must work in both (`CONTRIBUTING.md`). Their instructions and skills are written once: `CLAUDE.md` is the one line `@AGENTS.md`, `AGENTS.md` imports `CONTRIBUTING.md`, and both agents load skills from `.claude/skills/`. Copilot reads `AGENTS.md` and `CLAUDE.md` both, so it sees the rules twice; that is harmless. Why this layout: `docs/adr.md`, 10. The repo's skills: `/new-source-type`; `/fix-issues-ai` (issues to pull requests, `docs/adr.md`, 16) and `/implement-feature-ai` (a goal to one pull request, 20), which share `docs/agent-pr-flow.md`.
 
 What both support, and so what agent files may use (Copilot CLI 1.0.112, tested 2026-11-15):
 

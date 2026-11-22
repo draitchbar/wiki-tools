@@ -10,6 +10,7 @@ LICENSE, CONTRIBUTING.md          MIT; how collaborators work (by invitation)
 AGENTS.md, CLAUDE.md              rules for coding agents; CLAUDE.md only imports AGENTS.md, which imports CONTRIBUTING.md
 .claude/skills/new-source-type/   repo-local skill (Claude Code and Copilot CLI): add or promote a standard source type
 .claude/skills/fix-issues-ai/     repo-local skill (both agents): triage issues, fix each in its own pull request, follow it until ready to merge
+.claude/skills/implement-feature-ai/  repo-local skill (both agents): a goal or roadmap item, grilled, designed or planned, built by subagents in one pull request
 plugins/wiki/
   schema/                         shared wiki schema, loaded at session start by schema.sh
   templates/project-settings.json core of a wiki's .claude/settings.json (source rules come from the types)
@@ -58,6 +59,6 @@ pyproject.toml, uv.lock           the dev tools (the dev group) and their lock, 
 .githooks/pre-push                runs the personal-data check on every push (switched on per clone)
 .github/workflows/                ci.yml (lint, tests), pii.yml (personal-data check), claude-review.yml
 tests/                            run-tests.sh (runs pytest from .venv), conftest.py and test_*.py, codebase_story.py (the codebase modules' shared setup), fixtures and fixture wikis, fakes
-docs/                             these pages, the ADR, the roadmap, a security review
+docs/                             these pages, the ADR, the roadmap, a security review; agent-pr-flow.md, what /fix-issues-ai and /implement-feature-ai share
 docs/plans/                       one file per detailed plan, indexed in the roadmap
 ```
