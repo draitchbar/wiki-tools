@@ -1,6 +1,6 @@
 ---
 name: implement-feature-ai
-description: Build a feature of this repo from a goal and hand back one pull request for approval. Argument, the goal, a description or words naming a docs/roadmap.md item (`"gws reader"`). Grills the user until nothing is open, writes a spec, then either a design pull request for the owner to merge first or a plan, builds the plan's tasks in parallel subagents on task branches, each reviewed, merges them into one pull request, and follows it until CI is green and the review is answered. Resumable, run it again with the same goal. Never merges. Only for a wiki-tools session, and only when the user runs /implement-feature-ai.
+description: Build a feature of this repo from a goal and hand back one pull request for approval. Argument, the goal, a description or words naming a docs/roadmap.md item (`"gws reader"`). Settles the open choices, asking the user only what it can't settle with confidence and would be hard to revert, writes a spec, then either a design pull request for the owner to merge first or a plan, builds the plan's tasks in parallel subagents on task branches, each reviewed, merges them into one pull request, and follows it until CI is green and the review is answered. Resumable, run it again with the same goal. Never merges. Only for a wiki-tools session, and only when the user runs /implement-feature-ai.
 argument-hint: "<goal or roadmap item>"
 disable-model-invocation: true
 ---
@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Run only when the user typed `/implement-feature-ai`; if you loaded this skill yourself, stop and ask whether to start it.
 
-You coordinate: grill the user on the goal, get it designed or planned, get each task built and reviewed by subagents, and follow the one pull request until it is ready for the user to merge. The decisions are the user's; facts you look up. You never merge.
+You coordinate: settle the goal's open choices, get it designed or planned, get each task built and reviewed by subagents, and follow the one pull request until it is ready for the user to merge. Facts you look up. A choice you can't settle with confidence and that would be hard to revert is the user's; every other choice you decide and record (step 1, "When to ask"). You never merge.
 
 Repo rules: `AGENTS.md` and `CONTRIBUTING.md`. They win over this skill where they differ. The parts this skill shares with `/fix-issues-ai` are in `docs/agent-pr-flow.md`; read it now (untrusted input, models, the brief, the pull request text, following a pull request).
 
@@ -25,13 +25,19 @@ Repo rules: `AGENTS.md` and `CONTRIBUTING.md`. They win over this skill where th
   3. an open design pull request: fold in the owner's review comments, push, follow it (step 2), stop again;
   4. a design plan merged on `main`: go to step 4, with that plan.
 - Then remove local task branches and worktrees already merged into `<agent>/<slug>`; one with commits merged nowhere, ask.
-- The scratchpad is per session: on a re-run, rebuild the spec file (step 1) and the plan from what the run left (the plan doc, the pull request description, the integration branch's commits), and grill briefly on only what is missing or changed.
+- The scratchpad is per session: on a re-run, rebuild the spec file (step 1) and the plan from what the run left (the plan doc, the pull request description, the integration branch's commits), and settle only what is missing or changed, as in step 1.
 
-## 1. Grill
+## 1. Settle the open choices
 Self-contained; don't start `/grilling`.
-- Walk the design tree, a round at a time. Number each question and give your recommended answer, worded so "yes" accepts it. A fact the repo or a subagent can answer, look up; never ask it. Decisions are the user's. With a roadmap item or plan, grill only on what is open.
-- Done when nothing is open and the user confirms. In that confirmation, say whether a **design session** is needed and why; the user can overrule. Signs: a new ADR or a change to one; a new mechanism, contract key, skill, source type or dependency; a choice of tech stack (language, tool, library, service) or design paradigm; a migration for existing wikis; a change to the guard, or across several scripts with a shared interface; design choices with real trade-offs left.
-- Write the **spec file** in the scratchpad (Claude Code names one; otherwise a new folder under the system temp directory, never in the repo): intent, decisions, acceptance criteria ("done when"). Every subagent reads this file, not your paraphrase.
+
+**When to ask.** The user wants the run autonomous. Ask the user a question only when both hold; decide everything else yourself. This holds for every question in the run, not only here (the design session, the plan's gaps, a reviewer's open point):
+1. **You are not confident of the answer.** You are confident when the answer follows from what the user said (the goal, an earlier answer in this run or a previous one, the roadmap item or plan, a merged pull request's decisions), from what the repo has decided (an ADR, a precedent such as an earlier type made the same way, a rule in `AGENTS.md` or `CONTRIBUTING.md`), or from a fact you or a subagent can look up (never a question). You are not when two or more options are each reasonable and the choice depends on the user's priorities: scope, cost against convenience, which trade-off they accept.
+2. **It would be hard to revert.** Undoing it after the merge costs more than a follow-up pull request here: existing wikis (a migration, an instance or state format, citations, the user re-binding or re-installing); a guardrail (a guard rule or the read-only posture changed); data and trust (anything public that can't be taken back, what a contract lets a session read or write); an interface others depend on (contract keys, operation names, script commands and output that callers or tests read, skill names); lasting cost (a new dependency, language or service, a new mechanism others build on). Wording, docs, internal structure, test layout and naming inside a file are easy to revert.
+
+- Walk the design tree. Decide each choice that fails either test, and note it with its reason. Ask the rest **one question at a time**, each with your recommended answer worded so "yes" accepts it, and only the context the user needs to answer it. With a roadmap item or plan, settle only what is open.
+- Decide too whether a **design session** is needed, and why. Signs: a new ADR or a change to one; a new mechanism, contract key, skill, source type or dependency; a choice of tech stack (language, tool, library, service) or design paradigm; a migration for existing wikis; a change to the guard, or across several scripts with a shared interface; design choices with real trade-offs left.
+- Done when nothing is open. Then show the user, once: the decisions you took (each with its reason, worded so the user can overrule it) and whether a design session follows. Wait only if you asked a question in this step; otherwise carry on, and the user can overrule at any time, at the latest at review.
+- Write the **spec file** in the scratchpad (Claude Code names one; otherwise a new folder under the system temp directory, never in the repo): intent, decisions, acceptance criteria ("done when"); each decision marked as the user's or yours, with its reason. Every subagent reads this file, not your paraphrase.
 
 ## 2. Design session (only when needed)
 - A research subagent (`opus`) researches and drafts the design from the spec file, online best practice included, with sources cited; no personal or project data in a search query.
@@ -71,7 +77,7 @@ Push `<agent>/<slug>` and open the pull request, base `main`. The description, T
 3. Demo.
 4. Live test plan, if any; the user's steps marked as theirs.
 5. Migration steps, or "none".
-6. Decisions made along the way, and how to overrule each.
+6. Decisions made along the way, step 1's included, and how to overrule each.
 7. What wasn't checked.
 8. The owner-review flag, if `.github/workflows/` or `scripts/pii*` changed.
 Plus the evidence: the test commands and their results.
