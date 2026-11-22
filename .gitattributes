@@ -6,3 +6,5 @@ tests/fixtures/** text eol=lf
 tests/sources/** text eol=lf
 .gitattributes text eol=lf
 .gitignore text eol=lf
+*.toml text eol=lf
+uv.lock text eol=lf

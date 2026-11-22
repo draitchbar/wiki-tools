@@ -1,0 +1,17 @@
+# The dev tools for this repo (tests and lint), locked in uv.lock and
+# installed into .venv by `uv sync --locked` (docs/development.md,
+# "Dev environment"). The plugin never reads this file: it is standard
+# library only (docs/adr.md, 4).
+[project]
+name = "wiki-tools-dev"
+version = "0"
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = ["pytest", "pytest-xdist", "ruff", "mypy>=2,<3", "shellcheck-py"]
+
+[tool.uv]
+package = false
+python-downloads = "never"
+no-build = true
+required-version = ">=0.13.7"
