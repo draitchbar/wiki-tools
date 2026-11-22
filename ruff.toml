@@ -7,8 +7,5 @@ select = ["E", "F", "W", "B", "ANN"]
 ignore = ["E501"]
 
 [lint.per-file-ignores]
-# Not annotated yet: each leaves the list when its task in
-# docs/plans/type-checking.md makes it strict.
-"scripts/pii_check.py" = ["ANN"]
 # The tests are out of scope.
 "tests/**" = ["ANN"]
