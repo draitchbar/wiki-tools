@@ -16,6 +16,7 @@ reader:
   - read message: mcp__claude_ai_Microsoft_365__read_resource
   - list folder: mcp__claude_ai_Microsoft_365__read_resource
   - read file: mcp__claude_ai_Microsoft_365__read_resource
+  - search files by name: mcp__claude_ai_Microsoft_365__sharepoint_search
 reader_deny:
   - mcp__claude_ai_Microsoft_365__teams_send_channel_message
   - mcp__claude_ai_Microsoft_365__teams_reply_channel_message

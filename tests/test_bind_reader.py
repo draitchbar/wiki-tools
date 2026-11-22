@@ -120,3 +120,19 @@ def test_ms_teams_contract():
     assert "sources/ms-teams/snapshot" not in text
     assert "${CLAUDE_PLUGIN_ROOT}/scripts/file-snapshot.sh <key> compare" in _section(text, "List new")
     assert "${CLAUDE_PLUGIN_ROOT}/scripts/file-snapshot.sh <key> save" in _section(text, "Mark ingested")
+
+
+@pytest.mark.checks("bind-reader/bind-extras")
+def test_skill_carries_bind_extras():
+    """A contract's `## Bind` may add denies, `## Reader` lines and settings
+    lines (ms-teams: Outlook and people tools, the folder mode, the
+    snapshot allow); the skill carries them, in words that name no source."""
+    text = SKILL.read_text(encoding="utf-8")
+    deny = text[text.index("## 4. Deny the write tools first"):text.index("## 5. Test each operation")]
+    hand = text[text.index("## 6. Hand over"):]
+    assert "any other tools the contract's `## Bind` section says to deny" in deny
+    assert "plus any the `## Bind` section says to deny" in hand
+    assert "plus any lines the `## Bind` section says to record" in hand
+    assert "plus any settings lines the `## Bind` section names" in hand
+    body = text.split("\n---\n", 1)[1]
+    assert not re.search(r"teams|outlook|Microsoft", body, re.I)

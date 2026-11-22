@@ -235,3 +235,26 @@ def test_show_teams_unbound(tmp_path, cli):
     o = cli("sources", "show", "teams", cwd=w).merged.decode("utf-8", errors="surrogateescape")
     assert ("Check needed: ms-teams names no tools (access: tools) and this instance has no reader binding yet; "
             "/wiki:bind-reader teams drafts it.") in o, o
+
+
+def test_teams_all_operations_bound(tmp_path, cli):
+    """Every operation bound to the connector's tools: it validates, and
+    `settings ms-teams --key` allows the tools only that binding adds."""
+    tools = {"show scope": "get_granted_scopes", "list channels": "teams_list_channels",
+             "list channel posts": "teams_list_channel_messages", "list replies": "teams_list_channel_messages",
+             "read message": "read_resource", "list chats": "teams_list_chats", "list chat messages": "read_resource",
+             "search chat messages": "chat_message_search", "list folder": "read_resource",
+             "read file": "read_resource", "search files by name": "sharepoint_search"}
+    ops = [contract.operation(o)[0] for o in contract.list_(TEAMS, "operations")]
+    assert sorted(ops) == sorted(tools)
+    w = copytree(TESTS / "guard-wiki", tmp_path / "aw")
+    git(w, "init", "-q")
+    f = w / ".claude/sources/instances/teams.md"
+    text = f.read_text(encoding="utf-8")
+    head, rest = text.split("reader:\n", 1)
+    rest = rest[rest.index("reader_deny:\n"):]
+    write(f, head + "reader:\n" + "".join("  - %s: %s%s\n" % (o, M, t) for o, t in tools.items()) + rest)
+    assert sourcelib.reader_errors(posix(f), TEAMS) == []
+    o = cli("sources", "settings", "ms-teams", "--key", "teams", cwd=w).out.decode()
+    for t in ("teams_list_chats", "chat_message_search", "sharepoint_search"):
+        assert '"%s%s"' % (M, t) in o, o
