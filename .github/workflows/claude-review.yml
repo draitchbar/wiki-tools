@@ -177,8 +177,10 @@ jobs:
             (mcp__github_inline_comment__create_inline_comment), one summary comment
             with `gh pr comment`: the reviewer guide or its one line first, then
             what isn't inline, or "✅ No new findings." Always post that summary
-            comment, on every run, as your last step. No emojis other than the
-            ones named here. Use Markdown so comments scan easily: bold labels,
+            comment, on every run, as your last step. The emojis named here keep
+            their meaning and are used for nothing else; other emojis may be
+            added where they make a comment easier to scan (e.g. one before
+            each guide heading), sparingly. Use Markdown so comments scan easily: bold labels,
             a bullet per finding or point, `code` for file, function and command
             names; no tables or headings beyond the guide's ("## Reviewer
             guide", its "### " sections and the Assessment table) and
