@@ -167,7 +167,8 @@ _CLAUDE_CMD = re.compile(
     r"""(?=[ \t\n\v\f\r;&|)`]|\Z)""", re.ASCII)
 
 CORE_SCRIPTS = ("scripts/ocr.sh", "scripts/sync-status.sh", "scripts/lint.sh",
-                "scripts/wiki-check.sh", "scripts/sources.sh", "scripts/decode-download.sh")
+                "scripts/wiki-check.sh", "scripts/sources.sh", "scripts/decode-download.sh",
+                "scripts/file-snapshot.sh")
 LOOKALIKE_ENDS = tuple("/" + s for s in CORE_SCRIPTS)
 
 
