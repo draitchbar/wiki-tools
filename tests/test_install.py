@@ -219,6 +219,32 @@ def test_decode_refused(args, dd):
     assert _dd(*args)[1] == 1
 
 
+def test_decode_raw(dd):
+    """--raw copies the reader's saved file as is, bytes not text."""
+    _dd, d, out = dd
+    data = bytes(range(256)) * 3
+    (d / "blob.bin").write_bytes(data)
+    o, rc = _dd("--raw", "gmail", posix(d / "blob.bin"), "Projects/plan.drawio")
+    assert rc == 0 and "(768 bytes, copied as is)" in o, o
+    assert out.read_bytes() == data
+
+
+@pytest.mark.parametrize("args", [
+    pytest.param(["--raw", "gmail", "blob.bin", "../x.drawio"], id="decode-download/raw-refuse-dotdot"),
+    pytest.param(["--raw", "gmail", "nosuch.bin", "a.drawio"], id="decode-download/raw-refuse-no-input"),
+])
+def test_decode_raw_refused(args, dd):
+    _dd, d, _ = dd
+    (d / "blob.bin").write_bytes(b"x")
+    assert _dd(args[0], args[1], posix(d / args[2]), args[3])[1] == 1
+
+
+def test_decode_not_b64_hints_raw(dd):
+    _dd, d, _ = dd
+    o, rc = _dd("gmail", posix(d / "bad.txt"), "a.drawio")
+    assert rc == 1 and "use --raw" in o
+
+
 @pytest.mark.checks("decode-download/refuse-no-content")
 def test_decode_no_content(dd):
     _dd, d, _ = dd

@@ -400,6 +400,12 @@ def validate_instance(root, k, plugin):
     return not bad
 
 
+def _quoted(s):
+    """A list item wrapped in one pair of matching quotes, as a YAML
+    writer would quote `get item: mcp__...`."""
+    return len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'"
+
+
 def reader_errors(f, c):
     """What is wrong with an instance's reader binding (`reader`,
     `reader_deny`; docs/adr.md, 13), given its contract c."""
@@ -413,6 +419,10 @@ def reader_errors(f, c):
     free: set[str]
     bound, limited, free = set(), set(), set()
     for it in items:
+        if _quoted(it):
+            res.append("reader item %s is in quotes; write it without them (the frontmatter isn't "
+                       "YAML: quotes become part of the item)" % it)
+            it = it[1:-1]
         p = contract.reader_item(it)
         if p is None:
             res.append("reader item '%s' must be '<operation>: <tool or rule>' (an MCP tool, optionally "
@@ -433,6 +443,10 @@ def reader_errors(f, c):
             res.append("reader doesn't bind '%s', a required operation" % op)
     rules = limited | free
     for r in deny:
+        if _quoted(r):
+            res.append("reader_deny item %s is in quotes; write it without them (the frontmatter isn't "
+                       "YAML: quotes become part of the item)" % r)
+            r = r[1:-1]
         if not contract.rule_ok(r):
             res.append("reader_deny item '%s' must be an MCP tool or a Bash(...) or PowerShell(...) rule" % r)
         elif r in rules:

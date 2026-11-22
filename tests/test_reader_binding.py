@@ -67,6 +67,9 @@ def _inst(tmp_path, typ, reader=(), deny=()):
                  ["both with and without a limit"], id="limit-and-free"),
     pytest.param(OK + ["count: oops"], (), ["must be '<operation>: <tool or rule>'"], id="bad-item"),
     pytest.param(OK, ("executeWrite",), ["reader_deny item 'executeWrite' must be"], id="bad-deny"),
+    pytest.param(['"%s"' % OK[0]] + OK[1:], (), ["is in quotes; write it without them"], id="quoted-item"),
+    pytest.param(OK, ("'%sexecuteWrite'" % T,), ["reader_deny item '%sexecuteWrite' is in quotes" % T],
+                 id="quoted-deny"),
     pytest.param(OK, ("%sgetJiraIssue" % T,), ["denies %sgetJiraIssue, which reader binds" % T], id="deny-bound"),
 ])
 def test_reader_errors(reader, deny, want, tmp_path):
