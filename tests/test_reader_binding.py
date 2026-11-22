@@ -176,3 +176,62 @@ def test_check_settings_cache_not_from_user(rw, cli):
     write(home / ".claude/settings.json", '{"permissions": {"allow": [%s]}}\n' % rule)
     rc, o = _check(cli, w, env)
     assert rc == 1 and "allow: Edit(~/.cache/wiki-sources/rw/code/**)" in o, o
+
+
+# ms-teams (access: tools, docs/adr.md 22): no required operation, so a
+# binding is valid whatever it binds; its Check asks for each parameter's
+# operations. The connector binding is guard-wiki's teams.md.
+
+TEAMS = posix(PLUGIN / "sources" / "ms-teams" / "SOURCE.md")
+M = "mcp__claude_ai_Microsoft_365__"
+
+
+def test_teams_connector_binding_valid():
+    assert sourcelib.reader_errors(posix(TESTS / "guard-wiki/.claude/sources/instances/teams.md"), TEAMS) == []
+
+
+def test_teams_one_operation_valid(tmp_path):
+    """No operation is required: one recommended operation alone validates
+    (Check, not validation, catches a parameter's missing operations)."""
+    assert sourcelib.reader_errors(_inst(tmp_path, "ms-teams", ["read file: %sread_resource" % M]), TEAMS) == []
+
+
+def test_contract_without_required_valid(tmp_path, capsys):
+    """A tools contract whose operations are all recommended or optional
+    validates."""
+    text = (PLUGIN / "sources" / "jira" / "SOURCE.md").read_text(encoding="utf-8")
+    text = text.replace("(required)", "(recommended)")
+    assert "(required)" not in text
+    c = write(tmp_path / "jira" / "SOURCE.md", text)
+    assert sourcelib.validate_contract(posix(c)) is True
+    assert capsys.readouterr().err == ""
+
+
+def test_check_settings_teams_outlook_deny_missing(rw, cli):
+    w, home, env, sjson = rw
+    rule = '"%soutlook_email_search"' % M
+    assert rule in sjson
+    write(w / ".claude/settings.json", sjson.replace("      %s,\n" % rule, "").replace("      %s\n" % rule, ""))
+    rc, o = _check(cli, w, env)
+    assert rc == 1 and "deny: %soutlook_email_search" % M in o, o
+
+
+def test_show_teams_unbound(tmp_path, cli):
+    """Without its reader binding, the Teams instance asks for Check."""
+    w = copytree(TESTS / "guard-wiki", tmp_path / "uw")
+    git(w, "init", "-q")
+    f = w / ".claude/sources/instances/teams.md"
+    lines = f.read_text(encoding="utf-8").split("\n")
+    out, skip = [], False
+    for ln in lines:
+        if ln in ("reader:", "reader_deny:"):
+            skip = True
+            continue
+        if skip and ln.startswith("  - "):
+            continue
+        skip = False
+        out.append(ln)
+    write(f, "\n".join(out).split("\n## Reader")[0])
+    o = cli("sources", "show", "teams", cwd=w).merged.decode("utf-8", errors="surrogateescape")
+    assert ("Check needed: ms-teams names no tools (access: tools) and this instance has no reader binding yet; "
+            "/wiki:bind-reader teams drafts it.") in o, o
