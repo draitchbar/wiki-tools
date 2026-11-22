@@ -40,6 +40,11 @@ import sourcelib  # noqa: E402
 import sync_status  # noqa: E402
 from sourcelib import err, git, out  # noqa: E402
 
+# Names for the annotations only (never evaluated): nothing to import at run time.
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
+
 USAGE = ("usage: sources.sh <list|show <key>|due|catalog|contract <type>|"
          "settings [<type>... [--key <key>]]|check-settings>")
 _DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", re.ASCII)
@@ -50,21 +55,21 @@ class Die(Exception):
     """sources.sh's die: message on stderr, exit 1."""
 
 
-def raw(b):
+def raw(b: bytes) -> None:
     """Bytes to stdout as they are (file contents)."""
     sys.stdout.buffer.write(b)
 
 
-def name_ok(s):
+def name_ok(s: str) -> bool:
     """`printf '%s' "$s" | grep -Eq "$SRC_NAME_RE"`: any line matches."""
     return any(contract.NAME_RE.fullmatch(ln) for ln in s.split("\n"))
 
 
-def basename(p):
+def basename(p: str) -> str:
     return p.rstrip("/").rsplit("/", 1)[-1]
 
 
-def platform():
+def platform() -> str:
     """src_platform."""
     p = sys.platform
     if p.startswith("linux"):
@@ -77,13 +82,13 @@ def platform():
     return pf.system().lower()
 
 
-def read_bytes(path):
+def read_bytes(path: str) -> bytes:
     with open(path, "rb") as fh:
         return fh.read()
 
 
 class Wiki:
-    def __init__(self, plugin):
+    def __init__(self, plugin: str) -> None:
         self.plugin = plugin                # native
         self.plugin_shown = sourcelib.show(plugin)
         top = sourcelib.toplevel(None)
@@ -94,7 +99,7 @@ class Wiki:
         self.log = self.root + "/raw/sync-log.md"
         self.idir = contract.instance_dir(self.root)
 
-    def state_of(self, k):
+    def state_of(self, k: str) -> str:
         """The last_checked value in raw/sync-log.md."""
         if not os.path.isfile(self.log):
             return "no sync-log"
@@ -106,23 +111,23 @@ class Wiki:
                 return v or "no last_checked_%s line" % k
         return "no last_checked_%s line" % k
 
-    def contract(self, t):
+    def contract(self, t: str) -> str:
         return contract.contract(self.root, t, self.plugin)
 
-    def platform_ok(self, c):
+    def platform_ok(self, c: str) -> bool:
         return self.plat in contract.list_(c, "platforms")
 
-    def print_contract(self, c):
+    def print_contract(self, c: str) -> None:
         """The contract with ${CLAUDE_PLUGIN_ROOT} filled in, CRs dropped."""
         b = read_bytes(c).replace(b"\r", b"")
         raw(b.replace(b"${CLAUDE_PLUGIN_ROOT}",
                       self.plugin_shown.encode("utf-8", errors="surrogateescape")))
 
-    def manual_keys(self):
+    def manual_keys(self) -> list[str]:
         """src_manual_keys."""
         if not os.path.isfile(self.log):
             return []
-        keys = set()
+        keys: set[str] = set()
         for ln in read_bytes(self.log).decode("utf-8", errors="surrogateescape").split("\n"):
             m = _MANUAL.match(ln)
             if m:
@@ -130,9 +135,9 @@ class Wiki:
         return [k for k in sorted(keys, key=contract._bytes_key)
                 if k != "raw" and not os.path.isfile("%s/%s.md" % (self.idir, k))]
 
-    def catalog(self):
+    def catalog(self) -> list[tuple[str, str, str]]:
         """src_catalog: (type, standard|local, title)."""
-        res = []
+        res: list[tuple[str, str, str]] = []
         for base, kind in ((self.plugin + "/sources", "standard"),
                            (self.root + "/.claude/sources/types", "local")):
             try:
@@ -148,7 +153,7 @@ class Wiki:
 
 # The operations.
 
-def op_list(w, args):
+def op_list(w: Wiki, args: list[str]) -> int:
     if len(args) != 0:
         raise Die("usage: sources.sh list")
     out("Sources of %s (platform: %s):" % (basename(w.root), w.plat))
@@ -175,13 +180,13 @@ def op_list(w, args):
     return 0
 
 
-def unbound(c, f):
+def unbound(c: str, f: str) -> bool:
     """A tool-neutral type (access: tools, contract c) is read only through
     the instance's reader binding; True when instance file f has none."""
     return contract.field(c, "access") == "tools" and not contract.list_(f, "reader")
 
 
-def check_needed(w, k, f):
+def check_needed(w: Wiki, k: str, f: str) -> str | None:
     """The instance file changed since the last ingest (a new root or
     label): its parameters haven't met reality yet. The message, or None."""
     last = w.state_of(k)
@@ -204,7 +209,7 @@ def check_needed(w, k, f):
         return None
     ct, _, cs = changed.partition(" ")
     day = "-".join("[0-9]" * n for n in (4, 2, 2))
-    stamped = []
+    stamped: list[str] = []
     for pat in ("^[|] *%s *[|] *%s *[|]" % (day, k), "^last_checked_%s:" % k):
         _, o = git(w.root, "log", "-1", "--format=%ct", "-G" + pat, "--", "raw/sync-log.md")
         if o.rstrip("\n"):
@@ -221,7 +226,7 @@ def check_needed(w, k, f):
     return None
 
 
-def op_show(w, args):
+def op_show(w: Wiki, args: list[str]) -> int:
     if len(args) != 1:
         raise Die("usage: sources.sh show <key>")
     k = args[0]
@@ -267,7 +272,7 @@ def op_show(w, args):
     return 0
 
 
-def _due_state(w, k):
+def _due_state(w: Wiki, k: str) -> tuple[str, datetime.date | None]:
     """last_checked of k as sync-status reads it: (value, date or None)."""
     v = w.state_of(k)
     if v in ("no sync-log", "no last_checked_%s line" % k):
@@ -276,7 +281,7 @@ def _due_state(w, k):
     return v, sync_status.day(v)
 
 
-def _due_skip(w, k):
+def _due_skip(w: Wiki, k: str) -> str | None:
     """Why /wiki:ingest all skips instance k, or None. Reasons in a fixed
     order: research, invalid, platform, then the state (in op_due)."""
     f = "%s/%s.md" % (w.idir, k)
@@ -295,14 +300,16 @@ def _due_skip(w, k):
     return None
 
 
-def op_due(w, args):
+def op_due(w: Wiki, args: list[str]) -> int:
     """What /wiki:ingest all ingests: every source last checked before
     today, oldest first; raw only when sync-status doesn't find it
     unchanged. The rest, with the reason, under Not due or Skipped."""
     if len(args) != 0:
         raise Die("usage: sources.sh due")
     today = datetime.date.today()
-    due, quiet, skipped = [], [], []
+    due: list[tuple[datetime.date, str]] = []
+    quiet: list[tuple[str, str]] = []
+    skipped: list[tuple[str, str]] = []
     for k in ["raw"] + sourcelib.words(contract.instances(w.root)):
         f = "%s/%s.md" % (w.idir, k)
         why = None if k == "raw" else _due_skip(w, k)
@@ -326,7 +333,7 @@ def op_due(w, args):
         skipped.append((k, "manual key (enters via raw/ or user statements)"))
     due.sort(key=lambda x: x[0])  # stable: raw first, then C order
 
-    def section(title, rows):
+    def section(title: str, rows: list[tuple[str, str]]) -> None:
         out(title)
         for k, why in rows:
             out("- %s: %s" % (k, why))
@@ -340,7 +347,7 @@ def op_due(w, args):
     return 0
 
 
-def op_catalog(w, args):
+def op_catalog(w: Wiki, args: list[str]) -> int:
     if len(args) != 0:
         raise Die("usage: sources.sh catalog")
     out("Source types (platform: %s):" % w.plat)
@@ -355,7 +362,7 @@ def op_catalog(w, args):
     return 0
 
 
-def op_contract(w, args):
+def op_contract(w: Wiki, args: list[str]) -> int:
     if len(args) != 1:
         raise Die("usage: sources.sh contract <type>")
     t = args[0]
@@ -381,9 +388,10 @@ def op_contract(w, args):
     return 0
 
 
-def json_list(items):
+def json_list(items: Iterable[str]) -> str:
     """grep -v '^$' | dedupe | escape \\ and " | quote | comma all but last."""
-    seen, res = set(), []
+    seen: set[str] = set()
+    res: list[str] = []
     for r in items:
         if r == "" or r in seen:
             continue
@@ -392,7 +400,7 @@ def json_list(items):
     return ",\n".join(res)
 
 
-def op_settings(w, args):
+def op_settings(w: Wiki, args: list[str]) -> int:
     types, key = "", ""
     i = 0
     while i < len(args):
@@ -428,7 +436,7 @@ def op_settings(w, args):
             else:
                 rules += ["%s\t%s\t%s" % (ln.split("\t")[0], _f(ln, 1), _f(ln, 1)) for ln in tr]
 
-    def pick(lst):
+    def pick(lst: str) -> list[str]:
         return [_f(ln, 1) for ln in rules if _f(ln, 0) == lst]
 
     out('{\n  "permissions": {\n    "allow": [\n%s\n    ],\n    "deny": [\n%s\n    ]\n  }\n}'
@@ -439,7 +447,8 @@ def op_settings(w, args):
             "a broader rule already in settings.json, e.g. %s, covers them too." % _f(wide[0], 2))
     # access: tools types name no tools, so they add nothing above; say so.
     if not types:
-        seen, ts = set(), []
+        seen: set[str] = set()
+        ts: list[str] = []
         for k in sourcelib.words(contract.instances(w.root)):
             t = contract.field("%s/%s.md" % (w.idir, k), "type")
             if t not in seen:
@@ -479,13 +488,13 @@ def op_settings(w, args):
     return 0
 
 
-def _f(ln, n):
+def _f(ln: str, n: int) -> str:
     """awk -F'\\t' field n+1 ("" when missing)."""
     fs = ln.split("\t")
     return fs[n] if n < len(fs) else ""
 
 
-def op_check_settings(w, args):
+def op_check_settings(w: Wiki, args: list[str]) -> int:
     if len(args) != 0:
         raise Die("usage: sources.sh check-settings")
     sf = w.root + "/.claude/settings.json"
@@ -549,7 +558,8 @@ def op_check_settings(w, args):
         out("blocked by deny (rules your sources need; deny wins):\n" + "\n".join(blk))
     else:
         out("blocked by deny: none")
-    seen, broad = set(), []
+    seen: set[str] = set()
+    broad: list[str] = []
     for ln in need:
         if _f(ln, 1) == _f(ln, 2):
             continue
@@ -565,11 +575,11 @@ def op_check_settings(w, args):
     return bad
 
 
-OPS = {"list": op_list, "show": op_show, "due": op_due, "catalog": op_catalog, "contract": op_contract,
+OPS: dict[str, Callable[[Wiki, list[str]], int]] = {"list": op_list, "show": op_show, "due": op_due, "catalog": op_catalog, "contract": op_contract,
        "settings": op_settings, "check-settings": op_check_settings}
 
 
-def _main(argv):
+def _main(argv: list[str]) -> int:
     plugin = contract.PLUGIN
     if argv[:1] == ["--plugin"] and len(argv) > 1:
         plugin, argv = argv[1], argv[2:]
@@ -582,7 +592,7 @@ def _main(argv):
     return fn(w, args)
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     try:
         rc = _main(argv)
     except Die as e:
