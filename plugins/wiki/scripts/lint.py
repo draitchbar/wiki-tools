@@ -500,7 +500,8 @@ def questions(root, all_, texts, page_slugs, today):
     seen = set()
     for q in qs:
         age = None if q.raised_date is None else (today - q.raised_date).days
-        if age is not None and age > QUESTION_DAYS:
+        # age is None only when raised_date is; mypy needs both checks
+        if age is not None and age > QUESTION_DAYS and q.raised_date is not None:
             old.append("- `%s` raised %s (%d days ago)" % (q.id, q.raised_date.isoformat(), age))
         if q.valid and q.id not in marked and q.id not in seen:
             mark.append("- `%s`: no page carries its marker" % q.id)

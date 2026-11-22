@@ -180,12 +180,11 @@ def questions_line(root, today):
     if not r or not r[0]:
         return None
     qs = r[0]
-    dated = [q for q in qs if q.raised_date is not None and q.raised_date <= today]
+    dated = [(d, q) for q in qs if (d := q.raised_date) is not None and d <= today]
     line = "Open questions (%s): %d" % (sourcelib.QUESTIONS, len(qs))
     if dated:
-        old = min(dated, key=lambda q: q.raised_date)
-        line += ", oldest %s (raised %s, %d days ago)" % (
-            old.id, old.raised_date.isoformat(), (today - old.raised_date).days)
+        d, old = min(dated, key=lambda x: x[0])
+        line += ", oldest %s (raised %s, %d days ago)" % (old.id, d.isoformat(), (today - d).days)
     return line + ". Answer them with /wiki:clarify."
 
 
