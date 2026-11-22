@@ -33,7 +33,7 @@ Claude Code then runs the plugin straight from `plugins/wiki/`, so **uncommitted
 
 ## Pull requests and CI
 
-`main` changes only through pull requests. CI (`.github/workflows/ci.yml`) runs lint and the tests, normally and with `--e2e`, on Linux and Windows, and once more on Linux on the Python floor, 3.11; Claude reviews each pull request (`.github/workflows/claude-review.yml`).
+`main` changes only through pull requests. CI (`.github/workflows/ci.yml`) runs lint and the tests, normally and with `--e2e`, on Linux and Windows; Claude reviews each pull request (`.github/workflows/claude-review.yml`).
 
 Once the review has no blocking finding open, its summary comment starts with a **reviewer guide** for the person who approves: the goal, the blast radius (`none`, `contributors`, `one source`, `all wikis`, `guard` or `irreversible`), the risk of a bug, the cost of maintenance, what to focus on, and a demo. It is written once and again only when a push changes it; until then the comment says the guide is unchanged or withheld. The guide is the review agent's reading of the diff, not a check: it says what it did not assess, and it never advises on merging. Why: `docs/adr.md`, 17.
 
@@ -43,7 +43,7 @@ Lint must be clean before committing:
 bash scripts/dev-lint.sh
 ```
 
-It runs what CI's lint job runs, each step even after one fails, and names the failed ones at the end: `ruff check .` (Python, `ruff.toml`), `mypy` (Python types, `mypy.ini`), `shellcheck -S warning` on every tracked `*.sh` (`.shellcheckrc`), and no CRLF in any committed file (`git ls-files --eol`, so a Windows checkout's `core.autocrlf` doesn't count). The tools come from `.venv` ("Dev environment"). mypy runs from the repo root and checks the files `mypy.ini` lists: strict, except the modules its relaxed sections name until `docs/plans/type-checking.md` makes them strict. Like ruff and pytest it is a dev tool only; the plugin never imports it. Annotations in the plugin's Python follow `AGENTS.md`'s run-time rule: `from __future__ import annotations`, and `typing` only under `if TYPE_CHECKING:`, so a hook never pays for importing it.
+It runs what CI's lint job runs, each step even after one fails, and names the failed ones at the end: `ruff check .` (Python, `ruff.toml`), `mypy` (Python types, `mypy.ini`), `shellcheck -S warning` on every tracked `*.sh` (`.shellcheckrc`), and no CRLF in any committed file (`git ls-files --eol`, so a Windows checkout's `core.autocrlf` doesn't count). The tools come from `.venv` ("Dev environment"). mypy runs from the repo root and checks the files `mypy.ini` lists, all strict; ruff's `ANN` rules keep every function annotated (`tests/` excepted). Why: `docs/adr.md`, 20. Like ruff and pytest it is a dev tool only; the plugin never imports it. Annotations in the plugin's Python follow `AGENTS.md`'s run-time rule: `from __future__ import annotations` everywhere; in the guard's modules `typing` only under `if TYPE_CHECKING:`, so a hook never pays for importing it (about 3 ms); elsewhere a plain `from typing import ...`.
 
 Keep LF line endings everywhere (`.gitattributes`).
 
@@ -61,7 +61,7 @@ The dev tools (pytest, pytest-xdist, ruff, mypy, shellcheck-py) are the `dev` de
 
 ## Agents
 
-The repo is developed with Claude Code and with GitHub Copilot CLI; every change must work in both (`CONTRIBUTING.md`). Their instructions and skills are written once: `CLAUDE.md` is the one line `@AGENTS.md`, `AGENTS.md` imports `CONTRIBUTING.md`, and both agents load skills from `.claude/skills/`. Copilot reads `AGENTS.md` and `CLAUDE.md` both, so it sees the rules twice; that is harmless. Why this layout: `docs/adr.md`, 10. The repo's skills: `/new-source-type`; `/fix-issues-ai` (issues to pull requests, `docs/adr.md`, 16) and `/implement-feature-ai` (a goal to one pull request, 20), which share `docs/agent-pr-flow.md`.
+The repo is developed with Claude Code and with GitHub Copilot CLI; every change must work in both (`CONTRIBUTING.md`). Their instructions and skills are written once: `CLAUDE.md` is the one line `@AGENTS.md`, `AGENTS.md` imports `CONTRIBUTING.md`, and both agents load skills from `.claude/skills/`. Copilot reads `AGENTS.md` and `CLAUDE.md` both, so it sees the rules twice; that is harmless. Why this layout: `docs/adr.md`, 10. The repo's skills: `/new-source-type`; `/fix-issues-ai` (issues to pull requests, `docs/adr.md`, 16) and `/implement-feature-ai` (a goal to one pull request, 21), which share `docs/agent-pr-flow.md`.
 
 What both support, and so what agent files may use (Copilot CLI 1.0.112, tested 2026-11-15):
 

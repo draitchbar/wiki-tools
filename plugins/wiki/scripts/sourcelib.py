@@ -56,6 +56,15 @@ import json  # noqa: E402
 
 import contract  # noqa: E402
 
+# Names for the annotations only (never evaluated): nothing to import at run time.
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from collections.abc import Callable, Container, Iterable
+    from typing import TypeVar, TypeVarTuple
+
+    T = TypeVar("T")
+    Ts = TypeVarTuple("Ts")
+
 PLACEHOLDER_RE = re.compile(
     r"(^|[^a-z0-9])(tbd|todo|fixme|xxx)([^a-z0-9]|$)|<[^>]*>|^\s*(\?|\.\.\.|…)\s*$",
     re.IGNORECASE)
@@ -76,7 +85,7 @@ class GitBashPath(Exception):
 _shown: list[tuple[str, str]] = []  # (native, as given) pairs that differ
 
 
-def native(p):
+def native(p: str) -> str:
     if os.name != "nt" or not p.startswith("/"):
         return p
     m = re.match(r"/([A-Za-z])(/|$)", p)
@@ -90,7 +99,7 @@ def native(p):
     return n
 
 
-def show(s):
+def show(s: str) -> str:
     for n, p in _shown:
         s = s.replace(n, p)
     return s
@@ -98,18 +107,18 @@ def show(s):
 
 # Output: bytes (no \r\n on Windows), stdout flushed before every stderr write.
 
-def _b(s):
+def _b(s: str) -> bytes:
     return show(s).encode("utf-8", errors="surrogateescape") + b"\n"
 
 
-def out(s):
+def out(s: str) -> None:
     sys.stdout.buffer.write(_b(s))
 
 
 _sink: list[str] | None = None  # a list while quietly() runs: err() collects instead of writing
 
 
-def err(s):
+def err(s: str) -> None:
     if _sink is not None:
         _sink.append(s)
         return
@@ -119,35 +128,36 @@ def err(s):
     sys.stderr.buffer.flush()
 
 
-def quietly(fn, *args):
+def quietly(fn: Callable[[*Ts], T], *args: *Ts) -> tuple[T, list[str]]:
     """fn(*args) with its err() lines collected: (result, lines). The bash
     callers' `2>/dev/null` and `errs=$(... 2>&1)`."""
     global _sink
-    saved, _sink = _sink, []
+    lines: list[str] = []
+    saved, _sink = _sink, lines
     try:
-        return fn(*args), _sink
+        return fn(*args), lines
     finally:
         _sink = saved
 
 
-def words(items):
+def words(items: Iterable[str]) -> list[str]:
     """`for x in $(...)`: the items split on space, tab and newline."""
     return [w for w in _IFS.split("\n".join(items)) if w]
 
 
-def names(items):
+def names(items: Iterable[str]) -> list[str]:
     """src_names: each item up to a space, "(" or ":", empty ones dropped."""
     return [n for n in (_NAME_CUT.split(i, 1)[0] for i in items) if n]
 
 
-def _grep_file(path, regex):
+def _grep_file(path: str, regex: re.Pattern[str]) -> bool:
     return any(regex.fullmatch(ln) for ln in contract._lines(path))
 
 
 # Helpers the scripts share. lower() is hookjson.lower, which
 # the guard needs without this module.
 
-def read_text(path):
+def read_text(path: str) -> str:
     """A file's text, bytes kept (surrogateescape); "" if it can't be read."""
     try:
         with open(path, "rb") as fh:
@@ -156,9 +166,9 @@ def read_text(path):
         return ""
 
 
-def git(root, *args):
+def git(root: str | None, *args: str) -> tuple[int, str]:
     """(rc, stdout) of git in root (no -C when root is empty or None), stderr
-    dropped, bytes kept; (1, "") if git can't be started."""
+    dropped, bytes kept (surrogateescape); (1, "") if git can't be started."""
     try:
         r = subprocess.run(["git"] + (["-C", root] if root else []) + list(args),
                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
@@ -168,14 +178,14 @@ def git(root, *args):
     return r.returncode, r.stdout.decode("utf-8", errors="surrogateescape")
 
 
-def git_out(root, *args):
+def git_out(root: str | None, *args: str) -> str | None:
     """`$(git -C root ... 2>/dev/null)`: stdout without the final newlines,
     None if git fails."""
     rc, o = git(root, *args)
     return None if rc != 0 else o.rstrip("\n")
 
 
-def toplevel(root):
+def toplevel(root: str | None) -> str:
     """The work tree holding root (None: the current folder), "" if none."""
     return git_out(root, "rev-parse", "--show-toplevel") or ""
 
@@ -201,13 +211,20 @@ class Question:
     kind and raised ("" when the bullet is missing), raised_date (a
     datetime.date, or None) and pages (the bullet's text)."""
 
-    def __init__(self, qid):
+    id: str
+    valid: bool
+    kind: str
+    raised: str
+    pages: str
+    raised_date: datetime.date | None
+
+    def __init__(self, qid: str) -> None:
         self.id, self.valid = qid, bool(QID.fullmatch(qid))
         self.kind = self.raised = self.pages = ""
         self.raised_date = None
 
 
-def _q_date(v):
+def _q_date(v: str) -> datetime.date | None:
     m = _Q_DATE.match(v)
     if not m:
         return None
@@ -217,13 +234,15 @@ def _q_date(v):
         return None
 
 
-def open_questions(text):
+def open_questions(text: str) -> tuple[list[Question], bool]:
     """(questions in file order, True if the text has merge-conflict lines).
     A block runs from its `### ` heading to the next heading of level 1 to
     3; its `- <field>: <value>` bullets are read in any order, the first of
     each field wins. Lines inside a fenced code block (an example) are
     skipped."""
-    qs, cur, conflict, fence = [], None, False, False
+    qs: list[Question] = []
+    cur: Question | None = None
+    conflict = fence = False
     for ln in text.split("\n"):
         if ln.endswith("\r"):
             ln = ln[:-1]
@@ -256,7 +275,7 @@ def open_questions(text):
     return qs, conflict
 
 
-def read_questions(root):
+def read_questions(root: str) -> tuple[list[Question], bool] | None:
     """open_questions() of the wiki's open-questions.md, or None if it has
     none."""
     p = os.path.join(root, QUESTIONS)
@@ -267,11 +286,11 @@ def read_questions(root):
 
 # The bridged functions.
 
-def validate_contract(f):
+def validate_contract(f: str) -> bool:
     """src_validate_contract: one error per line on stderr; True if valid."""
     bad = False
 
-    def ce(m):
+    def ce(m: str) -> None:
         nonlocal bad
         err("%s: %s" % (f, m))
         bad = True
@@ -279,8 +298,12 @@ def validate_contract(f):
     if not contract.has_fm(f):
         err("%s: no frontmatter block" % f)
         return False
-    fld = lambda k: contract.field(f, k)  # noqa: E731
-    lst = lambda k: contract.list_(f, k)  # noqa: E731
+    def fld(k: str) -> str:
+        return contract.field(f, k)
+
+    def lst(k: str) -> list[str]:
+        return contract.list_(f, k)
+
     for k in ("type", "title", "access", "cite_prefix"):
         if not fld(k):
             ce("missing '%s'" % k)
@@ -301,7 +324,7 @@ def validate_contract(f):
         ops = lst("operations")
         if not ops:
             ce("access: tools needs 'operations': the operations an instance's reader binds")
-        seen = set()
+        seen: set[str] = set()
         for o in ops:
             p = contract.operation(o)
             if p is None:
@@ -312,10 +335,10 @@ def validate_contract(f):
                 seen.add(p[0])
     elif lst("operations"):
         ce("only access: tools lists 'operations'")
-    p = lst("platforms")
-    if not p:
+    plats = lst("platforms")
+    if not plats:
         ce("no platforms listed")
-    for x in words(p):
+    for x in words(plats):
         if x not in ("linux", "windows", "macos"):
             ce("unknown platform '%s'" % x)
     mode = fld("mode")
@@ -346,12 +369,12 @@ def validate_contract(f):
     return not bad
 
 
-def validate_instance(root, k, plugin):
+def validate_instance(root: str, k: str, plugin: str | None) -> bool:
     """src_validate_instance: an instance file and its contract."""
     bad = False
     f = "%s/%s.md" % (contract.instance_dir(root), k)
 
-    def ie(m):
+    def ie(m: str) -> None:
         nonlocal bad
         err("%s: %s" % (f, m))
         bad = True
@@ -400,24 +423,24 @@ def validate_instance(root, k, plugin):
     return not bad
 
 
-def _quoted(s):
+def _quoted(s: str) -> bool:
     """A list item wrapped in one pair of matching quotes, as a YAML
     writer would quote `get item: mcp__...`."""
     return len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'"
 
 
-def reader_errors(f, c):
+def reader_errors(f: str, c: str) -> list[str]:
     """What is wrong with an instance's reader binding (`reader`,
     `reader_deny`; docs/adr.md, 13), given its contract c."""
     items, deny = contract.list_(f, "reader"), contract.list_(f, "reader_deny")
     if contract.field(c, "access") != "tools":
         return (["only an access: tools instance has a reader binding ('reader', 'reader_deny')"]
                 if items or deny else [])
-    res = []
+    res: list[str] = []
     ops = dict(p for p in map(contract.operation, contract.list_(c, "operations")) if p)
-    limited: set[str]
-    free: set[str]
-    bound, limited, free = set(), set(), set()
+    bound: set[str] = set()
+    limited: set[str] = set()
+    free: set[str] = set()
     for it in items:
         if _quoted(it):
             res.append("reader item %s is in quotes; write it without them (the frontmatter isn't "
@@ -454,7 +477,7 @@ def reader_errors(f, c):
     return res
 
 
-def has_body_section(f, name):
+def has_body_section(f: str, name: str) -> bool:
     """True if file f has a `## <name>` heading in its body: after the
     frontmatter (when it has one) and outside fenced code blocks."""
     lines = contract._lines(f)
@@ -470,10 +493,10 @@ def has_body_section(f, name):
     return False
 
 
-def reader_rules(f):
+def reader_rules(f: str) -> list[str]:
     """An instance's binding as needed_rules lines: allow each bound rule
     (an MCP tool once, whatever its limits), deny each reader_deny rule."""
-    res = []
+    res: list[str] = []
     for it in contract.list_(f, "reader"):
         p = contract.reader_item(it)
         if p:
@@ -484,7 +507,7 @@ def reader_rules(f):
     return res
 
 
-def codebase_instance(root, k, plugin):
+def codebase_instance(root: str, k: str, plugin: str | None) -> list[str]:
     """The six lines of codebase-instance (see the docstring)."""
     f = "%s/%s.md" % (contract.instance_dir(root), k)
     ok, _ = quietly(validate_instance, root, k, plugin)
@@ -493,7 +516,7 @@ def codebase_instance(root, k, plugin):
             roots[0] if roots else "", contract.field(f, "ref"), contract.field(f, "gh_user")]
 
 
-def manual_keys(root):
+def manual_keys(root: str) -> list[str]:
     """src_manual_keys: keys with a last_checked_<key> line in
     raw/sync-log.md but no instance file (other than raw), C order."""
     log = root + "/raw/sync-log.md"
@@ -502,7 +525,7 @@ def manual_keys(root):
             text = fh.read().decode("utf-8", errors="surrogateescape")
     except OSError:
         return []
-    keys = set()
+    keys: set[str] = set()
     for ln in text.split("\n"):
         m = re.match(r"last_checked_([A-Za-z0-9_-]*):", ln, re.ASCII)
         if m:
@@ -512,17 +535,17 @@ def manual_keys(root):
             if k != "raw" and not os.path.isfile("%s/%s.md" % (idir, k))]
 
 
-def type_rules(c):
+def type_rules(c: str) -> list[str]:
     """src_type_rules: "allow\t<rule>" / "deny\t<rule>" lines."""
     allow = contract.list_(c, "read_tools") + contract.list_(c, "bookkeeping_tools")
     return (["allow\t" + r for r in allow if r.split()]
             + ["deny\t" + r for r in contract.list_(c, "forbidden_tools") if r.split()])
 
 
-def narrow_rules(lines, w, k):
+def narrow_rules(lines: Iterable[str], w: str, k: str) -> list[str]:
     """src_narrow_rules: "<list>\t<rule narrowed to wiki w, key k>\t<rule>"."""
     c = "~/.cache/wiki-sources/"
-    res = []
+    res: list[str] = []
     for ln in lines:
         fs = ln.split("\t")
         lst, orig = fs[0], (fs[1] if len(fs) > 1 else "")
@@ -538,14 +561,15 @@ def narrow_rules(lines, w, k):
     return res
 
 
-def needed_rules(root, plugin, reader=None):
+def needed_rules(root: str, plugin: str | None, reader: set[str] | None = None) -> list[str]:
     """src_needed_rules: the rules the wiki's instances need, no repeats:
     their contracts' rules, then the reader bindings of access: tools
     instances. A set passed as reader gets the lines that come from a
     binding (they may live in the user's settings too)."""
     w = root.rstrip("/").rsplit("/", 1)[-1] or "/"
     d = contract.instance_dir(root)
-    seen, res = set(), []
+    seen: set[str] = set()
+    res: list[str] = []
     for k in words(contract.instances(root)):
         f = "%s/%s.md" % (d, k)
         try:
@@ -562,7 +586,7 @@ def needed_rules(root, plugin, reader=None):
     return res
 
 
-def user_rules():
+def user_rules() -> list[str]:
     """The permission rules in the user's settings (~/.claude/settings.json),
     as settings_rules lines; [] when the file is missing or not valid JSON.
     Only reader rules may be met there (docs/adr.md, 13)."""
@@ -576,7 +600,8 @@ def user_rules():
     return have if e is None else []
 
 
-def rules_check(need, reader, have, user):
+def rules_check(need: list[str], reader: Container[str], have: list[str],
+                user: list[str]) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """(missing, blocked) for the needed rules: a rule from a reader binding
     (in reader) may be met, or denied, by the user's settings too."""
     own = [ln for ln in need if ln not in reader]
@@ -589,7 +614,7 @@ def rules_check(need, reader, have, user):
 _PATH_RULE = re.compile(r"(Read|Edit)\((.*)\)\Z", re.S)
 
 
-def covers(have, need):
+def covers(have: str, need: str) -> bool:
     """A settings rule covers a needed one: the same rule, or the same tool
     (Read or Edit) on a folder <prefix>/** that holds need's path, segment by
     segment with no wildcards in the prefix."""
@@ -602,12 +627,13 @@ def covers(have, need):
     return len(hs) < len(ns) and hs == ns[:len(hs)]
 
 
-def _fields(ln):
+def _fields(ln: str) -> tuple[str, str, str]:
     """A needed_rules line as (list, rule, as in the contract)."""
-    return tuple((ln.split("\t") + ["", ""])[:3])
+    fs = ln.split("\t") + ["", ""]
+    return fs[0], fs[1], fs[2]
 
 
-def _by_list(have):
+def _by_list(have: Iterable[str]) -> dict[str, list[str]]:
     """settings_rules lines ("<list>\t<rule>") as {list: [rule]}."""
     by: dict[str, list[str]] = {}
     for ln in have:
@@ -616,12 +642,12 @@ def _by_list(have):
     return by
 
 
-def missing_rules(need, have):
+def missing_rules(need: Iterable[str], have: Iterable[str]) -> list[tuple[str, str]]:
     """The needed rules ("<list>\t<rule>\t<as in the contract>", needed_rules)
     that no rule of the same list in have ("<list>\t<rule>", settings_rules)
     covers: [(list, rule)]."""
     by = _by_list(have)
-    res = []
+    res: list[tuple[str, str]] = []
     for lst, r, orig in map(_fields, need):
         hs = by.get(lst, [])
         if lst and not (orig in hs or any(covers(h, r) for h in hs)):
@@ -629,12 +655,12 @@ def missing_rules(need, have):
     return res
 
 
-def blocked_rules(need, have):
+def blocked_rules(need: Iterable[str], have: Iterable[str]) -> list[tuple[str, str]]:
     """The needed allow rules (needed_rules) that a deny rule in have
     (settings_rules) covers: deny wins over allow in Claude Code, so they are
     refused even when allowed. [(rule, deny rule)]."""
     deny = _by_list(have).get("deny", [])
-    res = []
+    res: list[tuple[str, str]] = []
     for lst, r, orig in map(_fields, need):
         if lst != "allow":
             continue
@@ -646,7 +672,8 @@ def blocked_rules(need, have):
     return res
 
 
-def settings_check(root, plugin, sf):
+def settings_check(root: str, plugin: str | None,
+                   sf: str) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """(missing, blocked) for the wiki and its settings file sf, from one read:
     missing_rules (src_missing_rules; all needed rules when sf doesn't exist;
     for a settings.json that isn't valid JSON, reported elsewhere, a rule
@@ -662,7 +689,7 @@ def settings_check(root, plugin, sf):
     have, e = settings_rules(text)
     if e is None:
         return rules_check(need, reader, have, user)
-    missing = []
+    missing: list[tuple[str, str]] = []
     for ln in need:
         lst, r, orig = _fields(ln)
         if not lst or '"%s"' % r in text or '"%s"' % orig in text:
@@ -686,18 +713,18 @@ PERMISSION_KEYS = ("allow", "deny", "ask", "defaultMode", "additionalDirectories
                    "disableBypassPermissionsMode")
 
 
-def settings_key_typos(text):
+def settings_key_typos(text: str) -> list[tuple[str, str]]:
     """[(key path, the known key it is close to)] for keys of a settings
     file that look like misspellings; [] when text isn't a JSON object."""
     try:
-        d = json.loads(text)
+        d: object = json.loads(text)
     except ValueError:
         return []
     if not isinstance(d, dict):
         return []
-    found = []
+    found: list[tuple[str, str]] = []
 
-    def scan(obj, known, where):
+    def scan(obj: dict[str, object], known: tuple[str, ...], where: str) -> None:
         for k in obj:
             if k in known:
                 continue
@@ -711,50 +738,62 @@ def settings_key_typos(text):
     return found
 
 
-def settings_rules(text):
-    """src_settings_rules' JSON parser, as is: (rules, None) or (None, error).
-    Positions are 1-based, as in the awk."""
+class _ParseState:
+    """settings_rules' parser state: i, the 1-based position in the text;
+    err, the first error ("" while none); last, the last string read."""
+
+    __slots__ = ("i", "err", "last")
+
+    def __init__(self) -> None:
+        self.i = 1
+        self.err = ""
+        self.last = ""
+
+
+def settings_rules(text: str) -> tuple[list[str], str | None]:
+    """src_settings_rules' JSON parser, as is: (rules, None), or ([], error)
+    for text that isn't valid JSON. Positions are 1-based, as in the awk."""
     s = text if text.endswith("\n") or not text else text + "\n"
     n = len(s)
-    st = {"i": 1, "err": "", "last": ""}
-    rules = []
+    st = _ParseState()
+    rules: list[str] = []
 
-    def ch(j=None):
-        j = st["i"] if j is None else j
+    def ch(j: int | None = None) -> str:
+        j = st.i if j is None else j
         return s[j - 1] if 1 <= j <= n else ""
 
-    def fail(m):
-        if not st["err"]:
-            st["err"] = "%s (line %d)" % (m, s[:max(st["i"], 0)].count("\n") + 1)
+    def fail(m: str) -> bool:
+        if not st.err:
+            st.err = "%s (line %d)" % (m, s[:max(st.i, 0)].count("\n") + 1)
         return False
 
-    def ws():
-        while st["i"] <= n and ch() in " \t\r\n":
-            st["i"] += 1
+    def ws() -> None:
+        while st.i <= n and ch() in " \t\r\n":
+            st.i += 1
 
-    def string():
-        st["i"] += 1
-        o = []
-        while st["i"] <= n:
+    def string() -> bool:
+        st.i += 1
+        o: list[str] = []
+        while st.i <= n:
             c = ch()
             if c == "\\":
-                c = ch(st["i"] + 1)
+                c = ch(st.i + 1)
                 o.append(c if c in ("\\", '"', "/") else "\\" + c)
-                st["i"] += 2
+                st.i += 2
                 continue
             if c == '"':
-                st["i"] += 1
-                st["last"] = "".join(o)
+                st.i += 1
+                st.last = "".join(o)
                 return True
             if c == "\n":
                 return fail("line break inside a string")
             o.append(c)
-            st["i"] += 1
+            st.i += 1
         return fail("unterminated string")
 
     lit = re.compile(r"true|false|null|-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?")
 
-    def value(key):
+    def value(key: str) -> bool:
         ws()
         c = ch()
         if c == "{":
@@ -763,17 +802,17 @@ def settings_rules(text):
             return arr(key)
         if c == '"':
             return string()
-        m = lit.match(s, st["i"] - 1) if st["i"] >= 1 else None
+        m = lit.match(s, st.i - 1) if st.i >= 1 else None
         if m:
-            st["i"] += m.end() - m.start()
+            st.i += m.end() - m.start()
             return True
         return fail("unexpected end of file" if c == "" else 'unexpected "%s"' % c)
 
-    def obj():
-        st["i"] += 1
+    def obj() -> bool:
+        st.i += 1
         ws()
         if ch() == "}":
-            st["i"] += 1
+            st.i += 1
             return True
         while True:
             ws()
@@ -781,65 +820,65 @@ def settings_rules(text):
                 return fail("expected a quoted key")
             if not string():
                 return False
-            k = st["last"]
+            k = st.last
             ws()
             if ch() != ":":
                 return fail('expected : after "%s"' % k)
-            st["i"] += 1
+            st.i += 1
             if not value(k):
                 return False
             ws()
             c = ch()
             if c == ",":
-                st["i"] += 1
+                st.i += 1
                 ws()
                 if ch() == "}":
                     return fail("comma before }")
                 continue
             if c == "}":
-                st["i"] += 1
+                st.i += 1
                 return True
             return fail("unexpected end of file" if c == "" else "expected , or } (a missing comma?)")
 
-    def arr(key):
-        st["i"] += 1
+    def arr(key: str) -> bool:
+        st.i += 1
         ws()
         if ch() == "]":
-            st["i"] += 1
+            st.i += 1
             return True
         while True:
             ws()
             if ch() == '"' and key in ("allow", "deny", "ask"):
                 if not string():
                     return False
-                rules.append(key + "\t" + st["last"])
+                rules.append(key + "\t" + st.last)
             elif not value(""):
                 return False
             ws()
             c = ch()
             if c == ",":
-                st["i"] += 1
+                st.i += 1
                 ws()
                 if ch() == "]":
                     return fail("comma before ]")
                 continue
             if c == "]":
-                st["i"] += 1
+                st.i += 1
                 return True
             return fail("unexpected end of file" if c == "" else "expected , or ] (a missing comma?)")
 
     ok = value("")
     ws()
-    if ok and st["i"] <= n:
+    if ok and st.i <= n:
         fail("text after the end")
-    if st["err"]:
-        return None, st["err"]
+    if st.err:
+        return [], st.err
     return rules, None
 
 
 # Command line.
 
-def _main(argv):
+def _main(argv: list[str]) -> int:
     plugin = contract.PLUGIN
     if argv[:1] == ["--plugin"] and len(argv) > 1:
         plugin, argv = argv[1], argv[2:]
@@ -875,7 +914,7 @@ def _main(argv):
     return 2
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     try:
         rc = _main(argv)
     except GitBashPath as e:

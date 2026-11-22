@@ -56,7 +56,7 @@ class ContractError(Exception):
 _cache: dict[str, list[str]] = {}
 
 
-def _lines(path):
+def _lines(path: str) -> list[str]:
     """The file's lines, one CR stripped from each; [] if unreadable."""
     got = _cache.get(path)
     if got is None:
@@ -73,13 +73,13 @@ def _lines(path):
     return got
 
 
-def fm(path):
+def fm(path: str) -> list[str]:
     """The frontmatter lines (src_fm): [] without an opening `---`; to EOF
     without a closing one."""
     lines = _lines(path)
     if not lines or not _FENCE.fullmatch(lines[0]):
         return []
-    out = []
+    out: list[str] = []
     for ln in lines[1:]:
         if _FENCE.fullmatch(ln):
             break
@@ -87,7 +87,7 @@ def fm(path):
     return out
 
 
-def has_fm(path):
+def has_fm(path: str) -> bool:
     """True if the file opens and closes a frontmatter block (src_has_fm)."""
     lines = _lines(path)
     if not lines or not _FENCE.fullmatch(lines[0]):
@@ -95,22 +95,28 @@ def has_fm(path):
     return any(_FENCE.fullmatch(ln) for ln in lines[1:])
 
 
-def field(path, key, default=""):
+def field(path: str, key: str, default: str = "") -> str:
     """A scalar value (src_field); `default` when the key is absent.
     Raises ValueError for a key that isn't [a-z_]+, where bash returns 1."""
+    v = _field(path, key)
+    return default if v is None else v
+
+
+def _field(path: str, key: str) -> str | None:
+    """field(), None when the key is absent."""
     if not _FIELD_KEY.fullmatch(key):
         raise ValueError("bad key %r" % key)
     pre = key + ":"
     for ln in fm(path):
         if ln.startswith(pre):
             return ln[len(pre):].strip()
-    return default
+    return None
 
 
-def list_(path, key):
+def list_(path: str, key: str) -> list[str]:
     """The `- item` lines under KEY (src_list), empty items dropped."""
-    out = []
-    cur = None
+    out: list[str] = []
+    cur: str | None = None
     for ln in fm(path):
         m = _KEY_LINE.match(ln)
         if m:
@@ -125,21 +131,21 @@ def list_(path, key):
     return out
 
 
-def values(path, key):
+def values(path: str, key: str) -> list[str]:
     """A scalar value as a one-item list, or else the list items (src_values)."""
     v = field(path, key) if _FIELD_KEY.fullmatch(key) else ""
     return [v] if v else list_(path, key)
 
 
-def instance_dir(root):
+def instance_dir(root: str) -> str:
     return root + "/.claude/sources/instances"
 
 
-def _bytes_key(s):
+def _bytes_key(s: str) -> bytes:
     return s.encode("utf-8", errors="surrogateescape")
 
 
-def instances(root):
+def instances(root: str) -> list[str]:
     """The instance keys of a wiki, sorted as LC_ALL=C sort (src_instances)."""
     d = instance_dir(root)
     try:
@@ -151,7 +157,7 @@ def instances(root):
     return sorted(keys, key=_bytes_key)
 
 
-def contract(root, t, plugin=None):
+def contract(root: str, t: str, plugin: str | None = None) -> str:
     """Path of the type's SOURCE.md (src_contract). A local type may not
     shadow a standard one. Raises ContractError with bash's message."""
     plugin = PLUGIN if plugin is None else plugin
@@ -175,12 +181,12 @@ def contract(root, t, plugin=None):
     raise ContractError("unknown source type '%s' (looked in %s and %s)" % (t, std, loc))
 
 
-def _home():
+def _home() -> str:
     h = os.environ.get("HOME") or os.environ.get("USERPROFILE") or ""
     return h.replace("\\", "/")
 
 
-def expand(p):
+def expand(p: str) -> str:
     """"~/x" -> "$HOME/x"; backslashes -> slashes; repeated slashes folded;
     no trailing "/" (src_expand). HOME, else USERPROFILE, with slashes."""
     p = p.replace("\\", "/")
@@ -192,12 +198,12 @@ def expand(p):
     return p
 
 
-def is_abs(p):
+def is_abs(p: str) -> bool:
     """"/x", "~/x" or "C:/x" (src_is_abs)."""
     return p.startswith("/") or p.startswith("~/") or bool(_DRIVE.match(p))
 
 
-def has_dots(p):
+def has_dots(p: str) -> bool:
     """True if a path segment is "." or ".." (src_has_dots)."""
     s = "/" + p.replace("\\", "/") + "/"
     return "/./" in s or "/../" in s
@@ -219,19 +225,19 @@ _SHELL_RULE = re.compile(r"(Bash|PowerShell)\(\S.*\)\Z", re.S)
 MCP_NAME = re.compile(r"mcp__[A-Za-z0-9_-]+", re.ASCII)
 
 
-def operation(item):
+def operation(item: str) -> tuple[str, str] | None:
     """A contract `operations` item as (name, level), or None."""
     m = _OPERATION.fullmatch(item.strip())
     return (m.group(1), m.group(2)) if m else None
 
 
-def rule_ok(r):
+def rule_ok(r: str) -> bool:
     """A reader rule without a limit: an MCP tool name or a Bash(...) or
     PowerShell(...) rule."""
     return bool(_MCP_TOOL.match(r) or _SHELL_RULE.match(r))
 
 
-def reader_item(item):
+def reader_item(item: str) -> tuple[str, str, str, str] | None:
     """A `reader` item as (operation, rule, limit field, limit value), the
     limit ("", "") when there is none; None if it doesn't parse."""
     op, sep, rest = item.partition(": ")
@@ -251,20 +257,20 @@ def reader_item(item):
 
 # Command line, for the tests.
 
-def _out(lines):
+def _out(lines: list[str]) -> None:
     for s in lines:
         sys.stdout.buffer.write(s.encode("utf-8", errors="surrogateescape") + b"\n")
 
 
-def _cli(argv):
-    plugin = None
+def _cli(argv: list[str]) -> int:
+    plugin: str | None = None
     if argv[:1] == ["--plugin"] and len(argv) > 1:
         plugin, argv = argv[1], argv[2:]
     op, args = (argv[0], argv[1:]) if argv else ("", [])
     if op == "field" and len(args) == 2:
         if not _FIELD_KEY.fullmatch(args[1]):
             return 1
-        v = field(args[0], args[1], None)
+        v = _field(args[0], args[1])
         _out([] if v is None else [v])
     elif op == "list" and len(args) == 2:
         _out(list_(args[0], args[1]))
@@ -287,7 +293,7 @@ def _cli(argv):
     elif op == "has-dots" and len(args) == 1:
         return 0 if has_dots(args[0]) else 1
     elif op == "parity" and args:
-        out = ["has_fm %d" % (0 if has_fm(args[0]) else 1)]
+        out: list[str] = ["has_fm %d" % (0 if has_fm(args[0]) else 1)]
         for k in args[1:]:
             out.append("-- " + k)
             out.extend(values(args[0], k))

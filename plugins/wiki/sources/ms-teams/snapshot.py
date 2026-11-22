@@ -19,6 +19,8 @@ spelled as Python spells them (C:/Users/...), not as Git Bash does
 (/c/Users/...). Exit 1 on a refusal, 3 on an internal error.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import subprocess
@@ -37,17 +39,19 @@ class Die(Exception):
     pass
 
 
-def out(s):
+def out(s: str) -> None:
     sourcelib.out(s)
 
 
-def clean(name, path):
+def clean(name: str, path: str) -> tuple[list[tuple[str, str, str]], list[str], bool]:
     """The file's lines without CRs and blank lines, as (uri, path, size);
     Die after listing every bad line on stderr."""
     with open(path, "rb") as fh:
         text = fh.read().decode("utf-8", errors="surrogateescape").replace("\r", "")
     lines = [ln for ln in text.split("\n") if not _BLANK.fullmatch(ln)]
-    rows, seen, bad = [], set(), False
+    rows: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    bad = False
     for i, ln in enumerate(lines, 1):
         f = ln.split("\t")
         if len(f) != 3 or not f[0] or not f[1] or not _SIZE.fullmatch(f[2]):
@@ -58,16 +62,16 @@ def clean(name, path):
             sourcelib.err("%s line %d repeats URI %s" % (name, i, f[0]))
             bad = True
         seen.add(f[0])
-        rows.append(tuple(f))
+        rows.append((f[0], f[1], f[2]))
     return rows, lines, bad
 
 
-def _key(line):
+def _key(line: str) -> tuple[bytes, bytes]:
     b = line.encode("utf-8", errors="surrogateescape")
     return (b.split(b"\t")[1] if b.count(b"\t") >= 1 else b"", b)
 
 
-def run(argv):
+def run(argv: list[str]) -> int:
     if len(argv) != 2:
         raise Die("usage: snapshot.sh <key> <compare|save>")
     key, op = argv
@@ -107,7 +111,8 @@ def run(argv):
             srows = []
             out("ms-teams snapshot: no files.tsv yet; every file is new.")
         old = {u: (p, s) for u, p, s in srows}
-        seen, res = set(), []
+        seen: set[str] = set()
+        res: list[str] = []
         n = c = m = u_ = 0
         for uri, path, size in wrows:
             seen.add(uri)
@@ -142,7 +147,7 @@ def run(argv):
     return 0
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     try:
         rc = run(argv)
     except Die as e:

@@ -194,3 +194,18 @@ def test_path_helpers(op, p, bash_paths):
 def test_home(env, want):
     r = call_main(lambda: __import__("sys").stdout.write(contract.expand("~/a")) and 0, None, env=env)
     assert r.out.decode() == want
+
+
+@pytest.mark.checks("contract-py/field-default", "contract-py/cli-field")
+def test_field(tmp_path):
+    """field(): the value, "" for an empty one, `default` for an absent key;
+    the CLI prints a present value, even an empty one, and nothing for an
+    absent key."""
+    f = posix(write(tmp_path / "f.md", "---\ntitle: x\nempty:\n---\n"))
+    assert [contract.field(f, k) for k in ("title", "empty", "absent")] == ["x", "", ""]
+    assert contract.field(f, "absent", "dflt") == "dflt"
+    assert contract.field(f, "empty", "dflt") == ""
+    for k, want in (("title", b"x\n"), ("empty", b"\n"), ("absent", b"")):
+        r = call_main(contract._cli, ["field", f, k])
+        assert (r.rc, r.out) == (0, want)
+    assert call_main(contract._cli, ["field", f, "Bad"]).rc == 1

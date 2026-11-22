@@ -61,11 +61,11 @@ Rules kept from the bash version, which its findings depend on:
 
 from __future__ import annotations
 
-import collections
 import datetime
 import os
 import re
 import sys
+from typing import NamedTuple  # LogEdit's base: lint isn't a guard module
 
 # -I leaves this folder off sys.path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -103,17 +103,17 @@ class Die(Exception):
     """lint.sh's die: `lint: <message>` on stderr, exit 1."""
 
 
-def _key(s):
+def _key(s: str) -> bytes:
     return contract._bytes_key(s)
 
 
-def _word_key(s):
+def _word_key(s: str) -> tuple[str, str]:
     """sort -u in a UTF-8 locale for the stale words: case-blind first,
     then lower case before upper ("venter på" before "venter pÅ")."""
     return (s.lower(), s.swapcase())
 
 
-def _lines(text):
+def _lines(text: str) -> list[str]:
     """awk's records: split on newline, no empty record after a final one."""
     ls = text.split("\n")
     if ls[-1] == "":
@@ -121,11 +121,11 @@ def _lines(text):
     return ls
 
 
-def pages_of(wiki):
+def pages_of(wiki: str) -> list[str]:
     """Regular *.md files below wiki/ (find -type f), relative, byte order."""
-    found = []
+    found: list[str] = []
 
-    def walk(d, rel):
+    def walk(d: str, rel: str) -> None:
         try:
             entries = list(os.scandir(d))
         except OSError:
@@ -144,21 +144,21 @@ def pages_of(wiki):
     return sorted(found, key=_key)
 
 
-def slug_of(p):
+def slug_of(p: str) -> str:
     b = p.rsplit("/", 1)[-1]
     if b.endswith(".md"):
         b = b[:-3]
     return lower(b)
 
 
-def status_types(root):
+def status_types(root: str) -> set[str]:
     """Page types whose template's frontmatter has status_as_of."""
     d = root + "/templates"
     try:
         names = os.listdir(d)
     except OSError:
         return set()
-    res = set()
+    res: set[str] = set()
     for n in names:
         if n.startswith(".") or not n.endswith(".md") or not os.path.isfile(d + "/" + n):
             continue
@@ -171,21 +171,21 @@ def status_types(root):
     return res
 
 
-def _val(s):
+def _val(s: str) -> str:
     m = _VAL_HEAD.match(s)
     assert m is not None  # the caller's _KEY match guarantees the ':'
     s = s[m.end():]
     return _VAL_QUOTES.sub("", s)
 
 
-def facts(text):
+def facts(text: str) -> tuple[bool, dict[str, str], int]:
     """has_fm, the frontmatter values and the number of sources (-1: no
     sources key), as lint.sh's awk read them; one CR stripped per line."""
     f = {"title": "", "type": "", "created": "", "updated": "", "status_as_of": "", "as_of": ""}
     ls = [ln[:-1] if ln.endswith("\r") else ln for ln in _lines(text)]
     if not ls or not _FENCE.fullmatch(ls[0]):
         return False, f, -1
-    nsrc, seen, cur = 0, False, None
+    nsrc, seen, cur = 0, False, ""  # cur: the current key ("": none yet)
     for ln in ls[1:]:
         if _FENCE.fullmatch(ln):
             break
@@ -203,9 +203,10 @@ def facts(text):
     return True, f, (nsrc if seen else -1)
 
 
-def body_lines(text):
+def body_lines(text: str) -> list[str]:
     """awk 'BEGIN{n=0} /^---/{n++; next} n>=2'."""
-    n, res = 0, []
+    n = 0
+    res: list[str] = []
     for ln in _lines(text):
         if ln.startswith("---"):
             n += 1
@@ -218,7 +219,7 @@ _IDX_CELL = re.compile(r"(?<!\\)\|")
 _IDX_LINK = re.compile(r"\[\[[^\]\n]+\]\]")
 
 
-def _cells(ln):
+def _cells(ln: str) -> list[str] | None:
     """The cells of a table row (| split, \\| kept), or None."""
     ln = ln.strip(_SP)
     if not (ln.startswith("|") and ln.endswith("|")) or len(ln) < 2:
@@ -226,11 +227,12 @@ def _cells(ln):
     return [c.strip(_SP) for c in _IDX_CELL.split(ln[1:-1])]
 
 
-def index_rows(text):
+def index_rows(text: str) -> list[tuple[str, str]]:
     """(link target, Updated date) of each row of index.md's
     `| Page | Summary | Updated |` tables whose Page cell is one [[link]]
     and whose Updated cell is a YYYY-MM-DD date. Other rows are skipped."""
-    res, in_table = [], False
+    res: list[tuple[str, str]] = []
+    in_table = False
     for ln in _lines(text):
         cells = _cells(ln)
         if cells is None:
@@ -245,9 +247,9 @@ def index_rows(text):
     return res
 
 
-def links_of(text):
+def links_of(text: str) -> list[str]:
     """The link targets of a page, in order (duplicates kept)."""
-    res = []
+    res: list[str] = []
     for ln in text.split("\n"):
         for m in _LINK.finditer(ln):
             t = _LINK_CUT.sub("", m.group(0)[2:-2], count=1)
@@ -258,22 +260,26 @@ def links_of(text):
     return res
 
 
-def log_removed(text):
+def log_removed(text: str) -> int:
     """Removed lines in a diff: ^- but not ^--- a/ or ^--- /dev/null."""
     return sum(1 for ln in _lines(text) if ln.startswith("-") and not _LOG_OLD.match(ln))
 
 
-LogEdit = collections.namedtuple("LogEdit", "hash when lines ages_out")
+class LogEdit(NamedTuple):
+    hash: str
+    when: str
+    lines: int
+    ages_out: str
 
 
-def log_history(root):
+def log_history(root: str) -> list[LogEdit]:
     """The commits of the last LOG_DAYS days that remove or rewrite lines of
     wiki/log.md, as LogEdits (when: "date, subject"; ages_out: the commit
     date plus LOG_DAYS). Restoring the lines can't clear these: the commit
     stays in the window until then."""
     _, d = git(root, "log", "--no-merges", "--since=%d days ago" % LOG_DAYS, "--no-color", "-U0",
                "--date=short", "--format=%x01%h%x02%cd%x02%ad, %s", "-p", "--", "wiki/log.md")
-    res = []
+    res: list[LogEdit] = []
     for chunk in ("\n" + d).split("\n\x01")[1:]:
         head, _, diff = chunk.partition("\n")
         h, _, rest = head.partition("\x02")
@@ -285,13 +291,13 @@ def log_history(root):
     return res
 
 
-def parse_today(s):
+def parse_today(s: str) -> datetime.date:
     if not _DATE.fullmatch(s):
         raise ValueError
     return datetime.date(int(s[:4]), int(s[5:7]), int(s[8:]))
 
 
-def days_since(v, today):
+def days_since(v: str, today: datetime.date) -> int | None:
     """Calendar days from v (YYYY-MM-DD) to today, or None."""
     try:
         return (today - parse_today(v)).days
@@ -299,7 +305,8 @@ def days_since(v, today):
         return None
 
 
-def report(root, plugin, history=None):
+def report(root: str, plugin: str | None,
+           history: list[LogEdit] | None = None) -> tuple[str, int]:
     """lint.sh's report for the wiki at root: (text, number of errors).
     history: log_history(root), when the caller already has it.
     Raises Die for a bad WIKI_LINT_TODAY."""
@@ -318,11 +325,19 @@ def report(root, plugin, history=None):
     links = [(p, t) for p in all_ for t in links_of(texts[p])]
     known = {s for s, _ in slugs}
 
-    e_nofm, e_fields, e_broken, e_log = [], [], [], []
-    w_orphan, w_noindex, w_nosrc, w_dates, w_stale = [], [], [], [], []
-    w_idxdate = []
-    updated = {}
-    i_status, i_srcprefix = [], []
+    e_nofm: list[str] = []
+    e_fields: list[str] = []
+    e_broken: list[str] = []
+    e_log: list[str] = []
+    w_orphan: list[str] = []
+    w_noindex: list[str] = []
+    w_nosrc: list[str] = []
+    w_dates: list[str] = []
+    w_stale: list[str] = []
+    w_idxdate: list[str] = []
+    updated: dict[str, str] = {}
+    i_status: list[str] = []
+    i_srcprefix: list[str] = []
 
     for p in pages:
         hasfm, f, nsrc = facts(texts[p])
@@ -437,9 +452,9 @@ def report(root, plugin, history=None):
     n = log_removed(d)
     if n:
         e_log.append("- uncommitted changes remove or rewrite %d line(s) of existing entries" % n)
-    for c in log_history(root) if history is None else history:
+    for le in log_history(root) if history is None else history:
         e_log.append("- commit %s (%s) removes or rewrites %d line(s) (ages out on %s)"
-                     % (c.hash, c.when, c.lines, c.ages_out))
+                     % (le.hash, le.when, le.lines, le.ages_out))
 
     n_err = len(e_nofm) + len(e_fields) + len(e_broken) + len(e_log)
     n_warn = (len(w_orphan) + len(w_noindex) + len(w_idxdate) + len(w_nosrc) + len(w_dates)
@@ -475,11 +490,14 @@ def report(root, plugin, history=None):
     return "\n".join(o), n_err
 
 
-def questions(root, all_, texts, page_slugs, today):
+def questions(root: str, all_: list[str], texts: dict[str, str], page_slugs: set[str],
+              today: datetime.date) -> tuple[list[str], list[str], list[str]]:
     """The three open-question sections: questions raised more than
     QUESTION_DAYS ago, markers and questions that don't match (and markers
     that aren't a question ID), and a malformed open-questions.md."""
-    old, mark, bad = [], [], []
+    old: list[str] = []
+    mark: list[str] = []
+    bad: list[str] = []
     r = sourcelib.read_questions(root)
     qs, conflict = r if r else ([], False)
     marks = sorted({(p, m.group(1)) for p in all_ if p != "log.md"
@@ -497,14 +515,14 @@ def questions(root, all_, texts, page_slugs, today):
     marked = {i for _, i in marks}
     if conflict:
         bad.append("- merge conflict lines (<<<<<<<, =======, >>>>>>>)")
-    seen = set()
+    seen: set[str] = set()
     for q in qs:
-        age = None if q.raised_date is None else (today - q.raised_date).days
-        if age is not None and age > QUESTION_DAYS:
-            old.append("- `%s` raised %s (%d days ago)" % (q.id, q.raised_date.isoformat(), age))
+        d = q.raised_date
+        if d is not None and (age := (today - d).days) > QUESTION_DAYS:
+            old.append("- `%s` raised %s (%d days ago)" % (q.id, d.isoformat(), age))
         if q.valid and q.id not in marked and q.id not in seen:
             mark.append("- `%s`: no page carries its marker" % q.id)
-        probs = []
+        probs: list[str] = []
         if not q.valid:
             probs.append("not a question ID (q-YYYY-MM-DD-<slug>)")
         if q.id in seen:
@@ -513,10 +531,10 @@ def questions(root, all_, texts, page_slugs, today):
         if q.kind not in sourcelib.KINDS:
             probs.append("kind `%s` is not one of %s" % (q.kind, ", ".join(sourcelib.KINDS))
                          if q.kind else "no kind")
-        if q.raised_date is None:
+        if d is None:
             probs.append("raised `%s` has no YYYY-MM-DD date" % q.raised if q.raised else "no raised")
-        elif age is not None and age < 0:  # age is None only when raised_date is
-            probs.append("raised %s is in the future" % q.raised_date.isoformat())
+        elif (today - d).days < 0:
+            probs.append("raised %s is in the future" % d.isoformat())
         for t in links_of(q.pages):
             if t not in page_slugs:
                 probs.append("pages links to [[%s]], no such page" % t)
@@ -525,14 +543,14 @@ def questions(root, all_, texts, page_slugs, today):
     return old, mark, bad
 
 
-def wiki_root():
+def wiki_root() -> str:
     top = sourcelib.toplevel(os.getcwd())
     if not top:
         raise Die("not inside a git repo; run from a wiki.")
     return top
 
 
-def _main(argv):
+def _main(argv: list[str]) -> int:
     plugin = contract.PLUGIN
     if argv[:1] == ["--plugin"] and len(argv) > 1:
         plugin, argv = sourcelib.native(argv[1]), argv[2:]
@@ -545,7 +563,7 @@ def _main(argv):
     return 0
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     try:
         rc = _main(argv)
     except Die as e:

@@ -14,14 +14,16 @@ command and py-launch.sh.
 import json
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import guard
 import hookjson
 import pytest
 
-from conftest import (BASH, IS_WIN, PLUGIN, PLUGIN_BASH, PLUGIN_P, TESTS, call_main, copytree,
-                      hooks_guard_command, norm, write)
+from conftest import (BASH, IS_WIN, PLUGIN, PLUGIN_BASH, PLUGIN_P, SCRIPTS, TESTS, call_main,
+                      copytree, hooks_guard_command, norm, write)
 
 FIXTURES = TESTS / "fixtures"
 GUARD_WIKI = TESTS / "guard-wiki"
@@ -323,6 +325,18 @@ def test_crash_blocks(run, gw, tmp_path):
                  "CLAUDE_PLUGIN_DATA": str(tmp_path / "pdata"), "CLAUDE_PROJECT_DIR": str(gw)})
     assert r.rc == 2
     assert b"guard.py failed (RuntimeError); refusing (fail closed)." in r.merged
+
+
+@pytest.mark.checks("guard/no-typing-at-run-time")
+def test_no_typing_at_run_time():
+    """AGENTS.md's run-time rule: the guard's modules import `typing` only
+    under TYPE_CHECKING, so a hook never pays for it. Imported as
+    py-launch.sh runs the guard (-I -S -X utf8)."""
+    code = ("import sys; sys.path.insert(0, sys.argv[1]); import guard; "
+            "sys.exit(1 if 'typing' in sys.modules else 0)")
+    r = subprocess.run([sys.executable, "-I", "-S", "-X", "utf8", "-c", code, str(SCRIPTS)],
+                       capture_output=True)
+    assert (r.returncode, r.stderr) == (0, b"")
 
 
 # --- guard-broken: fails closed on source files it can't use --------------

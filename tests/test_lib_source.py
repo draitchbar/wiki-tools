@@ -251,3 +251,13 @@ def test_open_questions_fenced():
     t = "### q-2026-01-01-a\n- kind: unclear\n```markdown\n### q-2026-01-02-example\n- kind: filing\n```\n"
     qs, _ = sourcelib.open_questions(t)
     assert [(q.id, q.kind) for q in qs] == [("q-2026-01-01-a", "unclear")]
+
+
+@pytest.mark.checks("settings-rules/result-shape")
+def test_settings_rules_result_shape():
+    # (rules, None) for valid JSON; ([], error) for invalid JSON, so the
+    # rules are always a list (they were None before the type checking).
+    assert sourcelib.settings_rules('{"permissions": {"allow": ["Read(x)"], "deny": ["Bash"]}}') == (
+        ["allow\tRead(x)", "deny\tBash"], None)
+    assert sourcelib.settings_rules('{"permissions": {"allow": ["Read(x)",]}}') == (
+        [], "comma before ] (line 1)")

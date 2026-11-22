@@ -55,13 +55,14 @@ class Die(Exception):
     """`install-source-file: <message>` on stderr, exit 1."""
 
 
-def _grep(rx, s):
+def _grep(rx: re.Pattern[str], s: str) -> bool:
     """printf '%s' "$s" | grep -Eq '^rx$': any line matches."""
     return any(rx.fullmatch(ln) for ln in s.split("\n"))
 
 
-def parse_target(arg, plugin):
-    """(target, kind, key-or-type, file name) or Die."""
+def parse_target(arg: str, plugin: str) -> tuple[str, str, str, str]:
+    """(target, kind, key-or-type, file name) or Die; the file name is ""
+    for an instance."""
     t = arg[2:] if arg.startswith("./") else arg
     if t.startswith(".claude/sources/"):
         t = t[len(".claude/sources/"):]
@@ -69,7 +70,7 @@ def parse_target(arg, plugin):
         key = t[len("instances/"):-3]
         if not _grep(contract.NAME_RE, key):
             raise Die("instance key '%s' must be kebab-case (a-z, 0-9, -)." % key)
-        return t, "instance", key, None
+        return t, "instance", key, ""
     if t.startswith("types/") and "/" in t[len("types/"):]:
         typ, name = t[len("types/"):].split("/", 1)
         if not _grep(contract.NAME_RE, typ):
@@ -84,7 +85,7 @@ def parse_target(arg, plugin):
               ".claude/sources/.")
 
 
-def wiki_root():
+def wiki_root() -> str:
     top = sourcelib.toplevel(os.getcwd())
     if not top:
         raise Die("not inside a git repo; run it from the wiki.")
@@ -93,12 +94,12 @@ def wiki_root():
     return top
 
 
-def _read(path):
+def _read(path: str) -> bytes:
     with open(path, "rb") as fh:
         return fh.read()
 
 
-def _normal(data):
+def _normal(data: bytes) -> bytes:
     """No CR; a final newline unless empty."""
     data = data.replace(b"\r", b"")
     if data and not data.endswith(b"\n"):
@@ -106,7 +107,7 @@ def _normal(data):
     return data
 
 
-def check(target_arg, scratch, plugin):
+def check(target_arg: str, scratch: str, plugin: str) -> int:
     target, kind, tk, name = parse_target(target_arg, plugin)
     root = wiki_root()
     sw = scratch + "/wiki"
@@ -128,7 +129,7 @@ def check(target_arg, scratch, plugin):
     # everything else an error.
     errs, warns = "", ""
 
-    def add_err(text):
+    def add_err(text: str) -> None:
         nonlocal errs, warns
         for ln in text.split("\n"):
             if not ln:
@@ -139,7 +140,7 @@ def check(target_arg, scratch, plugin):
             else:
                 errs += "\n  - " + ln
 
-    def scrubbed(lines):
+    def scrubbed(lines: list[str]) -> str:
         return "\n".join(lines).replace(sw + "/", "")
 
     if kind == "instance":
@@ -191,7 +192,7 @@ def check(target_arg, scratch, plugin):
     return 0
 
 
-def write(target_arg, scratch, plugin):
+def write(target_arg: str, scratch: str, plugin: str) -> int:
     target = parse_target(target_arg, plugin)[0]
     root = wiki_root()
     dest = "%s/.claude/sources/%s" % (root, target)
@@ -212,6 +213,7 @@ def write(target_arg, scratch, plugin):
     # one too), and those a deny rule blocks (deny wins).
     sf = root + "/.claude/settings.json"
     try:
+        miss: list[tuple[str, str]] | None
         miss, blocked = sourcelib.settings_check(root, plugin, sf)
     except Exception as e:
         sourcelib.err("sourcelib: internal error: %s: %s" % (type(e).__name__, e))
@@ -241,7 +243,7 @@ def write(target_arg, scratch, plugin):
     return 0
 
 
-def _main(argv):
+def _main(argv: list[str]) -> int:
     plugin = contract.PLUGIN
     if argv[:1] == ["--plugin"] and len(argv) > 1:
         plugin, argv = sourcelib.native(argv[1]), argv[2:]
@@ -258,7 +260,7 @@ def _main(argv):
     return 3
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     try:
         rc = _main(argv)
     except Die as e:

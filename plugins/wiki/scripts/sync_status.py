@@ -28,6 +28,8 @@ Environment: CLAUDE_PROJECT_DIR (set by Claude Code for hooks) is the wiki;
 else the git toplevel of the current directory.
 """
 
+from __future__ import annotations
+
 import datetime
 import os
 import re
@@ -44,7 +46,7 @@ _DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", re.ASCII)
 _SPACE = re.compile(r"[ \t\n\v\f\r]")
 
 
-def plugin_note(plugin):
+def plugin_note(plugin: str) -> str | None:
     """A plugin from a local-directory marketplace runs from the wiki-tools
     working tree, not from a copy pinned to a commit: uncommitted edits there
     are live in every wiki, and skills (read at session start) can differ from
@@ -64,7 +66,7 @@ def plugin_note(plugin):
             "changes and run /reload-plugins (or restart)." % (top, head, dirty))
 
 
-def day(v):
+def day(v: str) -> datetime.date | None:
     if not _DATE.fullmatch(v):
         return None
     try:
@@ -73,7 +75,7 @@ def day(v):
         return None
 
 
-def _changed_since(path, since):
+def _changed_since(path: str, since: float) -> bool:
     """True when the file at path, or any file under it, was modified or
     created at or after the timestamp since. ctime counts too (creation on
     Windows, inode change elsewhere), so a copy that kept an old mtime is
@@ -91,7 +93,7 @@ def _changed_since(path, since):
     return False
 
 
-def raw_unchanged(root, d):
+def raw_unchanged(root: str, d: datetime.date) -> bool:
     """True when raw/ has no change but raw/sync-log.md since day d: none
     uncommitted or untracked, no ignored file modified or created that day
     or later (git can't date one, so its file times decide: wikis ignore
@@ -109,7 +111,7 @@ def raw_unchanged(root, d):
     return git_out(root, "log", "-1", "--format=%H", "--since=%s 00:00:00" % d.isoformat(), "HEAD", *spec) == ""
 
 
-def report(root, plugin, today):
+def report(root: str, plugin: str, today: datetime.date) -> str | None:
     """The report for the wiki at root, or None."""
     log = root + "/raw/sync-log.md"
     if not os.path.isfile(log):
@@ -134,7 +136,7 @@ def report(root, plugin, today):
         if contract.field(c, "mode") == "research":
             research += k + " "
 
-    out = []
+    out: list[str] = []
     # `while read`: a last line without a newline isn't read.
     for line in text.split("\n")[:-1]:
         if line.endswith("\r"):
@@ -171,7 +173,7 @@ def report(root, plugin, today):
     return "Wiki sync status (raw/sync-log.md):\n" + "\n".join(out + ([q] if q else []))
 
 
-def questions_line(root, today):
+def questions_line(root: str, today: datetime.date) -> str | None:
     """The open questions of open-questions.md (/wiki:ingest --unattended
     defers them there): how many, and the oldest by its raised date (a date
     in the future doesn't count; lint reports it). None when there are
@@ -180,16 +182,15 @@ def questions_line(root, today):
     if not r or not r[0]:
         return None
     qs = r[0]
-    dated = [q for q in qs if q.raised_date is not None and q.raised_date <= today]
+    dated = [(d, q) for q in qs if (d := q.raised_date) is not None and d <= today]
     line = "Open questions (%s): %d" % (sourcelib.QUESTIONS, len(qs))
     if dated:
-        old = min(dated, key=lambda q: q.raised_date)
-        line += ", oldest %s (raised %s, %d days ago)" % (
-            old.id, old.raised_date.isoformat(), (today - old.raised_date).days)
+        d, old = min(dated, key=lambda x: x[0])
+        line += ", oldest %s (raised %s, %d days ago)" % (old.id, d.isoformat(), (today - d).days)
     return line + ". Answer them with /wiki:clarify."
 
 
-def _main(argv):
+def _main(argv: list[str]) -> int:
     plugin = contract.PLUGIN
     if argv[:1] == ["--plugin"] and len(argv) > 1:
         plugin = sourcelib.native(argv[1])
@@ -207,7 +208,7 @@ def _main(argv):
     return 0
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     try:
         rc = _main(argv)
     except Exception as e:  # a hook: say it, but never fail the session start

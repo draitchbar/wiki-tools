@@ -33,7 +33,7 @@ _SPACE = re.compile(r"\s+")
 _CONTENT = re.compile(r'content\\*"\s*:\s*\\*"([A-Za-z0-9+/=\\]*)')
 
 
-def _contents(v, out):
+def _contents(v: object, out: list[str]) -> None:
     """Every string under a "content" key, also inside JSON held in strings."""
     if isinstance(v, dict):
         for k, x in v.items():
@@ -52,7 +52,7 @@ def _contents(v, out):
                 pass
 
 
-def find_b64(text):
+def find_b64(text: str) -> str:
     """The base64 text in an input file ("" if none)."""
     try:
         data = json.loads(text)
@@ -68,7 +68,7 @@ def find_b64(text):
     return _SPACE.sub("", text)
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     if len(argv) != 2:
         sys.stderr.write("usage: decode_download.py INPUT DEST\n")
         return 3
