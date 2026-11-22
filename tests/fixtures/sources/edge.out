@@ -584,7 +584,7 @@ rc=0
 Source types (platform: @HOST@):
 - codebase (standard, filesystem): Codebase (git clone, researched on demand)
 - gmail (standard, mcp): Gmail
-- google-drive (standard, mcp): Google Drive
+- google-drive (standard, tools): Google Drive
 - jira (standard, tools): Jira
 - local-folder (standard, filesystem): Local folder
 - ms-teams (standard, mcp): Microsoft Teams
@@ -596,7 +596,7 @@ Source types (platform: @HOST@):
 Source types (platform: @HOST@):
 - codebase (standard, filesystem): Codebase (git clone, researched on demand)
 - gmail (standard, mcp): Gmail
-- google-drive (standard, mcp): Google Drive
+- google-drive (standard, tools): Google Drive
 - jira (standard, tools): Jira
 - local-folder (standard, filesystem): Local folder
 - ms-teams (standard, mcp): Microsoft Teams

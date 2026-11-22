@@ -22,7 +22,7 @@ plugins/wiki/
   hooks/hooks.json                PreToolUse guard + SessionStart schema and status
   sources/                        standard source types
     gmail/SOURCE.md               Gmail via the claude.ai connector (MCP)
-    google-drive/SOURCE.md        Google Drive folders via the claude.ai connector (MCP)
+    google-drive/SOURCE.md        Google Drive folders through whatever Drive reader the machine supplies (tool-neutral; seen working: the claude.ai connector)
     ms-teams/{SOURCE.md,snapshot.sh,snapshot.py}  Teams channels, chats and SharePoint folders via the claude.ai Microsoft 365 connector (MCP)
     jira/SOURCE.md                Jira issues selected by named scopes (team, component, epic/initiative, project, JQL) through whatever Jira reader the machine supplies (tool-neutral)
     proton-files/SOURCE.md            Proton Drive through a reader (the proton plugin, aitchbar-ai-tools)

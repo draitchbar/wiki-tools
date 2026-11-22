@@ -46,7 +46,8 @@ Not documented: whether a setup script can install a plugin, or whether `claude`
 | Source | In the cloud |
 |---|---|
 | `raw` | Only what is committed: Markdown and text, `raw/ocr/*.txt`. `/wiki:init`'s `.gitignore` keeps PDFs, Office files and images out of the repo, so those never reach the VM; ingesting and auditing them stays local. |
-| `gmail`, `google-drive` | Should work: claude.ai connectors. To check: the tool names match the contracts' (`mcp__claude_ai_…`). |
+| `gmail` | Should work: claude.ai connector. To check: the tool names match the contract's (`mcp__claude_ai_…`). |
+| `google-drive` | Should work with the claude.ai Google Drive connector, if the instance's binding names the same tools and its rules are in the wiki's settings. |
 | `ms-teams` | Channels and chats should work; folders only in part (the cache, above). |
 | `jira` | Should work with the Atlassian connector, if the instance's binding names the same tools and its rules are in the wiki's settings. |
 | `codebase` | No, as built. The clone would be a second repository in the session, which turns off the wiki's hooks and rules; the root in the instance is a per-machine path; `gh.sh` first asks `gh auth token -u <gh_user>`, which has no login to answer (`git.sh`'s fetch likewise), and its `gh pr` and `gh issue` calls are refused by the proxy. |
