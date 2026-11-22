@@ -13,7 +13,7 @@
 #
 # What stays in bash (docs/adr.md, 4):
 # what the wrappers (codebase/git.sh, gh.sh, local-folder/read.sh,
-# ms-teams/snapshot.sh, decode-download.sh) and the wikis' local types use.
+# decode-download.sh) and the wikis' local types use.
 # /wiki:add-source names src_values, src_expand, src_match_root and
 # src_has_dots for local type scripts and models them on read.sh, so keep
 # all of these. The frontmatter parsers stay the bash reference for

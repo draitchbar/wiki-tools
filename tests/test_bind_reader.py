@@ -26,7 +26,7 @@ def _section(text, name):
 
 @pytest.mark.checks("bind-reader/tool-neutral-types")
 def test_tool_neutral_types():
-    assert _tool_neutral() == ["google-drive", "jira", "onenote", "proton-files"]
+    assert _tool_neutral() == ["google-drive", "jira", "ms-teams", "onenote", "proton-files"]
 
 
 @pytest.mark.parametrize("t", _tool_neutral())
@@ -101,3 +101,38 @@ def test_contract_live_run_fixes():
     assert "does not exist for the field" in _section(jira, "Check")
     onenote = (SOURCES / "onenote" / "SOURCE.md").read_text(encoding="utf-8")
     assert _section(onenote, "List new").count("diff -B -w") == 2
+
+
+@pytest.mark.checks("bind-reader/ms-teams-contract")
+def test_ms_teams_contract():
+    """ms-teams (docs/adr.md 22): Check stops for a parameter's unbound
+    operation; Bind names the connector's denies (write, Outlook, people)
+    and hands over the snapshot script's allow."""
+    text = (SOURCES / "ms-teams" / "SOURCE.md").read_text(encoding="utf-8")
+    check, bind = _section(text, "Check"), _section(text, "Bind")
+    assert "every operation it needs (the table above) must be bound" in check
+    for tool in ("teams_send_channel_message", "teams_reply_channel_message", "teams_send_chat_message",
+                 "teams_create_chat", "outlook_create_event", "outlook_email_search", "outlook_calendar_search",
+                 "outlook_find_available_time", "find_meeting_availability", "search_people", "get_me"):
+        assert "`%s`" % tool in bind, tool
+    assert "`Bash(bash */scripts/file-snapshot.sh *)`" in bind
+    assert "**Stop**" in bind
+    assert "sources/ms-teams/snapshot" not in text
+    assert "${CLAUDE_PLUGIN_ROOT}/scripts/file-snapshot.sh <key> compare" in _section(text, "List new")
+    assert "${CLAUDE_PLUGIN_ROOT}/scripts/file-snapshot.sh <key> save" in _section(text, "Mark ingested")
+
+
+@pytest.mark.checks("bind-reader/bind-extras")
+def test_skill_carries_bind_extras():
+    """A contract's `## Bind` may add denies, `## Reader` lines and settings
+    lines (ms-teams: Outlook and people tools, the folder mode, the
+    snapshot allow); the skill carries them, in words that name no source."""
+    text = SKILL.read_text(encoding="utf-8")
+    deny = text[text.index("## 4. Deny the write tools first"):text.index("## 5. Test each operation")]
+    hand = text[text.index("## 6. Hand over"):]
+    assert "any other tools the contract's `## Bind` section says to deny" in deny
+    assert "plus any the `## Bind` section says to deny" in hand
+    assert "plus any lines the `## Bind` section says to record" in hand
+    assert "plus any settings lines the `## Bind` section names" in hand
+    body = text.split("\n---\n", 1)[1]
+    assert not re.search(r"teams|outlook|Microsoft", body, re.I)

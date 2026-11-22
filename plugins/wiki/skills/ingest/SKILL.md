@@ -7,6 +7,7 @@ allowed-tools:
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/sync-status.sh)
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh *)
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/decode-download.sh *)
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/file-snapshot.sh *)
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/ocr.sh *)
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/sources/*/*.sh *)
   - Bash(bash .claude/sources/types/*/*.sh *)

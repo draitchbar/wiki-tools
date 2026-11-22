@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# snapshot.sh: compare a SharePoint folder walk with the previous one, and
-# keep it for the next run. SharePoint folder listings carry no dates, so
-# the ms-teams type finds new and changed files this way.
+# file-snapshot.sh: compare a folder walk with the previous one, and keep
+# it for the next run. For a tool-neutral source (access: tools) whose
+# reader lists a folder without modified times, this is how new and
+# changed files are found; a reader that gives modified times doesn't
+# need it.
 #
-#   bash <plugin>/sources/ms-teams/snapshot.sh <key> compare
-#   bash <plugin>/sources/ms-teams/snapshot.sh <key> save
+#   bash <plugin>/scripts/file-snapshot.sh <key> compare
+#   bash <plugin>/scripts/file-snapshot.sh <key> save
 #
 # Files, in ~/.cache/wiki-sources/<wiki>/<key>/:
 #   walk.tsv   this run's walk, written by Claude: one line per file,
@@ -20,19 +22,20 @@
 # save     replaces files.tsv with walk.tsv and removes walk.tsv.
 #
 # Rules:
-# - <key> is an ms-teams instance in <wiki>/.claude/sources/instances/.
-# - Nothing outside that cache folder is read or written; the connector is
+# - <key> is an instance in <wiki>/.claude/sources/instances/ whose type
+#   (standard or local) is access: tools.
+# - Nothing outside that cache folder is read or written; the reader is
 #   never called.
 #
 # Run it from inside a wiki (any directory of its git repo).
 
 set -u
 #
-# The work is in snapshot.py (docs/adr.md, 4); this launcher only
+# The work is in file_snapshot.py (docs/adr.md, 4); this launcher only
 # runs it.
 
 d=${BASH_SOURCE[0]%/*}
 [ "$d" != "${BASH_SOURCE[0]}" ] || d=.
-. "$d/../../scripts/py-run.sh"
-_pr_dir=$d _pr_label="ms-teams snapshot" _pr_call snapshot "$@"
+. "$d/py-run.sh"
+_pr_label=file-snapshot _pr_call file_snapshot "$@"
 exit $?

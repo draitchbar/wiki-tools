@@ -24,7 +24,7 @@ plugins/wiki/
   sources/                        standard source types
     gmail/SOURCE.md               Gmail via the claude.ai connector (MCP)
     google-drive/SOURCE.md        Google Drive folders through whatever Drive reader the machine supplies (tool-neutral; seen working: the claude.ai connector)
-    ms-teams/{SOURCE.md,snapshot.sh,snapshot.py}  Teams channels, chats and SharePoint folders via the claude.ai Microsoft 365 connector (MCP)
+    ms-teams/SOURCE.md            Teams channels, chats and SharePoint folders through whatever Microsoft 365 reader the machine supplies (tool-neutral; seen working: the claude.ai connector)
     jira/SOURCE.md                Jira issues selected by named scopes (team, component, epic/initiative, project, JQL) through whatever Jira reader the machine supplies (tool-neutral)
     proton-files/SOURCE.md            Proton Drive through a reader (the proton plugin, aitchbar-ai-tools)
     local-folder/{SOURCE.md,read.sh}  folders outside the wiki, read-only
@@ -44,6 +44,7 @@ plugins/wiki/
     install_source.py             its checks and the writing
     decode-download.sh            base64 download (e.g. Google Drive) into the source cache; checks and paths, decoding in decode_download.py
     decode_download.py            finds the base64 (plain, or a saved tool result's "content") and decodes it
+    file-snapshot.sh              folder-walk snapshot for readers without modified times (any access: tools type); work in file_snapshot.py
     schema.sh                     prints one schema file (SessionStart, every start, resume, /clear, compaction)
     sync-status.sh                staleness report from raw/sync-log.md, and the open questions' count; a launcher for sync_status.py
     sync_status.py                the work of sync-status.sh

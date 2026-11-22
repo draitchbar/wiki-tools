@@ -427,17 +427,12 @@ rc=0
       "Read(~/.cache/wiki-sources/sw/code/**)",
       "Edit(~/.cache/wiki-sources/sw/code/**)",
       "Bash(bash */sources/local-folder/read.sh *)",
+      "Edit(~/.cache/wiki-sources/sw/teams/walk.tsv)",
+      "mcp__claude_ai_Microsoft_365__get_granted_scopes",
       "mcp__claude_ai_Microsoft_365__teams_list_channels",
       "mcp__claude_ai_Microsoft_365__teams_list_channel_messages",
-      "mcp__claude_ai_Microsoft_365__teams_list_chats",
-      "mcp__claude_ai_Microsoft_365__chat_message_search",
       "mcp__claude_ai_Microsoft_365__read_resource",
       "mcp__claude_ai_Microsoft_365__sharepoint_search",
-      "mcp__claude_ai_Microsoft_365__sharepoint_folder_search",
-      "mcp__claude_ai_Microsoft_365__get_me",
-      "mcp__claude_ai_Microsoft_365__get_granted_scopes",
-      "Bash(bash */sources/ms-teams/snapshot.sh *)",
-      "Edit(~/.cache/wiki-sources/sw/teams/walk.tsv)",
       "mcp__claude_ai_Atlassian_MCP__getAccessibleAtlassianResources",
       "mcp__claude_ai_Atlassian_MCP__executeRead",
       "mcp__claude_ai_Atlassian_MCP__searchJiraIssuesUsingJql",
@@ -485,6 +480,12 @@ rc=0
       "mcp__claude_ai_Microsoft_365__teams_send_chat_message",
       "mcp__claude_ai_Microsoft_365__teams_create_chat",
       "mcp__claude_ai_Microsoft_365__outlook_create_event",
+      "mcp__claude_ai_Microsoft_365__outlook_email_search",
+      "mcp__claude_ai_Microsoft_365__outlook_calendar_search",
+      "mcp__claude_ai_Microsoft_365__outlook_find_available_time",
+      "mcp__claude_ai_Microsoft_365__find_meeting_availability",
+      "mcp__claude_ai_Microsoft_365__search_people",
+      "mcp__claude_ai_Microsoft_365__get_me",
       "mcp__claude_ai_Atlassian_MCP__executeWrite",
       "mcp__claude_ai_Atlassian_MCP__executeDestructive"
     ]
@@ -511,17 +512,12 @@ proton-files (access: tools) names no tools, so it adds no tool rules here (only
       "Read(~/.cache/wiki-sources/sw/code/**)",
       "Edit(~/.cache/wiki-sources/sw/code/**)",
       "Bash(bash */sources/local-folder/read.sh *)",
+      "Edit(~/.cache/wiki-sources/sw/teams/walk.tsv)",
+      "mcp__claude_ai_Microsoft_365__get_granted_scopes",
       "mcp__claude_ai_Microsoft_365__teams_list_channels",
       "mcp__claude_ai_Microsoft_365__teams_list_channel_messages",
-      "mcp__claude_ai_Microsoft_365__teams_list_chats",
-      "mcp__claude_ai_Microsoft_365__chat_message_search",
       "mcp__claude_ai_Microsoft_365__read_resource",
       "mcp__claude_ai_Microsoft_365__sharepoint_search",
-      "mcp__claude_ai_Microsoft_365__sharepoint_folder_search",
-      "mcp__claude_ai_Microsoft_365__get_me",
-      "mcp__claude_ai_Microsoft_365__get_granted_scopes",
-      "Bash(bash */sources/ms-teams/snapshot.sh *)",
-      "Edit(~/.cache/wiki-sources/sw/teams/walk.tsv)",
       "mcp__claude_ai_Atlassian_MCP__getAccessibleAtlassianResources",
       "mcp__claude_ai_Atlassian_MCP__executeRead",
       "mcp__claude_ai_Atlassian_MCP__searchJiraIssuesUsingJql",
@@ -569,6 +565,12 @@ proton-files (access: tools) names no tools, so it adds no tool rules here (only
       "mcp__claude_ai_Microsoft_365__teams_send_chat_message",
       "mcp__claude_ai_Microsoft_365__teams_create_chat",
       "mcp__claude_ai_Microsoft_365__outlook_create_event",
+      "mcp__claude_ai_Microsoft_365__outlook_email_search",
+      "mcp__claude_ai_Microsoft_365__outlook_calendar_search",
+      "mcp__claude_ai_Microsoft_365__outlook_find_available_time",
+      "mcp__claude_ai_Microsoft_365__find_meeting_availability",
+      "mcp__claude_ai_Microsoft_365__search_people",
+      "mcp__claude_ai_Microsoft_365__get_me",
       "mcp__claude_ai_Atlassian_MCP__executeWrite",
       "mcp__claude_ai_Atlassian_MCP__executeDestructive"
     ]
@@ -587,7 +589,7 @@ Source types (platform: @HOST@):
 - google-drive (standard, tools): Google Drive
 - jira (standard, tools): Jira
 - local-folder (standard, filesystem): Local folder
-- ms-teams (standard, mcp): Microsoft Teams
+- ms-teams (standard, tools): Microsoft Teams
 - onenote (standard, tools): OneNote
 - proton-files (standard, tools): Proton Drive
 - bookish (local, script, not available on @HOST@): Bookish (local test type)
@@ -599,7 +601,7 @@ Source types (platform: @HOST@):
 - google-drive (standard, tools): Google Drive
 - jira (standard, tools): Jira
 - local-folder (standard, filesystem): Local folder
-- ms-teams (standard, mcp): Microsoft Teams
+- ms-teams (standard, tools): Microsoft Teams
 - onenote (standard, tools): OneNote
 - proton-files (standard, tools): Proton Drive
 - bookish (local, script, not available on @HOST@): Bookish (local test type)

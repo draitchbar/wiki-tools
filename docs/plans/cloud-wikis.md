@@ -35,7 +35,7 @@ Not documented: whether a setup script can install a plugin, or whether `claude`
 - **`git push`:** the guard refuses it and the settings template denies it, but in the cloud nothing lasts unless pushed. A cloud wiki needs a push exception, and the wiki's content then lives on GitHub in branches the user merges.
 - **Protected files:** `.claude/settings.json` and `.claude/sources/` are written only by the user, in a terminal (`install-source-file.sh`). That stays a local step; a cloud session uses what is committed.
 - **Rules in user settings:** a reader's allow and deny rules kept in `~/.claude/settings.json` don't reach the cloud; they would have to be in the wiki's settings.
-- **The cache** (`~/.cache/wiki-sources/<wiki>/<key>/`) starts empty in every VM. Downloads and research run folders are working files, so that costs only time. Two types keep state there: `onenote` its page snapshots (it doesn't work in the cloud anyway, below), and `ms-teams` its folder snapshot `files.tsv`. Teams channels and chats use the cursor in the sync log and are unaffected, but the folder walk would fall back to the citations check on every run and no longer see changed or moved files.
+- **The cache** (`~/.cache/wiki-sources/<wiki>/<key>/`) starts empty in every VM. Downloads and research run folders are working files, so that costs only time. Two types keep state there: `onenote` its page snapshots (it doesn't work in the cloud anyway, below), and `ms-teams` its folder snapshot (`file-snapshot.sh`'s, used only when the reader's folder listing has no modified times). Teams channels and chats use the cursor in the sync log and are unaffected, but the folder walk would fall back to the citations check on every run and no longer see changed or moved files.
 - **Reading files:** fetched PDFs and Office files are read with `pdftotext` and LibreOffice (`skills/ingest/reading-files.md`), which the VM lacks until the setup script installs them (`poppler-utils`, `libreoffice`).
 - **Manual-only skills** (`ingest`, `clarify`, `lint`, …): usable only if the user can type them in the cloud UI, and by a scheduled task only if its prompt can start one. The first is unknown, the second doubtful.
 - **Unknown tools:** the guard refuses any tool it hasn't classified, so the cloud-only tools above would be refused until added to `hookjson.py`.
@@ -48,7 +48,7 @@ Not documented: whether a setup script can install a plugin, or whether `claude`
 | `raw` | Only what is committed: Markdown and text, `raw/ocr/*.txt`. `/wiki:init`'s `.gitignore` keeps PDFs, Office files and images out of the repo, so those never reach the VM; ingesting and auditing them stays local. |
 | `gmail` | Should work: claude.ai connector. To check: the tool names match the contract's (`mcp__claude_ai_…`). |
 | `google-drive` | Should work with the claude.ai Google Drive connector, if the instance's binding names the same tools and its rules are in the wiki's settings. |
-| `ms-teams` | Channels and chats should work; folders only in part (the cache, above). |
+| `ms-teams` | Should work with the claude.ai Microsoft 365 connector, if the instance's binding names the session's tools (`mcp__Microsoft_365__*` in a cloud session: re-bind there) and its rules are in the wiki's settings; folders only in part (the cache, above). |
 | `jira` | Should work with the Atlassian connector, if the instance's binding names the same tools and its rules are in the wiki's settings. |
 | `codebase` | No, as built. The clone would be a second repository in the session, which turns off the wiki's hooks and rules; the root in the instance is a per-machine path; `gh.sh` first asks `gh auth token -u <gh_user>`, which has no login to answer (`git.sh`'s fetch likewise), and its `gh pr` and `gh issue` calls are refused by the proxy. |
 | `local-folder` | No: the folders are on the user's machine. |
@@ -108,7 +108,7 @@ Run through one-off routines created with the routines API, which the session's 
 - **Starting the skill.** How a scheduled run starts a manual-only skill, if its prompt can't.
 - **Setup script.** Where it lives (a file in wiki-tools the user pastes into the environment), what it installs (the plugin, `poppler-utils`, LibreOffice), and how a plugin update reaches a cached snapshot (it is rebuilt when the script changes and after about seven days).
 - **Platform.** A way for contracts and `sources.sh due` to say "not available in the cloud" (`platforms` today names operating systems).
-- **Cache-held state:** the `ms-teams` folder snapshot.
+- **Cache-held state:** the `ms-teams` folder snapshot (`file-snapshot.sh`'s).
 - **Tools and connectors.** Classifying the cloud-only tools in `hookjson.py`; which connectors a task includes (all, by default).
 - **Settings.** Reader rules in the wiki's settings rather than the user's; `attribution.sessionUrl` off if the trailer isn't wanted.
 - **Auto mode** in place of the user's answer to a prompt.

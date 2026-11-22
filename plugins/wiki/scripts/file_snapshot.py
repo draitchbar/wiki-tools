@@ -1,10 +1,11 @@
-"""snapshot.py: the work of ms-teams/snapshot.sh (docs/adr.md, 4).
+"""file_snapshot.py: the work of scripts/file-snapshot.sh (docs/adr.md, 4).
 
-Compare a SharePoint folder walk with the previous one, and keep it for
-the next run. SharePoint folder listings carry no dates, so the
-ms-teams type finds new and changed files this way.
+Compare a folder walk with the previous one, and keep it for the next
+run. For a tool-neutral source (access: tools) whose reader lists a
+folder without modified times, this is how new and changed files are
+found; a reader that gives modified times doesn't need it.
 
-  snapshot.py <key> compare|save     (through snapshot.sh)
+  file_snapshot.py <key> compare|save     (through file-snapshot.sh)
 
 Files, in ~/.cache/wiki-sources/<wiki>/<key>/: walk.tsv (this run's walk,
 written by Claude: URI<TAB><folder label>/<path><TAB>size in bytes) and
@@ -12,11 +13,12 @@ files.tsv (the last saved walk, same format). compare prints one line per
 file that differs, keyed on the URI (new, changed, moved, removed), sorted
 by path, then a summary line, and changes nothing; save replaces files.tsv
 with walk.tsv and removes walk.tsv. Nothing outside that cache folder is
-read or written; the connector is never called.
+read or written; the reader is never called.
 
-Same output as the bash version except, on Windows, paths in messages are
-spelled as Python spells them (C:/Users/...), not as Git Bash does
-(/c/Users/...). Exit 1 on a refusal, 3 on an internal error.
+<key> is an instance of an access: tools type (standard or local). On
+Windows, paths in messages are spelled as Python spells them
+(C:/Users/...), not as Git Bash does (/c/Users/...). Exit 1 on a refusal,
+3 on an internal error.
 """
 
 from __future__ import annotations
@@ -26,7 +28,8 @@ import re
 import subprocess
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
+# -I leaves this folder off sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import contract  # noqa: E402
 import sourcelib  # noqa: E402
@@ -73,7 +76,7 @@ def _key(line: str) -> tuple[bytes, bytes]:
 
 def run(argv: list[str]) -> int:
     if len(argv) != 2:
-        raise Die("usage: snapshot.sh <key> <compare|save>")
+        raise Die("usage: file-snapshot.sh <key> <compare|save>")
     key, op = argv
     if op not in ("compare", "save"):
         raise Die("operation '%s' is not allowed; ops are: compare save" % op)
@@ -87,8 +90,12 @@ def run(argv: list[str]) -> int:
     inst = "%s/%s.md" % (contract.instance_dir(root), key)
     if not os.path.isfile(inst):
         raise Die("no instance '%s' (%s)." % (key, inst))
-    if contract.field(inst, "type") != "ms-teams":
-        raise Die("instance '%s' is not an ms-teams instance." % key)
+    try:
+        tc = contract.contract(root, contract.field(inst, "type"), contract.PLUGIN)
+    except contract.ContractError as e:
+        raise Die("instance '%s': %s" % (key, e)) from None
+    if contract.field(tc, "access") != "tools":
+        raise Die("instance '%s' is not of a tool-neutral type (access: tools)." % key)
     ok, _ = sourcelib.quietly(sourcelib.validate_instance, root, key, contract.PLUGIN)
     if not ok:
         raise Die("instance file %s doesn't validate; run /wiki:init to check it." % inst)
@@ -100,7 +107,7 @@ def run(argv: list[str]) -> int:
     if bad:
         raise Die("fix %s and run it again." % walk)
     if not wlines:
-        out("ms-teams snapshot: WARNING: walk.tsv is empty; a failed listing is more likely than an emptied "
+        out("file-snapshot: WARNING: walk.tsv is empty; a failed listing is more likely than an emptied "
             "library. Check the walk before saving.")
     if op == "compare":
         if os.path.isfile(snap):
@@ -109,7 +116,7 @@ def run(argv: list[str]) -> int:
                 raise Die("%s is malformed; delete it to start over (every file then counts as new)." % snap)
         else:
             srows = []
-            out("ms-teams snapshot: no files.tsv yet; every file is new.")
+            out("file-snapshot: no files.tsv yet; every file is new.")
         old = {u: (p, s) for u, p, s in srows}
         seen: set[str] = set()
         res: list[str] = []
@@ -134,7 +141,7 @@ def run(argv: list[str]) -> int:
                 rm += 1
         for ln in sorted(res, key=_key):
             out(ln)
-        out("ms-teams snapshot: summary: %d new, %d changed, %d moved, %d removed, %d unchanged" % (n, c, m, rm, u_))
+        out("file-snapshot: summary: %d new, %d changed, %d moved, %d removed, %d unchanged" % (n, c, m, rm, u_))
     else:
         try:
             with open(snap + ".new", "wb") as fh:
@@ -143,7 +150,7 @@ def run(argv: list[str]) -> int:
         except OSError:
             raise Die("cannot write %s" % snap) from None
         os.remove(walk)
-        out("ms-teams snapshot: saved %d files to %s" % (len(wlines), snap))
+        out("file-snapshot: saved %d files to %s" % (len(wlines), snap))
     return 0
 
 
@@ -151,10 +158,10 @@ def main(argv: list[str]) -> int:
     try:
         rc = run(argv)
     except Die as e:
-        sourcelib.err("ms-teams snapshot: %s" % e)
+        sourcelib.err("file-snapshot: %s" % e)
         rc = 1
     except Exception as e:
-        sourcelib.err("ms-teams snapshot: internal error: %s: %s" % (type(e).__name__, e))
+        sourcelib.err("file-snapshot: internal error: %s: %s" % (type(e).__name__, e))
         rc = 3
     sys.stdout.flush()
     sys.stdout.buffer.flush()
