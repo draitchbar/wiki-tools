@@ -86,7 +86,7 @@ Whoever fixes an issue gets this brief; a subagent knows nothing else, so write 
 - The smallest change that fixes the issue. Nothing else in the pull request; a doc that the fix makes false is updated in it.
 - A script, hook or wrapper change needs a test or fixture (`AGENTS.md`). For a bug: the test fails before the fix and passes after; report both runs.
 - A guard change says in the commit message and the pull request body whether any rule is weakened. A change of messages only says that too.
-- Green before the commit: `bash tests/run-tests.sh`, `ruff check .`; with a `.sh` change also `bash tests/run-tests.sh --e2e` and `shellcheck -S warning`. A tool that isn't installed is reported as not run, never as passed.
+- First, in the worktree: `uv sync --locked` (a new worktree has no `.venv`). Green before the commit: `bash tests/run-tests.sh` and `bash scripts/dev-lint.sh`; with a `.sh` change also `bash tests/run-tests.sh --e2e`. A check that couldn't run (no uv, say) is reported as not run, never as passed.
 - The commit: no personal data; the agent's own `Co-authored-by` trailer and no other; no `Claude-Session:` trailer or session link, and no model name outside that trailer, in the commit or the pull request.
 - `git push -u origin <branch>`, never `--no-verify`. If the hook, a guard or the push is blocked or fails: stop and report; no way around it.
 - The pull request, base `main`: what was wrong, the fix and why this one, any open choice decided and how to overrule it, any step beyond the issue's text, how it was checked (the results as they came out, and what wasn't run), `Closes #<n>`. A change under `.github/workflows/` or `scripts/pii*` is flagged for the owner (`CONTRIBUTING.md`, "Trust").

@@ -18,8 +18,6 @@ The index of plans: what is in progress, what is planned, and what is parked, ea
   - **B, a saved workflow `/evaluate-candidates`:** research → N evaluators → a ranked summary, the same way every run. After A. ~30 min. Open: number of evaluators; output name and format.
   - **D, Brave bookmarks as a wiki-local source type** in the house-renovation wiki, through `/wiki:add-source bookmarks` (the first wiki-local type): a wrapper reads Brave's `Bookmarks` JSON (Snap profile on Linux) and lists bookmarks in the configured folder added since `last_checked_<key>`; no page fetching. No change to wiki-tools; promote it to a standard type if it proves useful. ~1 h. Open: the folder name per wiki (CLAUDE.md); the Windows profile path later.
 
-- **A repository-local venv for the dev tools** (`docs/plans/dev-venv.md`, rewritten 2026-11-22): the standard layout, the dev tools (pytest, pytest-xdist, ruff, mypy, shellcheck-py) in a `dev` dependency group in `pyproject.toml`, locked with hashes in a committed `uv.lock`, installed into a gitignored `.venv` only by an explicit `uv sync --locked` (never `uv run`); `run-tests.sh` and a new `scripts/dev-lint.sh` fail when `.venv` is stale; CI on uv in every job; lock bumps by hand (`uv lock --upgrade`), no Dependabot. Reviewed 2026-11-22.
-
 - **Type checking for the plugin's Python** ([plan](plans/type-checking.md)): mypy, strict, module by module, as a dev-only tool (never the plugin's); the Python floor rises to 3.11 (mypy 2 no longer targets 3.9, and 3.10 is past its end of life). A spike first, then the floor and mypy in CI at a baseline level (the first PR, done 2026-11-21), then the modules to strict, the guard's parser first; ruff's `ANN` rules keep each finished module annotated.
 
 ## Parked, with triggers

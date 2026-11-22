@@ -6,9 +6,9 @@ Changing wiki-tools itself. The decisions behind the code are in `docs/adr.md`; 
 
 Edit this repo in an agent session opened in the clone, Claude Code or Copilot CLI ("Agents", below). The `wiki` plugin isn't enabled here, so the guards don't get in the way.
 
-0. Once per clone, switch on the personal-data check: `git config core.hooksPath .githooks` ("Personal data", below). `run-tests.sh` says so while it is off.
+0. Once per clone, switch on the personal-data check: `git config core.hooksPath .githooks` ("Personal data", below). `run-tests.sh` says so while it is off. Once per clone and per worktree, make the dev tools' venv: `uv sync --locked` ("Dev environment", below).
 1. Work on a branch. Every change to a script, a hook or a wrapper comes with a test: a case in a `tests/test_*.py` module, or a guard fixture in `tests/fixtures/<push|guard>/<pass|block>-<case>.json` (with a `.msg` beside it for the exact message).
-2. `bash tests/run-tests.sh` must pass (pytest needs installing once: `python -m pip install --user --upgrade pytest`, on Debian/Ubuntu `sudo apt install python3-pytest`). A change to a launcher or another `.sh` file also needs `bash tests/run-tests.sh --e2e`, which runs the in-process tests through the launchers. `bash tests/run-tests.sh -k guard -x` runs a selection (pytest only). With `pytest-xdist` installed (optional) the modules run in parallel; `-n 0` runs serially.
+2. `bash tests/run-tests.sh` must pass. A change to a launcher or another `.sh` file also needs `bash tests/run-tests.sh --e2e`, which runs the in-process tests through the launchers. `bash tests/run-tests.sh -k guard -x` runs a selection (pytest only). The modules run in parallel (pytest-xdist); `-n 0` runs serially.
 3. Lint (below), commit, push the branch and open a pull request.
 4. After the merge, on each machine: `git pull`, then start a new wiki session or run `/reload-plugins`.
 
@@ -40,14 +40,24 @@ Once the review has no blocking finding open, its summary comment starts with a 
 Lint must be clean before committing:
 
 ```bash
-ruff check .                                          # Python (ruff.toml)
-mypy                                                  # Python types (mypy.ini)
-git ls-files -z '*.sh' | xargs -0 shellcheck -S warning   # bash (.shellcheckrc)
+bash scripts/dev-lint.sh
 ```
 
-Install them once: `python -m pip install --user --upgrade ruff "mypy>=2,<3"` (shellcheck from your package manager, or `shellcheck-py`). mypy runs from the repo root and checks the files `mypy.ini` lists: strict, except the modules its relaxed sections name until `docs/plans/type-checking.md` makes them strict. Like ruff and pytest it is a dev tool only; the plugin never imports it. Annotations in the plugin's Python follow `AGENTS.md`'s run-time rule: `from __future__ import annotations`, and `typing` only under `if TYPE_CHECKING:`, so a hook never pays for importing it.
+It runs what CI's lint job runs, each step even after one fails, and names the failed ones at the end: `ruff check .` (Python, `ruff.toml`), `mypy` (Python types, `mypy.ini`), `shellcheck -S warning` on every tracked `*.sh` (`.shellcheckrc`), and no CRLF in any tracked file. The tools come from `.venv` ("Dev environment"). mypy runs from the repo root and checks the files `mypy.ini` lists: strict, except the modules its relaxed sections name until `docs/plans/type-checking.md` makes them strict. Like ruff and pytest it is a dev tool only; the plugin never imports it. Annotations in the plugin's Python follow `AGENTS.md`'s run-time rule: `from __future__ import annotations`, and `typing` only under `if TYPE_CHECKING:`, so a hook never pays for importing it.
 
 Keep LF line endings everywhere (`.gitattributes`).
+
+## Dev environment
+
+The dev tools (pytest, pytest-xdist, ruff, mypy, shellcheck-py) are the `dev` dependency group in `pyproject.toml`, locked with hashes in `uv.lock`, and installed into a `.venv` in the clone (gitignored) by uv. The plugin never uses them: it is standard library only. Why: `docs/adr.md`, 19.
+
+- **Prerequisites:** Python 3.11 or later and uv 0.13.7 or later, both installed by you ([uv's installation page](https://docs.astral.sh/uv/getting-started/installation/); a distribution's package may be older). Python: on Linux your distribution's `python3`; on Windows the python.org installer.
+- **Setup:** `uv sync --locked`, once per clone and per worktree (a worktree has no `.venv`; uv fills it from its cache). `uv sync --locked --python 3.11` makes it on a given Python. `--locked` fails when `uv.lock` doesn't match `pyproject.toml`, instead of quietly re-resolving.
+- **Stale:** `run-tests.sh` and `dev-lint.sh` check `.venv` against `uv.lock` first (`uv sync --locked --check`, offline, no install) and stop when it is missing or out of date, with the command to run, usually `uv sync --locked` (after a pull that changed `uv.lock`, say).
+- **Downloads off:** uv never downloads a Python here (`python-downloads = "never"` in `pyproject.toml`; CI sets `UV_PYTHON_DOWNLOADS=never` too), and installs wheels only (`no-build`). Don't set `UV_PYTHON_DOWNLOADS` yourself (it overrides the file) or `UV_PROJECT_ENVIRONMENT` (the scripts use `.venv` and refuse it).
+- **Never `uv run`** in scripts, hooks, docs or by hand: it syncs implicitly. The scripts call `.venv`'s tools directly, without activation.
+- **Changing a tool:** edit the `dev` group in `pyproject.toml`, run `uv lock`, commit both files. **A version bump:** `uv lock --upgrade` (or `--upgrade-package <name>`), run the tests and lint, commit `uv.lock`. A bump of uv itself: `required-version` in `pyproject.toml` and `version:` under `setup-uv` in `ci.yml` together (a test checks they agree).
+- **Outside the lock:** `WIKI_TOOLS_DEV_VENV=off` makes both scripts take the tools from PATH (`run-tests.sh` then finds Python as the plugin's scripts do, and needs pytest installed there), and they say so. For a session without uv only; a report from such a run says it ran outside the lock.
 
 ## Agents
 
