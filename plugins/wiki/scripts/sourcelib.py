@@ -611,6 +611,36 @@ def rules_check(need: list[str], reader: Container[str], have: list[str],
             blocked_rules(own, have) + blocked_rules(bound, both))
 
 
+# The allow rules stale_rules may report: a source script, as contracts'
+# read_tools name it (standard */sources/<type>/<script>.sh, local
+# .claude/sources/types/<type>/<script>.sh), and an MCP tool.
+_SOURCE_SCRIPT = re.compile(r"Bash\(bash (\S*/)?sources/(types/)?[A-Za-z0-9_-]+/[A-Za-z0-9_-]+\.sh( \*)?\)\Z", re.ASCII)
+
+
+def stale_rules(need: Iterable[str], have: Iterable[str]) -> list[str]:
+    """The allow rules in have (settings_rules) for a source script or an
+    MCP tool that no needed allow rule (needed_rules) is, in either form:
+    left over from a source or a reader that is gone. A server rule
+    (mcp__<server>, mcp__<server>__*) counts as used by its tools. Every
+    other rule is never stale. In have's order, no repeats."""
+    used: set[str] = set()
+    for lst, r, orig in map(_fields, need):
+        if lst == "allow":
+            used.update((r, orig))
+    res: list[str] = []
+    for r in _by_list(have).get("allow", []):
+        if r in used or r in res:
+            continue
+        if r.startswith("mcp__"):
+            base = r[:-1] if r.endswith("__*") else r + "__"
+            if any(u.startswith(base) for u in used):
+                continue
+        elif not _SOURCE_SCRIPT.match(r):
+            continue
+        res.append(r)
+    return res
+
+
 _PATH_RULE = re.compile(r"(Read|Edit)\((.*)\)\Z", re.S)
 
 
