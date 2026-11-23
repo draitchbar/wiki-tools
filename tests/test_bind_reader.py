@@ -126,9 +126,11 @@ def test_ms_teams_contract():
 def test_gmail_contract():
     """gmail (docs/adr.md 23): read-only, no Gmail write at all; Bind names
     the connector's denies (writes, label writes, draft reads) on both
-    surfaces; List new searches a 7-day overlap, keeps the old label's
-    threads out and drops threads by the thread IDs in the sync-log
-    history, which Mark ingested writes in the same form."""
+    surfaces; List new searches a 7-day overlap with no old-label
+    exclusion (issue #87: it hid new replies in threads labelled before the
+    move) and drops threads by the thread IDs in the sync-log history, which
+    Mark ingested writes in the same form, or, for a thread read before the
+    move, by the dates pages' sources: cite."""
     text = (SOURCES / "gmail" / "SOURCE.md").read_text(encoding="utf-8")
     check, bind = _section(text, "Check"), _section(text, "Bind")
     new, mark = _section(text, "List new"), _section(text, "Mark ingested")
@@ -174,8 +176,15 @@ def test_gmail_contract():
     resolve = _section(text, "Resolve citation")
     assert "dated on or after the cited message date" in resolve and "subject matches" in resolve
     assert "7 days before `last_checked_<key>`" in new and "8 days before `last_checked_<key>`" in new
-    assert "after:2026/08/29" in new and "-label:wiki-ingested-<wiki>" in new
-    assert "**list labels**" in new and "`; thread IDs: …`" in new and "**later than**" in new
+    assert "after:2026/08/29" in new and "-label:wiki-ingested" not in new
+    assert "`; thread IDs: …`" in new and "**later than**" in new
+    # A thread read before the move (no recorded ID, maybe still labelled)
+    # counts as ingested up to the dates pages' sources: cite; its newest
+    # message date comes from thread dates, so a new reply in it is found.
+    assert "counts as ingested up to the cited dates" in new
+    # Cited dates are days: a reply later on the cited day is read too.
+    assert "on the newest cited date or later" in new
+    assert "come back once" not in text
     for name in ("Check", "List new", "Fetch", "Mark ingested", "Cite", "Resolve citation"):
         assert "mcp__" not in _section(text, name), name
     assert "label_thread" not in text.split("## Bind", 1)[0] and "create_label" not in mark
