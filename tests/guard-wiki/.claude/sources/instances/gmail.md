@@ -8,6 +8,7 @@ reader:
   - search threads: mcp__claude_ai_Gmail__search_threads
   - read thread: mcp__claude_ai_Gmail__get_thread
   - list labels: mcp__claude_ai_Gmail__list_labels
+  - thread dates: mcp__claude_ai_Gmail__get_thread
   - read message: mcp__claude_ai_Gmail__get_message
   - download attachment: mcp__claude_ai_Gmail__download_gmail_attachment
 reader_deny:
@@ -40,4 +41,4 @@ reader_deny:
 ---
 
 ## Reader
-The claude.ai Gmail connector, bound 2026-11-23. search threads: `query`, `pageSize: 50`, `view: THREAD_VIEW_SUMMARY`, following the next page token as `pageToken`; read thread: `threadId`; read message: `messageId`.
+The claude.ai Gmail connector, bound 2026-11-23. search threads: `query`, `pageSize: 50`, `view: THREAD_VIEW_SUMMARY`, following the next page token as `pageToken`; read thread: `threadId`; thread dates: `threadId`, `messageFormat: METADATA_ONLY`; read message: `messageId`.

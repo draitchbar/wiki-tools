@@ -70,7 +70,7 @@ GMAIL_DENY = ("send_message", "reply", "forward", "create_draft", "update_draft"
               "unlabel_message", "unlabel_thread", "update_message_labels",
               "apply_sensitive_message_label", "apply_sensitive_thread_label", "list_drafts", "get_draft")
 GMAIL_OPS = {"search threads": "search_threads", "read thread": "get_thread", "list labels": "list_labels",
-             "read message": "get_message", "download attachment": "download_gmail_attachment"}
+             "thread dates": "get_thread", "read message": "get_message", "download attachment": "download_gmail_attachment"}
 GMAIL_READER = ("reader:\n" + "".join("  - %s: %s%s\n" % (o, GMAIL_T, t) for o, t in GMAIL_OPS.items())
                 + "reader_deny:\n" + "".join("  - %s%s\n" % (GMAIL_T, t) for t in GMAIL_DENY))
 
