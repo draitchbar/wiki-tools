@@ -137,6 +137,15 @@ def test_gmail_contract():
     assert "`mcp__claude_ai_Gmail__`" in bind and "`mcp__Gmail__`" in bind
     assert "THREAD_VIEW_SUMMARY" in bind and "**Stop**" in bind
     assert "**search threads**, **read thread** or **list labels**" in check
+    # The connector's search gives no message dates in any view: List new
+    # takes an already-read thread's newest date from thread dates (a
+    # metadata-only get_thread), or read thread where nothing can.
+    assert "No view gives a message `date`" in bind
+    assert "**thread dates**: `get_thread` with `threadId` and `messageFormat: METADATA_ONLY`" in bind
+    assert "**thread dates** on the safe thread's ID" in bind
+    assert "A thread that no row names needs no date" in new
+    assert "otherwise with **thread dates**" in new and "**read thread** where no tool can" in new
+    assert "If none can **thread dates**" in check
     form = "`; thread IDs: <id>, <id>`"
     assert form in text.split("## Bind", 1)[0]
     assert "Nothing is written at Gmail" in mark and form in mark and "`raw/sync-log.md`" in mark

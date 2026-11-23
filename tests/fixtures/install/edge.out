@@ -21,6 +21,7 @@ New file .claude/sources/instances/gmail.md:
     - search threads: mcp__claude_ai_Gmail__search_threads
     - read thread: mcp__claude_ai_Gmail__get_thread
     - list labels: mcp__claude_ai_Gmail__list_labels
+    - thread dates: mcp__claude_ai_Gmail__get_thread
     - read message: mcp__claude_ai_Gmail__get_message
     - download attachment: mcp__claude_ai_Gmail__download_gmail_attachment
   reader_deny:
@@ -100,7 +101,7 @@ rc=0
 Changes to .claude/sources/instances/gmail.md:
 --- current
 +++ pasted
-@@ -36,3 +36,4 @@
+@@ -37,3 +37,4 @@
    - mcp__claude_ai_Gmail__list_drafts
    - mcp__claude_ai_Gmail__get_draft
  ---
@@ -179,7 +180,7 @@ rc=1
 Changes to .claude/sources/instances/gmail.md:
 --- current
 +++ pasted
-@@ -1,39 +1,5 @@
+@@ -1,40 +1,5 @@
  ---
  key: gmail
  type: gmail
@@ -188,6 +189,7 @@ Changes to .claude/sources/instances/gmail.md:
 -  - search threads: mcp__claude_ai_Gmail__search_threads
 -  - read thread: mcp__claude_ai_Gmail__get_thread
 -  - list labels: mcp__claude_ai_Gmail__list_labels
+-  - thread dates: mcp__claude_ai_Gmail__get_thread
 -  - read message: mcp__claude_ai_Gmail__get_message
 -  - download attachment: mcp__claude_ai_Gmail__download_gmail_attachment
 -reader_deny:
@@ -238,7 +240,7 @@ rc=0
 Changes to .claude/sources/instances/gmail.md:
 --- current
 +++ pasted
-@@ -36,4 +36,4 @@
+@@ -37,4 +37,4 @@
    - mcp__claude_ai_Gmail__list_drafts
    - mcp__claude_ai_Gmail__get_draft
  ---
@@ -477,7 +479,7 @@ rc=0
 Changes to .claude/sources/instances/gmail.md:
 --- current
 +++ pasted
-@@ -36,4 +36,4 @@
+@@ -37,4 +37,4 @@
    - mcp__claude_ai_Gmail__list_drafts
    - mcp__claude_ai_Gmail__get_draft
  ---

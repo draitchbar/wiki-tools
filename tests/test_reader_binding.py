@@ -290,6 +290,13 @@ def test_gmail_required_missing(tmp_path):
     assert len(got) == 1 and "doesn't bind 'read thread', a required operation" in got[0], got
 
 
+def test_gmail_thread_dates_recommended(tmp_path):
+    """thread dates is recommended: a binding without it (as bound before
+    it existed) stays valid; List new then takes dates from read thread."""
+    reader = ["%s: %s%s" % (o, GMAIL_T, t) for o, t in GMAIL_OPS.items() if o != "thread dates"]
+    assert sourcelib.reader_errors(_inst(tmp_path, "gmail", reader), GMAIL) == []
+
+
 def test_gmail_settings_key(tmp_path, cli):
     """`settings gmail --key gmail` allows the bound read tools and denies
     the write tools and draft reads; it never allows a label write."""
