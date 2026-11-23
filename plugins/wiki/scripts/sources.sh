@@ -19,8 +19,10 @@
 #           all instances. Cache rules (~/.cache/wiki-sources/...) are
 #           narrowed to <wiki>/<key>/ per instance, or for --key <key>.
 # check-settings  .claude/settings.json: well-formed JSON, the rules the
-#           instances need, duplicates, rules in both allow and deny, and
-#           broad cache rules. Exit 1 on a problem other than the last.
+#           instances need, duplicates, rules in both allow and deny,
+#           stale allow rules (source scripts and MCP tools no instance
+#           uses) and broad cache rules. Exit 1 on a problem other than
+#           the last two, which are only reported.
 #
 # Run it from inside a wiki (any directory of its git repo). Writes nothing.
 #
