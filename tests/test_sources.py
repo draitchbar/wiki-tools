@@ -32,6 +32,7 @@ LIST_ETC = [
     ("catalog", "- bookish (local, script): Bookish (local test type)", ["catalog"]),
     ("contract", "type: gmail", ["contract", "gmail"]),
     ("settings-allow", '"Bash(bash .claude/sources/types/bookish/fetch.sh *)",', ["settings"]),
+    # gmail's deny rules come from its instance's reader binding (reader_deny).
     ("settings-deny", '"mcp__claude_ai_Gmail__send_message",', ["settings"]),
     ("settings-type", '"Bash(bash */sources/local-folder/read.sh *)"', ["settings", "local-folder"]),
     # proton-files (access: tools): only the deny rule for the CLI its
@@ -43,6 +44,14 @@ LIST_ETC = [
     ("settings-gdrive-note", "google-drive (access: tools) names no tools", ["settings", "google-drive"]),
     ("catalog-gdrive", "- google-drive (standard, tools): Google Drive", ["catalog"]),
     ("catalog-teams", "- ms-teams (standard, tools): Microsoft Teams", ["catalog"]),
+    # gmail (access: tools, docs/adr.md 23): no tool rules until an instance
+    # is bound; guard-wiki's gmail binds the connector, label writes and
+    # draft reads denied.
+    ("catalog-gmail", "- gmail (standard, tools): Gmail", ["catalog"]),
+    ("settings-gmail-note", "gmail (access: tools) names no tools", ["settings", "gmail"]),
+    ("settings-gmail-key", '"mcp__claude_ai_Gmail__download_gmail_attachment"', ["settings", "gmail", "--key", "gmail"]),
+    ("settings-gmail-key-deny-label", '"mcp__claude_ai_Gmail__label_thread",', ["settings", "gmail", "--key", "gmail"]),
+    ("settings-gmail-key-deny-drafts", '"mcp__claude_ai_Gmail__list_drafts",', ["settings", "gmail", "--key", "gmail"]),
     # jira (access: tools): no tool rules; the reader is settled per wiki.
     ("catalog-jira", "- jira (standard, tools): Jira", ["catalog"]),
     ("settings-jira-note", "jira (access: tools) names no tools", ["settings", "jira"]),
@@ -88,7 +97,9 @@ COUNTS = [  # name, args, a regex no line may match
     ("settings-gdrive-no-tools", ["settings", "google-drive"], r"mcp__|Bash\(|wiki-sources"),
     ("settings-teams-no-tools", ["settings", "ms-teams"], r"mcp__|Bash\("),
     ("settings-tools-empty", ["settings", "onenote"], r"mcp__|Bash\("),
-    ("settings-tools-quiet", ["settings", "gmail"], r"access: tools"),
+    ("settings-gmail-no-tools", ["settings", "gmail"], r"mcp__|Bash\(|wiki-sources"),
+    # A type that isn't access: tools prints no tools note.
+    ("settings-tools-quiet", ["settings", "local-folder"], r"access: tools"),
     # Bound: no note for jira; executeRead once.
     ("settings-reader-no-note", ["settings"], r"^jira \(access: tools\)"),
     ("show-bound-no-check", ["show", "tracker"], r"^Check needed"),
@@ -175,6 +186,7 @@ SCK = [  # name, exit, text, change to the settings `settings` prints
     ("no-comma", 1, "NOT valid JSON: expected , or ] (a missing comma?)", _first(r'",$', '"')),
     ("unclosed", 1, "NOT valid JSON: unexpected end of file", lambda t: "\n".join(t.split("\n")[:-2]) + "\n"),
     ("missing", 1, MISSING_CODE, _drop(lambda ln: 'wiki-sources/sw/code/**)"' in ln and "Edit" in ln)),
+    # The Gmail send_message deny comes from guard-wiki's gmail reader_deny.
     ("dup", 1, "duplicates:", _lines(lambda ln: re.sub(r'^(      "mcp__claude_ai_Gmail__send_message")(,?)$',
                                                       r"\1,\n\1\2", ln))),
     ("conflict", 1, "in both allow and deny",

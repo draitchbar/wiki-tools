@@ -8,10 +8,11 @@ import pytest
 
 import contract
 import sourcelib
-from conftest import PLUGIN, TESTS, copytree, git, home_env, posix, write
+from conftest import GMAIL_DENY, GMAIL_OPS, GMAIL_T, PLUGIN, TESTS, copytree, git, home_env, posix, write
 
 JIRA = posix(PLUGIN / "sources" / "jira" / "SOURCE.md")
 GMAIL = posix(PLUGIN / "sources" / "gmail" / "SOURCE.md")
+CODEBASE = posix(PLUGIN / "sources" / "codebase" / "SOURCE.md")
 GDRIVE = posix(PLUGIN / "sources" / "google-drive" / "SOURCE.md")
 T = "mcp__claude_ai_Atlassian_MCP__"
 OK = ["search: %ssearchJiraIssuesUsingJql" % T, "read issue: %sgetJiraIssue" % T,
@@ -78,8 +79,10 @@ def test_reader_errors(reader, deny, want, tmp_path):
 
 
 def test_reader_only_tools(tmp_path):
-    f = _inst(tmp_path, "gmail", OK)
-    assert sourcelib.reader_errors(f, GMAIL) == [
+    """A contract that isn't access: tools (codebase; gmail was the example
+    until it became tool-neutral, docs/adr.md 23) takes no binding."""
+    f = _inst(tmp_path, "codebase", OK)
+    assert sourcelib.reader_errors(f, CODEBASE) == [
         "only an access: tools instance has a reader binding ('reader', 'reader_deny')"]
 
 
@@ -258,3 +261,75 @@ def test_teams_all_operations_bound(tmp_path, cli):
     o = cli("sources", "settings", "ms-teams", "--key", "teams", cwd=w).out.decode()
     for t in ("teams_list_chats", "chat_message_search", "sharepoint_search"):
         assert '"%s%s"' % (M, t) in o, o
+
+
+# gmail (access: tools, docs/adr.md 23): the contract names no tools; the
+# connector binding is guard-wiki's gmail.md. Gmail is read-only: the
+# binding denies the label writes the old contract allowed, and the draft
+# reads.
+
+GW_GMAIL = TESTS / "guard-wiki/.claude/sources/instances/gmail.md"
+
+
+def test_gmail_connector_binding_valid():
+    assert sourcelib.reader_errors(posix(GW_GMAIL), GMAIL) == []
+
+
+def test_gmail_operations_match_connector():
+    """The contract's operations are the connector's (show scope aside:
+    it has none), and the shared binding covers all the others."""
+    ops = [contract.operation(o)[0] for o in contract.list_(GMAIL, "operations")]
+    assert sorted(ops) == sorted([*GMAIL_OPS, "show scope"])
+    assert contract.list_(GMAIL, "read_tools") == contract.list_(GMAIL, "bookkeeping_tools") == []
+    assert contract.list_(GMAIL, "forbidden_tools") == []
+
+
+def test_gmail_required_missing(tmp_path):
+    reader = ["%s: %s%s" % (o, GMAIL_T, t) for o, t in GMAIL_OPS.items() if o != "read thread"]
+    got = sourcelib.reader_errors(_inst(tmp_path, "gmail", reader), GMAIL)
+    assert len(got) == 1 and "doesn't bind 'read thread', a required operation" in got[0], got
+
+
+def test_gmail_settings_key(tmp_path, cli):
+    """`settings gmail --key gmail` allows the bound read tools and denies
+    the write tools and draft reads; it never allows a label write."""
+    w = copytree(TESTS / "guard-wiki", tmp_path / "gw")
+    git(w, "init", "-q")
+    o = cli("sources", "settings", "gmail", "--key", "gmail", cwd=w).out.decode()
+    allow = o[o.index('"allow"'):o.index('"deny"')]
+    deny = o[o.index('"deny"'):]
+    for t in GMAIL_OPS.values():
+        assert '"%s%s"' % (GMAIL_T, t) in allow, o
+    for t in GMAIL_DENY:
+        assert '"%s%s"' % (GMAIL_T, t) in deny, (t, o)
+    for t in ("create_label", "label_thread", "list_drafts", "get_draft"):
+        assert '"%s%s"' % (GMAIL_T, t) not in allow, (t, o)
+
+
+def test_check_settings_gmail_label_deny_missing(rw, cli):
+    w, home, env, sjson = rw
+    rule = '"%slabel_thread"' % GMAIL_T
+    assert rule in sjson
+    write(w / ".claude/settings.json", sjson.replace("      %s,\n" % rule, "").replace("      %s\n" % rule, ""))
+    rc, o = _check(cli, w, env)
+    assert rc == 1 and "deny: %slabel_thread" % GMAIL_T in o, o
+
+
+def test_check_settings_gmail_old_label_allow(rw, cli):
+    """A wiki moving from the old contract still allows label_thread: it
+    is now also denied, which check-settings reports until it is removed."""
+    w, home, env, sjson = rw
+    write(w / ".claude/settings.json", sjson.replace('"allow": [', '"allow": [\n      "%slabel_thread",' % GMAIL_T, 1))
+    rc, o = _check(cli, w, env)
+    assert rc == 1 and "in both allow and deny" in o and "%slabel_thread" % GMAIL_T in o, o
+
+
+def test_show_gmail_unbound(tmp_path, cli):
+    """Without its reader binding, the gmail instance asks for Check."""
+    w = copytree(TESTS / "guard-wiki", tmp_path / "ug")
+    git(w, "init", "-q")
+    write(w / ".claude/sources/instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: Receipts\nstate:\n"
+          "  - last_checked\n---\n")
+    o = cli("sources", "show", "gmail", cwd=w).merged.decode("utf-8", errors="surrogateescape")
+    assert ("Check needed: gmail names no tools (access: tools) and this instance has no reader binding yet; "
+            "/wiki:bind-reader gmail drafts it.") in o, o

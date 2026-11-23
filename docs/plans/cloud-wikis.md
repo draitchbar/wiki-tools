@@ -46,10 +46,10 @@ Not documented: whether a setup script can install a plugin, or whether `claude`
 | Source | In the cloud |
 |---|---|
 | `raw` | Only what is committed: Markdown and text, `raw/ocr/*.txt`. `/wiki:init`'s `.gitignore` keeps PDFs, Office files and images out of the repo, so those never reach the VM; ingesting and auditing them stays local. |
-| `gmail` | The connector loads, but its tools are named `mcp__Gmail__*`, not the contract's `mcp__claude_ai_Gmail__*` (seen 2026-11-22), so no deny rule matches: **Connector names**, below. |
+| `gmail` | The connector loads, with its tools named `mcp__Gmail__*` (seen 2026-11-22). The contract is tool-neutral and Gmail read-only now (`docs/adr.md`, 23), so a cloud wiki binds again there with `/wiki:bind-reader`: **Connector names**, below. |
 | `google-drive` | Should work with the claude.ai Google Drive connector, if the instance's binding names the same tools and its rules are in the wiki's settings. |
 | `ms-teams` | Should work with the claude.ai Microsoft 365 connector, if the instance's binding names the session's tools (`mcp__Microsoft_365__*` in a cloud session: re-bind there) and its rules are in the wiki's settings; folders only in part (the cache, above). |
-| `jira` | Not today: the Atlassian connector failed to connect in a cloud session (2026-11-22, Claude Code 2.1.330). Once it connects, the same naming question as `gmail`. |
+| `jira` | Not today: the Atlassian connector failed to connect in a cloud session (2026-11-22, Claude Code 2.1.330). Once it connects, the same binding as `gmail`. |
 | `codebase` | No, as built. The clone would be a second repository in the session, which turns off the wiki's hooks and rules; the root in the instance is a per-machine path; `gh.sh` first asks `gh auth token -u <gh_user>`, which has no login to answer (`git.sh`'s fetch likewise), and its `gh pr` and `gh issue` calls are refused by the proxy. |
 | `local-folder` | No: the folders are on the user's machine. |
 | `proton-files`, `onenote` | No: their readers need a local sign-in. |
@@ -104,7 +104,7 @@ Run through one-off routines created with the routines API, which the session's 
 
 - **Never unguarded.** A wiki opened in an environment without the script, or after a failed setup, has no guard but every connector. Something in the repo itself must notice (a project hook in the wiki's settings that refuses when `CLAUDE_CODE_REMOTE` is `true` and the plugin isn't there, say).
 - **Push.** An exception to the guard's first rule when `CLAUDE_CODE_REMOTE` is `true`. Text matching can't hold a push to a `claude/` branch (`git push origin HEAD:main` is one refspec away), so branch protection on the default branch that the owner can't bypass is a prerequisite, if pushes are to stay off it; whether a private repository on a free plan has it needs checking. The settings deny rule can't be conditional, so it would go altogether. This weakens a guard (irreversible harm is why it is guarded, `docs/adr.md`, 3) and must say so in its commit.
-- **State and branches.** Each run starts from the default branch, so a run whose branch isn't merged is repeated by the next, and two unmerged branches both change `raw/sync-log.md` and `open-questions.md`. Gmail's `wiki-ingested` label is written at Gmail, so a discarded branch loses those threads silently. Weigh pushing straight to the default branch against this.
+- **State and branches.** Each run starts from the default branch, so a run whose branch isn't merged is repeated by the next, and two unmerged branches both change `raw/sync-log.md` and `open-questions.md`. Gmail is read-only (`docs/adr.md`, 23), so a discarded branch loses nothing at Gmail: the next run repeats the threads from `last_checked`.
 - **Starting the skill.** How a scheduled run starts a manual-only skill, if its prompt can't.
 - **Setup script.** Where it lives (a file in wiki-tools the user pastes into the environment), what it installs (the plugin, `poppler-utils`, LibreOffice), and how a plugin update reaches a cached snapshot (it is rebuilt when the script changes and after about seven days).
 - **Platform.** A way for contracts and `sources.sh due` to say "not available in the cloud" (`platforms` today names operating systems).
@@ -123,7 +123,7 @@ Claude Code has no settings that change with the environment, so the environment
 
 - **Locally:** unchanged. The wiki's committed `.claude/settings.json` holds the local names' rules, the same on every machine.
 - **In the cloud:** the environment's setup script writes the cloud names' allow and deny rules into the clone's `.claude/settings.local.json` (gitignored, so per machine, as locally). The repository is cloned before the script runs (`tests/live/results.md`, "Cloud sessions", run 6). `sources.sh settings` would generate the lines; `check-settings` already reads both settings files.
-- **The contract** names the cloud tools in a list of their own, not mixed into `read_tools`, `bookkeeping_tools` and `forbidden_tools`; a bound instance likewise in its `reader` and `reader_deny`.
+- **The contract:** the tool-neutral types (`gmail`, `google-drive`, `ms-teams`, `jira`) name no tools, so the cloud names go only in a bound instance's `reader` and `reader_deny`; a type that names tools would list the cloud tools apart from `read_tools`, `bookkeeping_tools` and `forbidden_tools`.
 - **Without the script** there are no cloud rules, but no plugin or guard either: the **Never unguarded** item above covers both.
 
 Rejected: both name sets in the committed `settings.json` (works, since denying a tool that doesn't exist is harmless, but mixes two environments in one file); a guard rule treating `mcp__claude_ai_X__` and `mcp__X__` as the same server (rests on an undocumented naming convention); a second instance per environment (doubles the state).

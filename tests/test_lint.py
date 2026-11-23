@@ -7,7 +7,7 @@ import re
 
 import pytest
 
-from conftest import TESTS, copytree, git, norm, recorded, write
+from conftest import GMAIL_READER, TESTS, copytree, git, home_env, norm, posix, recorded, write
 
 TODAY = {"WIKI_LINT_TODAY": "2026-10-16"}
 
@@ -270,7 +270,10 @@ def edge(tmp_path_factory, cli):
     case("lint", w, "lint", TODAY)
     case("lint-bad-today", w, "lint", {"WIKI_LINT_TODAY": "16-10-2026"})
 
-    write(w / ".claude/sources/instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: X\n---\n")
+    # Bound (gmail is access: tools, docs/adr.md 23), so wiki-check below
+    # still finds its permission rules missing.
+    write(w / ".claude/sources/instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: X\n" + GMAIL_READER
+          + "---\n")
     write(w / ".claude/sources/instances/bad.md", "---\nkey: bad\ntype: nosuch\n---\n")
     write(w / "raw/sync-log.md", "last_checked_raw: never\nlast_checked_web: 2026-01-01\n"
           "last_checked_gmail: soon\r\nlast_checked_bad: 2026-02-30\nlast_checked_x:\nlast_checked_tail: never")
@@ -290,7 +293,9 @@ def edge(tmp_path_factory, cli):
     write(w / "templates/with space.md", "x\n")
     git(w, "add", "CLAUDE.md")
     write(w / "CLAUDE.md", (w / "CLAUDE.md").read_bytes() + b"y\n")
-    cfg = {"CLAUDE_CONFIG_DIR": str(t / "cfg-none")}
+    # An empty HOME too: reader rules in the user's settings would count.
+    (t / "home-none").mkdir()
+    cfg = dict(home_env(posix(t / "home-none")), HOME=posix(t / "home-none"), CLAUDE_CONFIG_DIR=str(t / "cfg-none"))
     case("wiki-check", w, "wiki-check", dict(TODAY, **cfg))
     case("wiki-check-bad-today", w, "wiki-check", dict(cfg, WIKI_LINT_TODAY="bad"))
     write(w / ".claude/settings.json", '{"permissions": {"allow": [,]}}')

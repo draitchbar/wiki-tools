@@ -1,6 +1,6 @@
 ---
 name: bind-reader
-description: Bind a tool-neutral source instance (a type with access tools, e.g. jira, onenote, proton-files, google-drive, ms-teams) to the reader on this machine. Finds the tools that do the contract's operations, has the user deny the reader's write tools, tests each operation with one small read-only call, and drafts the instance file's Reader section and the settings lines for the user to install. Use when an ingest's Check finds no Reader section or a tool it names is gone, or when the user changes reader or connector.
+description: Bind a tool-neutral source instance (a type with access tools, e.g. jira, onenote, proton-files, google-drive, ms-teams, gmail) to the reader on this machine. Finds the tools that do the contract's operations, has the user deny the reader's write tools, tests each operation with one small read-only call, and drafts the instance file's Reader section and the settings lines for the user to install. Use when an ingest's Check finds no Reader section or a tool it names is gone, or when the user changes reader or connector.
 argument-hint: "<key>, e.g. jira"
 allowed-tools:
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/sources.sh *)

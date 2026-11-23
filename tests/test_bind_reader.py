@@ -8,7 +8,7 @@ import re
 import pytest
 
 import contract
-from conftest import PLUGIN, posix
+from conftest import GMAIL_DENY, PLUGIN, posix
 
 SOURCES = PLUGIN / "sources"
 SKILL = PLUGIN / "skills" / "bind-reader" / "SKILL.md"
@@ -26,7 +26,7 @@ def _section(text, name):
 
 @pytest.mark.checks("bind-reader/tool-neutral-types")
 def test_tool_neutral_types():
-    assert _tool_neutral() == ["google-drive", "jira", "ms-teams", "onenote", "proton-files"]
+    assert _tool_neutral() == ["gmail", "google-drive", "jira", "ms-teams", "onenote", "proton-files"]
 
 
 @pytest.mark.parametrize("t", _tool_neutral())
@@ -120,6 +120,39 @@ def test_ms_teams_contract():
     assert "sources/ms-teams/snapshot" not in text
     assert "${CLAUDE_PLUGIN_ROOT}/scripts/file-snapshot.sh <key> compare" in _section(text, "List new")
     assert "${CLAUDE_PLUGIN_ROOT}/scripts/file-snapshot.sh <key> save" in _section(text, "Mark ingested")
+
+
+@pytest.mark.checks("bind-reader/gmail-contract")
+def test_gmail_contract():
+    """gmail (docs/adr.md 23): read-only, no Gmail write at all; Bind names
+    the connector's denies (writes, label writes, draft reads) on both
+    surfaces; List new searches a 7-day overlap, keeps the old label's
+    threads out and drops threads by the thread IDs in the sync-log
+    history, which Mark ingested writes in the same form."""
+    text = (SOURCES / "gmail" / "SOURCE.md").read_text(encoding="utf-8")
+    check, bind = _section(text, "Check"), _section(text, "Bind")
+    new, mark = _section(text, "List new"), _section(text, "Mark ingested")
+    for tool in GMAIL_DENY:
+        assert "`%s`" % tool in bind, tool
+    assert "`mcp__claude_ai_Gmail__`" in bind and "`mcp__Gmail__`" in bind
+    assert "THREAD_VIEW_SUMMARY" in bind and "**Stop**" in bind
+    assert "**search threads**, **read thread** or **list labels**" in check
+    form = "`; thread IDs: <id>, <id>`"
+    assert form in text.split("## Bind", 1)[0]
+    assert "Nothing is written at Gmail" in mark and form in mark and "`raw/sync-log.md`" in mark
+    # Every thread read is listed, re-reads with nothing new too, or a thread
+    # ingested on its newest message's day comes back for the whole window.
+    assert "thread IDs of **every** thread the run read" in text
+    assert "read again under **List new**'s same-day rule with nothing new" in text
+    assert "IDs of every thread it read" in mark and "read again with nothing new" in mark
+    resolve = _section(text, "Resolve citation")
+    assert "dated on or after the cited message date" in resolve and "subject matches" in resolve
+    assert "7 days before `last_checked_<key>`" in new and "8 days before `last_checked_<key>`" in new
+    assert "after:2026/08/29" in new and "-label:wiki-ingested-<wiki>" in new
+    assert "**list labels**" in new and "`; thread IDs: …`" in new and "**later than**" in new
+    for name in ("Check", "List new", "Fetch", "Mark ingested", "Cite", "Resolve citation"):
+        assert "mcp__" not in _section(text, name), name
+    assert "label_thread" not in text.split("## Bind", 1)[0] and "create_label" not in mark
 
 
 @pytest.mark.checks("bind-reader/bind-extras")

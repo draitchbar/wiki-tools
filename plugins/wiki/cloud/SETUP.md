@@ -27,8 +27,7 @@ A guided setup for opening a wiki at claude.ai/code (web or phone) or running it
    | Source type | In a cloud session |
    |---|---|
    | `raw` | Only what is committed: Markdown and text, `raw/ocr/*.txt`. PDFs, Office files and images are gitignored, so they stay local. |
-   | `gmail` | Through the claude.ai connector the session or routine is given. Untested in the cloud. Don't ingest Gmail there until results can be saved: its `wiki-ingested` label is written at Gmail, so an unsaved run would lose those threads. |
-   | `google-drive`, `jira`, `ms-teams` | Through the claude.ai connector if the instance's binding names the session's tool names (e.g. `mcp__Microsoft_365__*` for Teams in a cloud session, so a cloud wiki binds again with `/wiki:bind-reader`) and its rules are in the wiki's settings. Untested in the cloud. |
+   | `gmail`, `google-drive`, `jira`, `ms-teams` | Through the claude.ai connector if the instance's binding names the session's tool names (e.g. `mcp__Gmail__*` for Gmail and `mcp__Microsoft_365__*` for Teams in a cloud session, so a cloud wiki binds again with `/wiki:bind-reader`) and its rules are in the wiki's settings. Untested in the cloud. Gmail is read-only, so an unsaved run writes nothing at Gmail and the next run repeats those threads. |
    | `proton-files` | No: the reader needs a local sign-in. Options are in the research. |
    | `local-folder`, `onenote` | No: local folders, local sign-in. |
    | `codebase` | No: the clone would be a second repository, and `gh` has no login there. |
@@ -88,7 +87,7 @@ A spike on 2026-11-21, Claude Code 2.1.330, in an environment with this setup (i
 
 - **A failing setup script.** The script exits non-zero on purpose. Untested: whether the session then fails to start, or starts without the plugin and so unguarded. A project hook in the wiki that refuses everything when `CLAUDE_CODE_REMOTE` is `true` and the plugin is missing would close the gap; not built.
 - **Saving results.** The guard refuses `git push`, and a VM is thrown away, so a cloud session's commits are lost. Untested: the web UI's own push or pull request button (outside the Bash tool, so outside the guard). Not built: a guard exception for cloud sessions that pushes to a `claude/` branch, which needs branch protection on the default branch and a decision on how runs' branches are merged (the research, "If the spike passes").
-- **Connector sources.** Gmail, Google Drive, Teams and Jira through claude.ai connectors in a cloud session or routine: whether their tool names match the contracts' (or the instances' bindings: re-bind in the cloud session), and the permission rules. A plugin synced from the claude.ai account failed to reach its own MCP server through the session's network proxy.
+- **Connector sources.** Gmail, Google Drive, Teams and Jira through claude.ai connectors in a cloud session or routine: whether each instance binds the cloud session's tool names (re-bind in the cloud session), and the permission rules. A plugin synced from the claude.ai account failed to reach its own MCP server through the session's network proxy.
 - **Typing skills** (`/wiki:ingest`, `/wiki:clarify` and the other manual-only skills) in the web UI and on the phone.
 - **Permission prompts.** Routines run in auto mode; the wikis rely on the user's answer in a few places (e.g. the reader binding).
 - **Git identity.** Commits are made as `Claude <noreply@anthropic.com>`, not the user. Untested: `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL` as environment variables.

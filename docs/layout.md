@@ -22,7 +22,7 @@ plugins/wiki/
   skills/ingest/reading-files.md  core rules for reading fetched files (pdftotext, LibreOffice, OCR)
   hooks/hooks.json                PreToolUse guard + SessionStart schema and status
   sources/                        standard source types
-    gmail/SOURCE.md               Gmail via the claude.ai connector (MCP)
+    gmail/SOURCE.md               Gmail threads by label, sender and recipient through whatever Gmail reader the machine supplies (tool-neutral, read-only; seen working: the claude.ai connector)
     google-drive/SOURCE.md        Google Drive folders through whatever Drive reader the machine supplies (tool-neutral; seen working: the claude.ai connector)
     ms-teams/SOURCE.md            Teams channels, chats and SharePoint folders through whatever Microsoft 365 reader the machine supplies (tool-neutral; seen working: the claude.ai connector)
     jira/SOURCE.md                Jira issues selected by named scopes (team, component, epic/initiative, project, JQL) through whatever Jira reader the machine supplies (tool-neutral)

@@ -95,7 +95,7 @@ These are architectural assessments, not completed migrations or time estimates.
 | OneNote | Low-to-medium with a compatible reader; otherwise high. Fresh HTML/text, timestamps, scope and snapshots matter |
 | Proton files | Medium with a compatible external reader; otherwise high. Read-only operations, roots and installation/cache paths matter |
 | Jira | Medium-to-high: reader, API/paging differences, JQL, cursor semantics and read-only enforcement |
-| Gmail | Medium through the `gws` reader plugin: read-only at Google (`gmail.readonly`), so date state replaces the wiki label; thread semantics |
+| Gmail | Medium through the `gws` reader plugin: read-only at Google (`gmail.readonly`), so date state replaces the wiki label (contract and state done in Claude, ADR 23); thread semantics |
 | Google Drive | Medium through the `gws` reader plugin: read-only at Google (`drive.readonly`); recursive listing, exports/downloads and timestamps |
 | Microsoft Teams | Highest expected: channels/replies/chats/SharePoint, ordering, URIs, scopes and tenant-wide filtering |
 

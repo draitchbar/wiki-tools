@@ -379,7 +379,9 @@ BROKEN = {
 
 
 # A reader binding that doesn't parse: the MCP tools it names are refused
-# too (their limits are unknown); other MCP tools pass.
+# too (their limits are unknown); other MCP tools pass. (guard-wiki's gmail
+# instance binds the Gmail connector's read tools, so the other tool is one
+# that no reader list names.)
 def _mcp(tool, **ti):
     return _bash_input(tool, ti)
 
@@ -390,7 +392,7 @@ def _mcp(tool, **ti):
     pytest.param("  - find project: mcp__claude_ai_Atlassian_MCP__executeRead name=",
                  "mcp__claude_ai_Atlassian_MCP__executeRead", 2, id="guard/reader-broken-limit"),
     pytest.param("  - find project mcp__claude_ai_Atlassian_MCP__executeRead name=listJiraProjects",
-                 "mcp__claude_ai_Gmail__search_threads", 0, id="guard/reader-broken-other-tool"),
+                 "mcp__claude_ai_Google_Calendar__list_events", 0, id="guard/reader-broken-other-tool"),
 ])
 def test_reader_broken(item, tool, want, gw, guard_run):
     inst(gw, "x", "jira", "reader:", item)

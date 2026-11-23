@@ -17,6 +17,39 @@ New file .claude/sources/instances/gmail.md:
   key: gmail
   type: gmail
   labels: X
+  reader:
+    - search threads: mcp__claude_ai_Gmail__search_threads
+    - read thread: mcp__claude_ai_Gmail__get_thread
+    - list labels: mcp__claude_ai_Gmail__list_labels
+    - read message: mcp__claude_ai_Gmail__get_message
+    - download attachment: mcp__claude_ai_Gmail__download_gmail_attachment
+  reader_deny:
+    - mcp__claude_ai_Gmail__send_message
+    - mcp__claude_ai_Gmail__reply
+    - mcp__claude_ai_Gmail__forward
+    - mcp__claude_ai_Gmail__create_draft
+    - mcp__claude_ai_Gmail__update_draft
+    - mcp__claude_ai_Gmail__delete_draft
+    - mcp__claude_ai_Gmail__trash_message
+    - mcp__claude_ai_Gmail__trash_thread
+    - mcp__claude_ai_Gmail__untrash_message
+    - mcp__claude_ai_Gmail__untrash_thread
+    - mcp__claude_ai_Gmail__mark_message_spam
+    - mcp__claude_ai_Gmail__mark_thread_spam
+    - mcp__claude_ai_Gmail__unmark_message_spam
+    - mcp__claude_ai_Gmail__unmark_thread_spam
+    - mcp__claude_ai_Gmail__create_label
+    - mcp__claude_ai_Gmail__delete_label
+    - mcp__claude_ai_Gmail__update_label
+    - mcp__claude_ai_Gmail__label_message
+    - mcp__claude_ai_Gmail__label_thread
+    - mcp__claude_ai_Gmail__unlabel_message
+    - mcp__claude_ai_Gmail__unlabel_thread
+    - mcp__claude_ai_Gmail__update_message_labels
+    - mcp__claude_ai_Gmail__apply_sensitive_message_label
+    - mcp__claude_ai_Gmail__apply_sensitive_thread_label
+    - mcp__claude_ai_Gmail__list_drafts
+    - mcp__claude_ai_Gmail__get_draft
   ---
 
 Install it? [y/N] y
@@ -26,10 +59,9 @@ Installed .claude/sources/instances/gmail.md.
   under "permissions" -> "allow":
       "mcp__claude_ai_Gmail__search_threads",
       "mcp__claude_ai_Gmail__get_thread",
-      "mcp__claude_ai_Gmail__get_message",
       "mcp__claude_ai_Gmail__list_labels",
-      "mcp__claude_ai_Gmail__create_label",
-      "mcp__claude_ai_Gmail__label_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__download_gmail_attachment",
   under "permissions" -> "deny":
       "mcp__claude_ai_Gmail__send_message",
       "mcp__claude_ai_Gmail__reply",
@@ -45,11 +77,18 @@ Installed .claude/sources/instances/gmail.md.
       "mcp__claude_ai_Gmail__mark_thread_spam",
       "mcp__claude_ai_Gmail__unmark_message_spam",
       "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__claude_ai_Gmail__create_label",
       "mcp__claude_ai_Gmail__delete_label",
       "mcp__claude_ai_Gmail__update_label",
-      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__label_message",
+      "mcp__claude_ai_Gmail__label_thread",
       "mcp__claude_ai_Gmail__unlabel_message",
       "mcp__claude_ai_Gmail__unlabel_thread",
+      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__apply_sensitive_message_label",
+      "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
+      "mcp__claude_ai_Gmail__list_drafts",
+      "mcp__claude_ai_Gmail__get_draft",
 
 When all files are in, commit them yourself, e.g.
   git add -- .claude/sources/instances/gmail.md && git commit -m "Add source files"
@@ -61,9 +100,9 @@ rc=0
 Changes to .claude/sources/instances/gmail.md:
 --- current
 +++ pasted
-@@ -3,3 +3,4 @@
- type: gmail
- labels: X
+@@ -36,3 +36,4 @@
+   - mcp__claude_ai_Gmail__list_drafts
+   - mcp__claude_ai_Gmail__get_draft
  ---
 +x
 
@@ -74,10 +113,9 @@ Installed .claude/sources/instances/gmail.md.
   under "permissions" -> "allow":
       "mcp__claude_ai_Gmail__search_threads",
       "mcp__claude_ai_Gmail__get_thread",
-      "mcp__claude_ai_Gmail__get_message",
       "mcp__claude_ai_Gmail__list_labels",
-      "mcp__claude_ai_Gmail__create_label",
-      "mcp__claude_ai_Gmail__label_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__download_gmail_attachment",
   under "permissions" -> "deny":
       "mcp__claude_ai_Gmail__send_message",
       "mcp__claude_ai_Gmail__reply",
@@ -93,11 +131,18 @@ Installed .claude/sources/instances/gmail.md.
       "mcp__claude_ai_Gmail__mark_thread_spam",
       "mcp__claude_ai_Gmail__unmark_message_spam",
       "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__claude_ai_Gmail__create_label",
       "mcp__claude_ai_Gmail__delete_label",
       "mcp__claude_ai_Gmail__update_label",
-      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__label_message",
+      "mcp__claude_ai_Gmail__label_thread",
       "mcp__claude_ai_Gmail__unlabel_message",
       "mcp__claude_ai_Gmail__unlabel_thread",
+      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__apply_sensitive_message_label",
+      "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
+      "mcp__claude_ai_Gmail__list_drafts",
+      "mcp__claude_ai_Gmail__get_draft",
 
 When all files are in, commit them yourself, e.g.
   git add -- .claude/sources/instances/gmail.md && git commit -m "Add source files"
@@ -134,11 +179,44 @@ rc=1
 Changes to .claude/sources/instances/gmail.md:
 --- current
 +++ pasted
-@@ -1,6 +1,5 @@
+@@ -1,39 +1,5 @@
  ---
  key: gmail
  type: gmail
 -labels: X
+-reader:
+-  - search threads: mcp__claude_ai_Gmail__search_threads
+-  - read thread: mcp__claude_ai_Gmail__get_thread
+-  - list labels: mcp__claude_ai_Gmail__list_labels
+-  - read message: mcp__claude_ai_Gmail__get_message
+-  - download attachment: mcp__claude_ai_Gmail__download_gmail_attachment
+-reader_deny:
+-  - mcp__claude_ai_Gmail__send_message
+-  - mcp__claude_ai_Gmail__reply
+-  - mcp__claude_ai_Gmail__forward
+-  - mcp__claude_ai_Gmail__create_draft
+-  - mcp__claude_ai_Gmail__update_draft
+-  - mcp__claude_ai_Gmail__delete_draft
+-  - mcp__claude_ai_Gmail__trash_message
+-  - mcp__claude_ai_Gmail__trash_thread
+-  - mcp__claude_ai_Gmail__untrash_message
+-  - mcp__claude_ai_Gmail__untrash_thread
+-  - mcp__claude_ai_Gmail__mark_message_spam
+-  - mcp__claude_ai_Gmail__mark_thread_spam
+-  - mcp__claude_ai_Gmail__unmark_message_spam
+-  - mcp__claude_ai_Gmail__unmark_thread_spam
+-  - mcp__claude_ai_Gmail__create_label
+-  - mcp__claude_ai_Gmail__delete_label
+-  - mcp__claude_ai_Gmail__update_label
+-  - mcp__claude_ai_Gmail__label_message
+-  - mcp__claude_ai_Gmail__label_thread
+-  - mcp__claude_ai_Gmail__unlabel_message
+-  - mcp__claude_ai_Gmail__unlabel_thread
+-  - mcp__claude_ai_Gmail__update_message_labels
+-  - mcp__claude_ai_Gmail__apply_sensitive_message_label
+-  - mcp__claude_ai_Gmail__apply_sensitive_thread_label
+-  - mcp__claude_ai_Gmail__list_drafts
+-  - mcp__claude_ai_Gmail__get_draft
 +labels: Y
  ---
 -x
@@ -160,9 +238,9 @@ rc=0
 Changes to .claude/sources/instances/gmail.md:
 --- current
 +++ pasted
-@@ -3,4 +3,4 @@
- type: gmail
- labels: X
+@@ -36,4 +36,4 @@
+   - mcp__claude_ai_Gmail__list_drafts
+   - mcp__claude_ai_Gmail__get_draft
  ---
 -x
 +y
@@ -174,10 +252,9 @@ Installed .claude/sources/instances/gmail.md.
   under "permissions" -> "allow":
       "mcp__claude_ai_Gmail__search_threads",
       "mcp__claude_ai_Gmail__get_thread",
-      "mcp__claude_ai_Gmail__get_message",
       "mcp__claude_ai_Gmail__list_labels",
-      "mcp__claude_ai_Gmail__create_label",
-      "mcp__claude_ai_Gmail__label_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__download_gmail_attachment",
   under "permissions" -> "deny":
       "mcp__claude_ai_Gmail__send_message",
       "mcp__claude_ai_Gmail__reply",
@@ -193,11 +270,18 @@ Installed .claude/sources/instances/gmail.md.
       "mcp__claude_ai_Gmail__mark_thread_spam",
       "mcp__claude_ai_Gmail__unmark_message_spam",
       "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__claude_ai_Gmail__create_label",
       "mcp__claude_ai_Gmail__delete_label",
       "mcp__claude_ai_Gmail__update_label",
-      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__label_message",
+      "mcp__claude_ai_Gmail__label_thread",
       "mcp__claude_ai_Gmail__unlabel_message",
       "mcp__claude_ai_Gmail__unlabel_thread",
+      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__apply_sensitive_message_label",
+      "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
+      "mcp__claude_ai_Gmail__list_drafts",
+      "mcp__claude_ai_Gmail__get_draft",
 
 When all files are in, commit them yourself, e.g.
   git add -- .claude/sources/instances/gmail.md && git commit -m "Add source files"
@@ -225,10 +309,9 @@ Installed .claude/sources/instances/code.md.
       "Edit(~/.cache/wiki-sources/iew/code/**)",
       "mcp__claude_ai_Gmail__search_threads",
       "mcp__claude_ai_Gmail__get_thread",
-      "mcp__claude_ai_Gmail__get_message",
       "mcp__claude_ai_Gmail__list_labels",
-      "mcp__claude_ai_Gmail__create_label",
-      "mcp__claude_ai_Gmail__label_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__download_gmail_attachment",
   under "permissions" -> "deny":
       "Bash(gh pr create *)",
       "Bash(gh pr merge *)",
@@ -258,11 +341,18 @@ Installed .claude/sources/instances/code.md.
       "mcp__claude_ai_Gmail__mark_thread_spam",
       "mcp__claude_ai_Gmail__unmark_message_spam",
       "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__claude_ai_Gmail__create_label",
       "mcp__claude_ai_Gmail__delete_label",
       "mcp__claude_ai_Gmail__update_label",
-      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__label_message",
+      "mcp__claude_ai_Gmail__label_thread",
       "mcp__claude_ai_Gmail__unlabel_message",
       "mcp__claude_ai_Gmail__unlabel_thread",
+      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__apply_sensitive_message_label",
+      "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
+      "mcp__claude_ai_Gmail__list_drafts",
+      "mcp__claude_ai_Gmail__get_draft",
 
 When all files are in, commit them yourself, e.g.
   git add -- .claude/sources/instances/code.md && git commit -m "Add source files"
@@ -319,10 +409,9 @@ Installed .claude/sources/types/bookish/SOURCE.md.
       "Edit(~/.cache/wiki-sources/iew/code/**)",
       "mcp__claude_ai_Gmail__search_threads",
       "mcp__claude_ai_Gmail__get_thread",
-      "mcp__claude_ai_Gmail__get_message",
       "mcp__claude_ai_Gmail__list_labels",
-      "mcp__claude_ai_Gmail__create_label",
-      "mcp__claude_ai_Gmail__label_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__download_gmail_attachment",
   under "permissions" -> "deny":
       "Bash(gh pr create *)",
       "Bash(gh pr merge *)",
@@ -352,11 +441,18 @@ Installed .claude/sources/types/bookish/SOURCE.md.
       "mcp__claude_ai_Gmail__mark_thread_spam",
       "mcp__claude_ai_Gmail__unmark_message_spam",
       "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__claude_ai_Gmail__create_label",
       "mcp__claude_ai_Gmail__delete_label",
       "mcp__claude_ai_Gmail__update_label",
-      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__label_message",
+      "mcp__claude_ai_Gmail__label_thread",
       "mcp__claude_ai_Gmail__unlabel_message",
       "mcp__claude_ai_Gmail__unlabel_thread",
+      "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__claude_ai_Gmail__apply_sensitive_message_label",
+      "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
+      "mcp__claude_ai_Gmail__list_drafts",
+      "mcp__claude_ai_Gmail__get_draft",
 
 When all files are in, commit them yourself, e.g.
   git add -- .claude/sources/types/bookish/SOURCE.md && git commit -m "Add source files"
@@ -381,9 +477,9 @@ rc=0
 Changes to .claude/sources/instances/gmail.md:
 --- current
 +++ pasted
-@@ -3,4 +3,4 @@
- type: gmail
- labels: X
+@@ -36,4 +36,4 @@
+   - mcp__claude_ai_Gmail__list_drafts
+   - mcp__claude_ai_Gmail__get_draft
  ---
 -y
 +z

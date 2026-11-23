@@ -136,7 +136,7 @@ End with a numbered, copy-pasteable guide. Include only the steps that apply:
 2. **Sources** (if any besides `raw`): each `.claude/sources/` file in turn, as wiki-conventions **Protected files** says: the `install-source-file.sh` command, then the file's full content; the next file only after the user has installed this one (local type files first, then instances).
 3. **Commit them yourself**: `git add -- .claude/settings.json <each installed source file> && git commit -m "Add wiki settings"`.
 4. **Restart**: quit and start `claude` in this folder again, so the new settings apply.
-5. **Source setup outside Claude** (only where a source needs it): steps the contract's Caveats or the user's answers call for, e.g. creating a Gmail filter that applies the label, or logging in to a CLI.
+5. **Source setup outside Claude** (only where a source needs it): steps the contract's Caveats or the user's answers call for, e.g. creating a Gmail filter that applies an instance's label to the mail to ingest, or logging in to a CLI.
 6. **Obsidian** (optional): Open folder as vault → this folder.
 7. **Check**: run `/wiki:init` again; it verifies the setup.
 8. **First ingest**: `/wiki:sync-status`, then `/wiki:ingest <source>`. The first ingest of each source checks the source, asks for a starting point and reviews the data model.
