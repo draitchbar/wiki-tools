@@ -182,6 +182,8 @@ def test_gmail_contract():
     # counts as ingested up to the dates pages' sources: cite; its newest
     # message date comes from thread dates, so a new reply in it is found.
     assert "counts as ingested up to the cited dates" in new
+    # Cited dates are days: a reply later on the cited day is read too.
+    assert "on the newest cited date or later" in new
     assert "come back once" not in text
     for name in ("Check", "List new", "Fetch", "Mark ingested", "Cite", "Resolve citation"):
         assert "mcp__" not in _section(text, name), name
