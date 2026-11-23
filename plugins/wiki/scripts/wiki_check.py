@@ -213,7 +213,7 @@ class Check:
         # 4. .gitignore.
         gi = root + "/.gitignore"
         if os.path.isfile(gi):
-            have = set(ln[:-1] if ln.endswith("\r") else ln for ln in _grep_lines(gi))
+            have = {ln[:-1] if ln.endswith("\r") else ln for ln in _grep_lines(gi)}
             pats = [".obsidian/", ".claude/*", "!.claude/settings.json"]
             if instances:
                 pats.append("!.claude/sources/")

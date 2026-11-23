@@ -3,9 +3,14 @@ target-version = "py311"
 line-length = 100
 
 [lint]
-select = ["E", "F", "W", "B", "ANN"]
-ignore = ["E501"]
+select = ["E", "F", "W", "B", "ANN", "C4", "PERF401"]
+# C408: dict(a=1) is fine, and the tests build their payloads that way.
+ignore = ["E501", "C408"]
 
 [lint.per-file-ignores]
+# The guard's code isn't rewritten for style (docs/adr.md, 24).
+"plugins/wiki/scripts/guard.py" = ["PERF401"]
+"plugins/wiki/scripts/contract.py" = ["PERF401"]
+"plugins/wiki/scripts/hookjson.py" = ["PERF401"]
 # The tests are outside type checking (docs/adr.md, 20).
 "tests/**" = ["ANN"]

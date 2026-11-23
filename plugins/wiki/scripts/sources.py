@@ -329,8 +329,8 @@ def op_due(w: Wiki, args: list[str]) -> int:
             skipped.append((k, "Check needed (/wiki:ingest %s)" % k))
         else:
             due.append((d, k))
-    for k in sourcelib.words(w.manual_keys()):
-        skipped.append((k, "manual key (enters via raw/ or user statements)"))
+    skipped.extend((k, "manual key (enters via raw/ or user statements)")
+                   for k in sourcelib.words(w.manual_keys()))
     due.sort(key=lambda x: x[0])  # stable: raw first, then C order
 
     def section(title: str, rows: list[tuple[str, str]]) -> None:
