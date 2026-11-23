@@ -49,7 +49,7 @@ Ask the user for the item that is safe to read (the `## Bind` section says what 
 
 If the safe item can't serve a test (the `## Bind` section says which need something particular, such as a page with a link or an attachment), ask for a second safe item for those tests only; if there is none, note them as not verified.
 
-Run the `## Bind` tests in its order, one call each, with the smallest limits. For each, note: the tool and arguments, whether it worked, the rough output size, and the property it checks (paging fields, a time field present, nothing marked as viewed, and so on). Stop at the first failure of a required operation and report.
+Run the `## Bind` tests in its order, one call each, with the smallest limits. Each call uses the operation's fixed arguments as step 3 maps them (for a known reader, as the contract's `## Bind` lists them), so the test is the call later ingests will make. For each, note: the tool and arguments, whether it worked, the rough output size, and the property it checks (paging fields, a time field present, nothing marked as viewed, and so on). Stop at the first failure of a required operation and report.
 
 ## 6. Hand over
 Show, in this order:
