@@ -171,6 +171,8 @@ def _seq(*fns):
 
 CODE_EDIT = '"Edit(~/.cache/wiki-sources/sw/code/**)"'
 MISSING_CODE = "allow: Edit(~/.cache/wiki-sources/sw/code/**)"
+STALE = ("stale (allow rules for source scripts and MCP tools that no source instance uses; "
+         "remove any that nothing else needs):")
 SCK = [  # name, exit, text, change to the settings `settings` prints
     ("ok", 0, "missing: none", None),
     ("ok-json", 0, "settings.json: valid JSON", None),
@@ -209,6 +211,20 @@ SCK = [  # name, exit, text, change to the settings `settings` prints
     ("broad-other", 1, MISSING_CODE, _sub(CODE_EDIT, '"Edit(~/.cache/wiki-sources/other/**)"')),
     ("broad-tool", 1, MISSING_CODE, _sub(CODE_EDIT, '"Read(~/.cache/wiki-sources/**)"')),
     ("broad-file", 1, MISSING_CODE, _sub(CODE_EDIT, '"Edit(~/.cache/wiki-sources/sw/code)"')),
+    # Stale allow rules (a source script or an MCP tool no instance needs):
+    # reported, never a failure. Needed and unrelated rules aren't.
+    ("stale-none", 0, "stale: none", None),
+    ("stale-wrapper", 0, STALE + "\n  allow: Bash(bash */sources/ms-teams/snapshot.sh *)\n",
+     _sub('"allow": [', '"allow": [ "Bash(bash */sources/ms-teams/snapshot.sh *)",')),
+    ("stale-local", 0, STALE + "\n  allow: Bash(bash .claude/sources/types/oldtype/fetch.sh *)\n",
+     _sub('"allow": [', '"allow": [ "Bash(bash .claude/sources/types/oldtype/fetch.sh *)",')),
+    ("stale-mcp", 0, STALE + "\n  allow: mcp__example_reader__get_note\n  allow: mcp__example_reader__list_notes\n",
+     _sub('"allow": [', '"allow": [ "mcp__example_reader__list_notes", "mcp__example_reader__get_note",')),
+    ("stale-unrelated", 0, "\nstale: none\n",
+     _seq(_sub('"allow": [', '"allow": [ "Bash(git status *)", "Bash(bash */scripts/file-snapshot.sh *)", '
+               '"WebFetch", "Skill(wiki:ingest)", "Read(~/.cache/wiki-sources/**)", "mcp__claude_ai_Gmail",'),
+          _sub('"deny": [', '"deny": [ "mcp__example_reader__delete_note", '
+               '"Bash(bash */sources/ms-teams/snapshot.sh *)",'))),
 ]
 CONTRACTS = sorted(p.parent.name for p in PLUGIN.glob("sources/*/SOURCE.md"))
 PLACEHOLDERS = ["FOLDER-ID-TBD", "<label>", "todo", "?", "..."]

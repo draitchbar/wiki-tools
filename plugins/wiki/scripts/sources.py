@@ -558,6 +558,13 @@ def op_check_settings(w: Wiki, args: list[str]) -> int:
         out("blocked by deny (rules your sources need; deny wins):\n" + "\n".join(blk))
     else:
         out("blocked by deny: none")
+    # Report only: a leftover allow rule is hygiene, not a broken setup.
+    stale = ["  allow: " + r for r in sorted(sourcelib.stale_rules(need, have), key=contract._bytes_key)]
+    if stale:
+        out("stale (allow rules for source scripts and MCP tools that no source instance uses; "
+            "remove any that nothing else needs):\n" + "\n".join(stale))
+    else:
+        out("stale: none")
     seen: set[str] = set()
     broad: list[str] = []
     for ln in need:
