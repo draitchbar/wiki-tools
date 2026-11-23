@@ -414,9 +414,9 @@ def report(root: str, plugin: str | None,
     for ln in pairs:
         t, src = ln.split("\t", 1)
         by.setdefault(t, []).append(src)
-    for t in sorted(by, key=_key):
-        e_broken.append("- `[[%s]]` (no such page) linked from %s"
-                        % (t, ", ".join("`%s`" % s for s in by[t])))
+    e_broken.extend("- `[[%s]]` (no such page) linked from %s"
+                    % (t, ", ".join("`%s`" % s for s in by[t]))
+                    for t in sorted(by, key=_key))
 
     # Orphans: no inbound link from any other page (index.md and log.md don't
     # count). Not in index: page slug never linked from index.md.
@@ -452,9 +452,9 @@ def report(root: str, plugin: str | None,
     n = log_removed(d)
     if n:
         e_log.append("- uncommitted changes remove or rewrite %d line(s) of existing entries" % n)
-    for le in log_history(root) if history is None else history:
-        e_log.append("- commit %s (%s) removes or rewrites %d line(s) (ages out on %s)"
-                     % (le.hash, le.when, le.lines, le.ages_out))
+    e_log.extend("- commit %s (%s) removes or rewrites %d line(s) (ages out on %s)"
+                 % (le.hash, le.when, le.lines, le.ages_out)
+                 for le in (log_history(root) if history is None else history))
 
     n_err = len(e_nofm) + len(e_fields) + len(e_broken) + len(e_log)
     n_warn = (len(w_orphan) + len(w_noindex) + len(w_idxdate) + len(w_nosrc) + len(w_dates)
@@ -506,9 +506,9 @@ def questions(root: str, all_: list[str], texts: dict[str, str], page_slugs: set
     for p in all_:
         if p == "log.md":
             continue
-        for m in sourcelib.MARKER_ANY.finditer(texts[p]):
-            if not sourcelib.MARKER.fullmatch(m.group(0)):
-                mark.append("- `%s`: marker `%s` is not a question ID (q-YYYY-MM-DD-<slug>)" % (p, m.group(0)))
+        mark.extend("- `%s`: marker `%s` is not a question ID (q-YYYY-MM-DD-<slug>)" % (p, m.group(0))
+                    for m in sourcelib.MARKER_ANY.finditer(texts[p])
+                    if not sourcelib.MARKER.fullmatch(m.group(0)))
     for p, i in marks:
         if i not in ids:
             mark.append("- `%s`: marker %s has no question in %s" % (p, i, sourcelib.QUESTIONS))
@@ -535,9 +535,8 @@ def questions(root: str, all_: list[str], texts: dict[str, str], page_slugs: set
             probs.append("raised `%s` has no YYYY-MM-DD date" % q.raised if q.raised else "no raised")
         elif (today - d).days < 0:
             probs.append("raised %s is in the future" % d.isoformat())
-        for t in links_of(q.pages):
-            if t not in page_slugs:
-                probs.append("pages links to [[%s]], no such page" % t)
+        probs.extend("pages links to [[%s]], no such page" % t
+                     for t in links_of(q.pages) if t not in page_slugs)
         if probs:
             bad.append("- `%s`: %s" % (q.id, "; ".join(probs)))
     return old, mark, bad

@@ -459,11 +459,11 @@ def reader_errors(f: str, c: str) -> list[str]:
             res.append("reader binds '%s' twice" % op)
         bound.add(op)
         (limited if fld else free).add(rule)
-    for t in sorted(limited & free, key=contract._bytes_key):
-        res.append("reader binds %s both with and without a limit; the limit would have no effect" % t)
+    res.extend("reader binds %s both with and without a limit; the limit would have no effect" % t
+               for t in sorted(limited & free, key=contract._bytes_key))
     if items:
-        for op in [o for o, lvl in ops.items() if lvl == "required" and o not in bound]:
-            res.append("reader doesn't bind '%s', a required operation" % op)
+        res.extend("reader doesn't bind '%s', a required operation" % o
+                   for o, lvl in ops.items() if lvl == "required" and o not in bound)
     rules = limited | free
     for r in deny:
         if _quoted(r):
@@ -501,9 +501,8 @@ def reader_rules(f: str) -> list[str]:
         p = contract.reader_item(it)
         if p:
             res.append("allow\t%s\t%s" % (p[1], p[1]))
-    for r in contract.list_(f, "reader_deny"):
-        if contract.rule_ok(r):
-            res.append("deny\t%s\t%s" % (r, r))
+    res.extend("deny\t%s\t%s" % (r, r)
+               for r in contract.list_(f, "reader_deny") if contract.rule_ok(r))
     return res
 
 
