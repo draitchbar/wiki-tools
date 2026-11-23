@@ -67,8 +67,12 @@ def wc(cli, w, env=None):
 
 @pytest.mark.checks("wiki-check/good-wiki-passes", "wiki-check/good-summary", "wiki-check/python-found",
                     "wiki-check/no-import")
-def test_good(good, cli):
-    r = wc(cli, good[1])
+def test_good(good, cli, tmp_path):
+    # An empty HOME: the user's settings count for the bound gmail's reader
+    # rules (a deny there would block one), so the result would depend on them.
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    r = wc(cli, good[1], env=dict(home_env(posix(home)), HOME=posix(home)))
     out = text(r)
     assert r.rc == 0, out
     assert "Failures: 0." in out

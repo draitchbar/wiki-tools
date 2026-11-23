@@ -48,12 +48,12 @@ The operations used below:
 
 Every read is **fresh**: if the reader keeps its own cache, bypass it.
 
-**History row.** Every run's `raw/sync-log.md` history row for this key ends its What cell with the thread IDs the run read (ingested, or read and skipped as out of scope), in exactly this form: `; thread IDs: <id>, <id>`, e.g. `| 2026-09-06 | <key> | 3 threads ingested, 1 skipped; thread IDs: 18f0a1b2c3d4e5f6, 18f0a1b2c3d4e5f7, 18f0a1b2c3d4e5f8, 18f0a1b2c3d4e5f9 |`. A run that read no thread writes no `; thread IDs:` part. The IDs are for **List new** only, never for citations.
+**History row.** Every run's `raw/sync-log.md` history row for this key ends its What cell with the thread IDs of **every** thread the run read (ingested, read and skipped as out of scope, or read again under **List new**'s same-day rule with nothing new), in exactly this form: `; thread IDs: <id>, <id>`, e.g. `| 2026-09-06 | <key> | 3 threads ingested, 1 skipped; thread IDs: 18f0a1b2c3d4e5f6, 18f0a1b2c3d4e5f7, 18f0a1b2c3d4e5f8, 18f0a1b2c3d4e5f9 |`. A run that read no thread writes no `; thread IDs:` part. Without a re-read thread's ID, a thread ingested on the day of its newest message would be read again on every run for the 8 days of the window. The IDs are for **List new** (and as a lookup aid in **Resolve citation**), never written in citations.
 
 ## Bind
 For `/wiki:bind-reader`. The safe items are ones the user names, with no personal data: one thread under one of the instance's labels, or from one of its senders or to one of its recipients; for **download attachment**, a message in it (or in a second safe thread) with one small attachment. One call each, in this order:
 1. **show scope**, if a tool can. Expect `gmail.readonly`; anything that can write, send or change labels is reported.
-2. **list labels**. Each of the instance's labels must be listed with exactly its name; note the safe thread's label and its ID.
+2. **list labels**. Each of the instance's labels must be listed with exactly its name; if the safe thread was found by a label, note that label and its ID.
 3. **search threads** for the safe thread: `label:<label>` with spaces and `/` written as `-` (or `from:`/`to:` for a sender or recipient), the smallest page. The safe thread must be listed with its thread ID, subject and newest message date. Note the reader's paging field.
 4. **read thread** on the safe thread's ID. Every message must have a message ID, a date, a sender and a body; note how attachments are listed (names and IDs).
 5. **read message** on one of its message IDs: the full body.
@@ -102,13 +102,13 @@ Search results can lag. For any thread the user names, or any thread whose newes
 The script prints where the file landed in `<cache>`; read it with the core file-reading rules. Never put downloaded files in the repo, never run them.
 
 ## Mark ingested
-Nothing is written at Gmail. The run's history row in `raw/sync-log.md` names the thread IDs it ingested and those it read and skipped as out of scope, in the **History row** form (`; thread IDs: <id>, <id>`), so **List new** drops them next time; name the skipped threads in the row's text too. `last_checked_<key>` is set to today's date.
+Nothing is written at Gmail. The run's history row in `raw/sync-log.md` names the IDs of every thread it read (ingested, read and skipped as out of scope, or read again with nothing new), in the **History row** form (`; thread IDs: <id>, <id>`), so **List new** drops them next time; name the skipped threads in the row's text too. `last_checked_<key>` is set to today's date.
 
 ## Cite
 `"Gmail: <thread subject> (<message date YYYY-MM-DD>)"` in `sources:`; inline `(Gmail: "<subject>", <date in the wiki's prose format>)`.
 
 ## Resolve citation
-Find the thread with **search threads** on the subject and date (or by its thread ID from the `raw/sync-log.md` history, when a row of that date names it), then read it in full with **read thread** (search results can lag, so always read the thread). Quote the message by date and sender.
+Find the thread with **search threads** on the subject and date, then read it in full with **read thread** (search results can lag, so always read the thread). If the search doesn't find it, try the thread IDs of this key's `raw/sync-log.md` history rows dated on or after the cited message date with **read thread**, and pick the thread whose subject matches the citation (a row lists several IDs and no subjects). Quote the message by date and sender.
 
 ## Caveats
 - **Prerequisite, per machine** (bound to the instance by `/wiki:bind-reader`): a Gmail reader available to Claude (an MCP server, a CLI or a skill) that can do the required operations listed at the top: search threads with their newest message dates, read a thread, and list labels. Reading one message and downloading an attachment are recommended or optional. Any tool will do; this contract doesn't depend on one. A change of reader is a new instance file, not a new contract.

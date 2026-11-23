@@ -140,6 +140,13 @@ def test_gmail_contract():
     form = "`; thread IDs: <id>, <id>`"
     assert form in text.split("## Bind", 1)[0]
     assert "Nothing is written at Gmail" in mark and form in mark and "`raw/sync-log.md`" in mark
+    # Every thread read is listed, re-reads with nothing new too, or a thread
+    # ingested on its newest message's day comes back for the whole window.
+    assert "thread IDs of **every** thread the run read" in text
+    assert "read again under **List new**'s same-day rule with nothing new" in text
+    assert "IDs of every thread it read" in mark and "read again with nothing new" in mark
+    resolve = _section(text, "Resolve citation")
+    assert "dated on or after the cited message date" in resolve and "subject matches" in resolve
     assert "7 days before `last_checked_<key>`" in new and "8 days before `last_checked_<key>`" in new
     assert "after:2026/08/29" in new and "-label:wiki-ingested-<wiki>" in new
     assert "**list labels**" in new and "`; thread IDs: …`" in new and "**later than**" in new
