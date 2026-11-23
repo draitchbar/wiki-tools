@@ -41,4 +41,4 @@ reader_deny:
 ---
 
 ## Reader
-The claude.ai Gmail connector, bound 2026-11-23. search threads: `query`, `pageSize: 50`, `view: THREAD_VIEW_SUMMARY`, following the next page token as `pageToken`; read thread: `threadId`; thread dates: `threadId`, `messageFormat: METADATA_ONLY`; read message: `messageId`.
+The claude.ai Gmail connector, bound 2026-11-23. search threads: `query`, `pageSize: 50`, `view: THREAD_VIEW_SUMMARY`, no next-page field (full pages are split by date); read thread: `threadId`, `messageFormat: PLAIN_TEXT`; thread dates: `threadId`, `messageFormat: METADATA_ONLY`; read message: `messageId`, `messageFormat: PLAIN_TEXT`.

@@ -146,6 +146,23 @@ def test_gmail_contract():
     assert "A thread that no row names needs no date" in new
     assert "otherwise with **thread dates**" in new and "**read thread** where no tool can" in new
     assert "If none can **thread dates**" in check
+    # Nor a next-page field: one page, so a full page may have dropped
+    # threads; List new splits it by date, then by term, and stops if a
+    # one-day term search is still full. Its message-count estimate is unused.
+    assert "**no next-page field**" in bind and "`resultCountEstimate` counts messages" in bind
+    assert "is noted, not a stop" in bind
+    assert "**Full pages.**" in new and "halve its date range" in new
+    assert "one search per label, sender and recipient" in new and "stop and tell the user" in new
+    assert "Merge the results by thread ID" in new
+    assert "thread count from **list labels**" in check and '"<page size> or more"' in check
+    # Its bodies come as plain text only with messageFormat given; its
+    # attachment IDs change on every read; its downloads keep their extension.
+    assert "`get_thread` with `threadId` and `messageFormat: PLAIN_TEXT`, given explicitly" in bind
+    assert "`get_message` with `messageId` and `messageFormat: PLAIN_TEXT`" in bind
+    assert "attachment IDs change on every read" in bind
+    fetch = _section(text, "Fetch")
+    assert "by an attachment ID from a **read thread** or **read message** made just before" in fetch
+    assert "in the attachment's own extension" in fetch
     form = "`; thread IDs: <id>, <id>`"
     assert form in text.split("## Bind", 1)[0]
     assert "Nothing is written at Gmail" in mark and form in mark and "`raw/sync-log.md`" in mark
