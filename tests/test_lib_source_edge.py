@@ -9,7 +9,7 @@ diff). (Formerly run-tests.sh's lib-source-edge section.)"""
 
 import pytest
 
-from conftest import TESTS, git, norm, posix, recorded, write
+from conftest import GMAIL_READER, TESTS, git, norm, posix, recorded, write
 
 FUNC = {"validate-contract": "src_validate_contract", "validate-instance": "src_validate_instance",
         "needed-rules": "src_needed_rules", "settings-rules": "src_settings_rules"}
@@ -28,11 +28,21 @@ INSTANCES = {
     "nofm": "key: nofm\ntype: gmail\n",
     "local": "---\nkey: local\ntype: loc\nthing: a\n---\n",
     "two words": "---\nkey: two words\ntype: gmail\n---\n",
+    # needed-rules: gmail is access: tools (docs/adr.md 23), so its rules
+    # come from a bound instance's reader binding; a local access: mcp type
+    # keeps the contract's read, bookkeeping and forbidden tools covered
+    # (gmail was the last standard type with bookkeeping tools).
+    "bound": "---\nkey: bound\ntype: gmail\nlabels: X\n" + GMAIL_READER + "---\n",
+    "keep": "---\nkey: keep\ntype: lmcp\nlabels: X\n---\n",
 }
 LOC = ("---\ntype: loc\ntitle: L\naccess: script\ncite_prefix: L\nplatforms:\n  - linux beos\nstate:\n"
        "  - last_checked (date): x\nparameters:\n  - thing (required): x\n  - Odd-Name: y\nscripts:\n"
        "  - a.sh b.sh\nmain_ops:\n  - ok bad_op\n---\n## Check\n## List new \n## Fetch\t\n"
        "## Mark ingested\r\n## Cite\n## Resolve citation\n")
+LMCP = ("---\ntype: lmcp\ntitle: Local MCP\naccess: mcp\ncite_prefix: LM\nplatforms:\n  - linux\n  - windows\n"
+        "parameters:\n  - labels (required): x\nstate:\n  - last_checked: x\nread_tools:\n  - mcp__lm__read\n"
+        "bookkeeping_tools:\n  - mcp__lm__mark_done\nforbidden_tools:\n  - mcp__lm__delete\nguard_words:\nscripts:\n"
+        "---\n## Check\n## List new\n## Fetch\n## Mark ingested\n## Cite\n## Resolve citation\n")
 JSONS = ["", "{", '{"a":1,}', "[1,]", '{"allow":["x" "y"]}',
          '{"permissions":{"allow":["a\\"b","c\\\\d","e\\/f","g\\nh"],"deny":["x"],"ask":["y"]}}',
          '{"a":"line\nbreak"}', '{"a":1} x', "tru", '{"a":-1.5e+3,"b":[true,false,null,0]}', '{"a" 1}', "{1:2}",
@@ -52,6 +62,7 @@ def edge(tmp_path_factory, cli):
         write(dw / ".claude/sources/instances" / (k + ".md"), text)
     write(dw / ".claude/sources/types/loc/SOURCE.md", LOC)
     write(dw / ".claude/sources/types/loc/a.sh", "")
+    write(dw / ".claude/sources/types/lmcp/SOURCE.md", LMCP)
     for i, j in enumerate(JSONS, 1):
         write(t / "edge-json" / ("%d.json" % i), j)
 

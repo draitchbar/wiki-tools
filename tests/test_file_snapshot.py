@@ -31,7 +31,9 @@ def fs(tmp_path_factory, run):
     w = t / "fsw"
     inst = w / ".claude/sources/instances"
     write(inst / "teams.md", "---\nkey: teams\ntype: google-drive\nfolders:\n  - Files (1AbC)\n---\n")
-    write(inst / "mail.md", "---\nkey: mail\ntype: gmail\nlabels: X\n---\n")
+    # gmail is tool-neutral now (docs/adr.md 23); the MCP type refused is local.
+    write(inst / "mail.md", "---\nkey: mail\ntype: notes-mcp\nsections:\n  - Book > Section\n---\n")
+    write(inst / "gm.md", "---\nkey: gm\ntype: gmail\nlabels: X\n---\n")
     write(inst / "tickets.md", "---\nkey: tickets\ntype: jira\nsite: example.atlassian.net\n"
                                "scopes:\n  - mine | project = X\n---\n")
     write(inst / "chats.md", "---\nkey: chats\ntype: ms-teams\nfolders:\n  - Files | file:///b!d/\n---\n")
@@ -41,6 +43,7 @@ def fs(tmp_path_factory, run):
     write(inst / "ghost.md", "---\nkey: ghost\ntype: no-such-type\n---\n")
     _local_type(w, "notes-tool", "tools")
     _local_type(w, "notes-files", "filesystem")
+    _local_type(w, "notes-mcp", "mcp")
     home = t / "fshome"
     cache = home / ".cache/wiki-sources/fsw/teams"
     cache.mkdir(parents=True)
@@ -78,6 +81,7 @@ def test_refused_type(key, want, fs):
     pytest.param("tickets", id="file-snapshot/accepts-tools-type-jira"),
     pytest.param("notes", id="file-snapshot/accepts-tools-type-onenote"),
     pytest.param("chats", id="file-snapshot/accepts-tools-type-ms-teams"),
+    pytest.param("gm", id="file-snapshot/accepts-tools-type-gmail"),
     pytest.param("local-notes", id="file-snapshot/accepts-tools-type-local"),
 ])
 def test_accepts_tools_type(key, fs):

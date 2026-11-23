@@ -11,12 +11,14 @@ import time
 
 import pytest
 
-from conftest import (PLUGIN, SCRIPTS_P, TESTS, Story, git, norm, posix, recorded, story_assert, write)
+from conftest import (GMAIL_READER, PLUGIN, SCRIPTS_P, TESTS, Story, git, norm, posix, recorded, story_assert, write)
 
 ISF = SCRIPTS_P + "/install-source-file.sh"
 DDS = SCRIPTS_P + "/decode-download.sh"
 LFS = posix(PLUGIN / "sources/local-folder/read.sh")
-GM = "---\nkey: gmail\ntype: gmail\nlabels: Projects\n---\n\nNotes.\n"
+# gmail is access: tools (docs/adr.md 23): its rules come from the
+# instance's reader binding, so the instance is bound.
+GM = "---\nkey: gmail\ntype: gmail\nlabels: Projects\n" + GMAIL_READER + "---\n\nNotes.\n"
 BK = (TESTS / "guard-wiki/.claude/sources/types/bookish/SOURCE.md").read_text(encoding="utf-8")
 
 # name, text, exit, answer, target, content (None: a step with its own check)
@@ -66,10 +68,14 @@ def story(tmp_path_factory, run):
     write(iw / ".claude/settings.json",
           '{\n  "permissions": {\n    "allow": [\n      "mcp__claude_ai_Gmail__search_threads"\n    ]\n  }\n}\n')
     st = Story()
+    # An empty HOME: a reader binding's rules may sit in the user's
+    # settings, which would otherwise count as present.
+    (t / "inst-home").mkdir()
 
     def inst(answer, target, content, env=None):
         r = run(["bash", ISF, target], cwd=iw, input=content.encode("utf-8"), merged=True,
-                env=dict({"CLAUDECODE": None, "WIKI_INSTALL_ANSWER": answer}, **(env or {})))
+                env=dict({"CLAUDECODE": None, "WIKI_INSTALL_ANSWER": answer, "HOME": posix(t / "inst-home")},
+                         **(env or {})))
         return r.merged.decode("utf-8", "surrogateescape"), r.rc
 
     def iexpect(name, text, code, answer, target, content):
@@ -352,10 +358,11 @@ def test_lf_reads(lf):
 def test_install_edge(tmp_path, run, request):
     t = tmp_path
     cases = []
+    (t / "ie-home").mkdir()  # empty: reader rules in the user's settings would count
 
     def ie(name, d, answer, target, content):
         r = run(["bash", ISF, target], cwd=d, input=content.encode("utf-8"),
-                env={"CLAUDECODE": None, "WIKI_INSTALL_ANSWER": answer})
+                env={"CLAUDECODE": None, "WIKI_INSTALL_ANSWER": answer, "HOME": posix(t / "ie-home")})
         block = "rc=%d\n-- out\n%s-- err\n%s" % (r.rc, r.out.decode("utf-8", "surrogateescape"),
                                                  r.err.decode("utf-8", "surrogateescape"))
         cases.append("== %s\n%s\n" % (name, norm(block.rstrip("\n"), t)))
@@ -369,7 +376,7 @@ def test_install_edge(tmp_path, run, request):
     git(t, "init", "-q", "iew")
     write(w / "CLAUDE.md", "# W\n")
     (w / "sub").mkdir()
-    gm = "---\nkey: gmail\ntype: gmail\nlabels: X\n---\n"
+    gm = "---\nkey: gmail\ntype: gmail\nlabels: X\n" + GMAIL_READER + "---\n"
     ie("dot-prefix", w, "y", "./instances/gmail.md", gm)
     ie("claude-prefix", w / "sub", "y", ".claude/sources/instances/gmail.md", gm + "x\n")
     ie("nested-type", w, "y", "types/a/b/c.sh", "x\n")

@@ -59,6 +59,21 @@ HOME_U = "/home/u"                # the home the fixtures use
 PLUGIN_BASH = msys(PLUGIN_P)      # as bash's `pwd` prints it
 SCRIPTS_P = posix(SCRIPTS)
 
+# A gmail instance's reader binding to the claude.ai Gmail connector
+# (docs/adr.md, 23), as frontmatter lines: gmail is access: tools, so its
+# settings rules come from these lists, not from the contract.
+GMAIL_T = "mcp__claude_ai_Gmail__"
+GMAIL_DENY = ("send_message", "reply", "forward", "create_draft", "update_draft", "delete_draft",
+              "trash_message", "trash_thread", "untrash_message", "untrash_thread",
+              "mark_message_spam", "mark_thread_spam", "unmark_message_spam", "unmark_thread_spam",
+              "create_label", "delete_label", "update_label", "label_message", "label_thread",
+              "unlabel_message", "unlabel_thread", "update_message_labels",
+              "apply_sensitive_message_label", "apply_sensitive_thread_label", "list_drafts", "get_draft")
+GMAIL_OPS = {"search threads": "search_threads", "read thread": "get_thread", "list labels": "list_labels",
+             "read message": "get_message", "download attachment": "download_gmail_attachment"}
+GMAIL_READER = ("reader:\n" + "".join("  - %s: %s%s\n" % (o, GMAIL_T, t) for o, t in GMAIL_OPS.items())
+                + "reader_deny:\n" + "".join("  - %s%s\n" % (GMAIL_T, t) for t in GMAIL_DENY))
+
 
 # --- options and markers -------------------------------------------------
 
