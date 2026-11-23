@@ -9,7 +9,7 @@ import shutil
 
 import pytest
 
-from conftest import CACHE, PLUGIN, SCRIPTS, copytree, git, posix, write
+from conftest import CACHE, GMAIL_READER, PLUGIN, SCRIPTS, copytree, git, home_env, posix, write
 
 
 def text(r):
@@ -30,7 +30,9 @@ def good(tmp_path_factory, cli):
     write(w / "CLAUDE.md", "# Test wiki\n\n## Purpose\n\nTesting.\n")
     write(w / ".gitignore", ".obsidian/\n.claude/*\n!.claude/settings.json\n!.claude/sources/\n")
     write(w / "raw/sync-log.md", "# Sync Log\n\nlast_checked_raw: never\nlast_checked_gmail: never\nlast_checked_scans: never\n")
-    write(w / ".claude/sources/instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: Test\nstate:\n  - last_checked\n---\n")
+    # gmail is access: tools (docs/adr.md 23): bound, so it has rules.
+    write(w / ".claude/sources/instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: Test\nstate:\n"
+          "  - last_checked\n" + GMAIL_READER + "---\n")
     write(w / ".claude/sources/instances/scans.md",
           "---\nkey: scans\ntype: local-folder\nroots:\n  - /x/scans\nstate:\n  - last_checked\n---\n")
     write(w / "wiki/index.md", "# Index\n\n## Notes\n\n| Page | Summary |\n|---|---|\n")
@@ -156,10 +158,14 @@ FAULTS = [  # name, change, text
 
 
 @pytest.mark.parametrize("change,want", [pytest.param(c, t, id="wiki-check/" + n) for n, c, t in FAULTS])
-def test_fault(change, want, mk, cli):
+def test_fault(change, want, mk, cli, tmp_path):
     w = mk("f")
     change(w)
-    out = text(wc(cli, w))
+    # An empty HOME: a reader binding's rules may sit in the user's
+    # settings, which would otherwise hide source-rule-missing.
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    out = text(wc(cli, w, env=dict(home_env(posix(home)), HOME=posix(home))))
     assert want in out, out
 
 
