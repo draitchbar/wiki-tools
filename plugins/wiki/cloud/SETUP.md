@@ -27,8 +27,7 @@ A guided setup for opening a wiki at claude.ai/code (web or phone) or running it
    | Source type | In a cloud session |
    |---|---|
    | `raw` | Only what is committed: Markdown and text, `raw/ocr/*.txt`. PDFs, Office files and images are gitignored, so they stay local. |
-   | `gmail` | Through the claude.ai connector the session or routine is given. Untested in the cloud. Don't ingest Gmail there until results can be saved: its `wiki-ingested` label is written at Gmail, so an unsaved run would lose those threads. |
-   | `google-drive`, `jira`, `ms-teams` | Through the claude.ai connector if the instance's binding names the session's tool names (e.g. `mcp__Microsoft_365__*` for Teams in a cloud session, so a cloud wiki binds again with `/wiki:bind-reader`) and its rules are in the wiki's settings. Untested in the cloud. |
+   | `gmail`, `google-drive`, `jira`, `ms-teams` | Through the claude.ai connector if the instance's binding names the session's tool names (e.g. `mcp__Gmail__*` for Gmail and `mcp__Microsoft_365__*` for Teams in a cloud session, so a cloud wiki binds again with `/wiki:bind-reader`) and its rules are in the wiki's settings. Untested in the cloud. Gmail is read-only, so an unsaved run writes nothing at Gmail and the next run repeats those threads. |
    | `proton-files` | No: the reader needs a local sign-in. Options are in the research. |
    | `local-folder`, `onenote` | No: local folders, local sign-in. |
    | `codebase` | No: the clone would be a second repository, and `gh` has no login there. |
