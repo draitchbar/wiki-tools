@@ -31,11 +31,54 @@ Only you can start `/wiki:init` (`disable-model-invocation`). Claude can run its
 
 `raw/` is the only built-in source. Every other source is chosen during init with the same flow as `/wiki:add-source`.
 
-It ends with a guide for the steps only you can do, because the guard blocks Claude from them: pasting `.claude/settings.json` (from `plugins/wiki/templates/project-settings.json` plus the sources' rules) and the files under `.claude/sources/`, committing them and restarting `claude`. Setting up the git remote and pushing is also yours.
+It ends with a guide for the steps only you can do, because the guard blocks Claude from them: pasting `.claude/settings.json` (from `plugins/wiki/templates/project-settings.json` plus the sources' rules) and the files under `.claude/sources/`, committing them and restarting `claude`. Setting up the git remote and pushing is also yours (Optional: the wiki on GitHub, below).
 
 Sources start at `last_checked_<key>: never`. The first `/wiki:ingest <key>` of each source checks it, asks for a starting point and reviews the data model (folders, page types, templates) against the wiki's purpose.
 
 The shared starting template for people and organisations is `plugins/wiki/templates/pages/entity.md`; every other page type is designed per wiki by `/wiki:init`.
+
+### Optional: the wiki on GitHub
+
+A private GitHub repository gives the wiki an offsite copy, and a ruleset stops anyone from force-pushing over its history or deleting its main branch by accident. You run every step in a terminal; the guard stops Claude from pushing.
+
+1. **Check who will see it.** A wiki holds confidential source material, so check access before the first push. In an organisation, the org's admins and any teams it adds automatically can read every repository:
+   ```
+   gh api 'orgs/<org>/members?role=admin' --jq '.[].login'
+   ```
+   After step 2, check the repository's own access:
+   ```
+   gh api repos/<org>/<wiki>/collaborators --jq '.[] | "\(.login)\t\(.role_name)"'
+   gh api repos/<org>/<wiki>/teams
+   ```
+   `gh api orgs/<org> --jq .default_repository_permission` (the base permission for all members) prints nothing unless you're an org owner.
+2. **Create the repository and push:** `gh repo create <org>/<wiki> --private --source=. --remote=origin --push` (just `<wiki>` for your personal account).
+3. **Add the ruleset.** Save this as `ruleset.json`, outside the wiki or deleted afterwards:
+   ```json
+   {
+     "name": "protect-default-branch",
+     "target": "branch",
+     "enforcement": "active",
+     "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+     "rules": [ { "type": "deletion" }, { "type": "non_fast_forward" } ],
+     "bypass_actors": []
+   }
+   ```
+   Then: `gh api repos/<org>/<wiki>/rulesets --method POST --input <path>/ruleset.json`.
+   - `non_fast_forward` refuses force pushes, and `deletion` refuses deleting the branch. Ordinary pushes work as before; there's no pull-request flow.
+   - With an empty `bypass_actors`, the rules apply to admins too. That's deliberate: an admin who really means to force-push turns the ruleset off under Settings → Rules first.
+   - `~DEFAULT_BRANCH` means whatever the default branch is, so it still applies if `master` is renamed to `main`.
+   - **Plan:** GitHub documents rulesets on private repositories for Pro, Team and Enterprise Cloud only. On a Free plan, the ruleset may be saved without being enforced, so check that Settings → Rules doesn't say it isn't enforced.
+4. **Force-push deny rules (optional).** The settings template already denies every `git push` (`Bash(git push *)`), and the guard refuses pushes too, so today these add nothing. If a wiki ever lets Claude push, keep these in `permissions.deny` in `.claude/settings.json`, in place of the blanket rule:
+   ```
+   "Bash(git push --force*)",
+   "Bash(git push -f*)",
+   "Bash(git push * --force*)",
+   "Bash(git push * -f*)",
+   "Bash(git push *+*)"
+   ```
+   The last rule catches a force push written as a refspec (`git push origin +main`). Bash rules only match how a command is written, so `eval "git push --force"` gets past them (`docs/guard.md`, "Checked against Claude Code"). The ruleset is what actually holds.
+
+**What a ruleset can't do:** stop someone deleting the repository. An org owner can restore a deleted org repository within 90 days. Your local clone is a full copy, and an occasional `git bundle create <path> --all` (stored outside the wiki) is a single-file backup.
 
 ## Cloud sessions
 
