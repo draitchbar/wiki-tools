@@ -9,8 +9,8 @@ and contents). CHECKS lists the checks in order, one small function each,
 no_push first; each gets the call and a Context (the plugin folder, the
 wiki root and what the source files say, each loaded once, when first
 needed) and returns a reason to refuse or None. The first reason wins; a
-call no check refuses is allowed. Harmless and mcp tools pass; an unknown
-tool is refused (fail closed).
+call no check refuses is allowed. Harmless and mcp tools pass (but no
+GitHub MCP tool, which can push); an unknown tool is refused (fail closed).
 
 What the guard knows about sources comes from the contracts at hook time:
 every standard type (plugins/wiki/sources/*/SOURCE.md), every local type of
@@ -709,8 +709,15 @@ def source_script(s: str) -> bool:
 # source file.
 
 def no_push(call: HookCall, ctx: Context) -> str | None:
-    """git push in a shell command. First, so no exception can let one
-    through."""
+    """git push in a shell command, or any tool of a GitHub MCP server
+    (push_files, merge_pull_request and the like push past git). First, so
+    no exception can let one through."""
+    if call.kind == "mcp":
+        server = call.tool[len("mcp__"):].split("__", 1)[0]
+        if "github" in lower(server):
+            return ("%s is a GitHub tool, and GitHub tools are not allowed in wiki sessions "
+                    "(they can push). Commit locally; the user pushes." % call.tool)
+        return None
     if call.kind != "shell":
         return None
     if _PUSH.search(_STASH_PUSH.sub("git stash", norm(call.command))):

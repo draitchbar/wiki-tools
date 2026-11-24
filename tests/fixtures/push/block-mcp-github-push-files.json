@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"auto","hook_event_name":"PreToolUse","tool_name":"mcp__github__push_files","tool_input":{"owner":"example","repo":"wiki","branch":"main","message":"m","files":[{"path":"a.md","content":"x"}]},"tool_use_id":"x"}
