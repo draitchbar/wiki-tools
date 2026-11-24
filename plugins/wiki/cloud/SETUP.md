@@ -49,7 +49,9 @@ A guided setup for opening a wiki at claude.ai/code (web or phone) or running it
    - the session started with the wiki schema (`wiki-conventions`, `wiki-layout`) and the sync status;
    - `/wiki:sync-status` runs;
    - `eval "git push --dry-run origin HEAD"` is refused with "wiki guard: git push is not allowed in wiki sessions". **If not, the plugin didn't load and the session is unguarded: stop using it.**
-   - `bash /opt/wiki-plugin/scripts/wiki-check.sh` passes, except for rules that name a reader by a path on the user's machine (expected: that reader isn't in the cloud).
+   - `bash /opt/wiki-plugin/scripts/wiki-check.sh` passes, except for rules that name a reader by a path on the user's machine (expected: that reader isn't in the cloud);
+   - which plugin it runs: Read `/opt/wiki-plugin/.wiki-tools-ref` (the commit the setup script checked out). The script's own output isn't shown to the session.
+   - GitHub's tools (`mcp__github__*`, among them `push_files`) are refused by the guard itself. A cloud session has every connector of the account, in auto mode, and nothing yet denies the write tools of connectors no source uses (Google Calendar, Meetings, Claude Docs, Claude Data): add deny rules for those you don't want, until the roadmap's "Connector tools opt-in" is built.
 5. **user, optional: a routine** at claude.ai/code/routines: this wiki as its repository, the environment, only the connectors the wiki's sources need (none for a `raw`-only wiki), the prompt `/wiki:ingest all --unattended`, a schedule of hourly or slower. A routine's prompt starts the manual-only `/wiki:ingest`. Each run is a session in the user's history, and its results aren't saved yet.
 
 ### The setup script
@@ -69,6 +71,7 @@ git -C "$SRC" checkout -q "$REF"
 cp -r "$SRC/plugins/wiki" "$DEST"
 test -f "$DEST/.claude-plugin/plugin.json"
 test -f "$DEST/hooks/hooks.json"
+git -C "$SRC" rev-parse HEAD > "$DEST/.wiki-tools-ref"
 echo "wiki plugin at $DEST from wiki-tools $(git -C "$SRC" rev-parse --short HEAD)"
 ```
 
@@ -86,8 +89,8 @@ A spike on 2026-11-21, Claude Code 2.1.330, in an environment with this setup (i
 ## Still to test
 
 - **A failing setup script.** The script exits non-zero on purpose. Untested: whether the session then fails to start, or starts without the plugin and so unguarded. A project hook in the wiki that refuses everything when `CLAUDE_CODE_REMOTE` is `true` and the plugin is missing would close the gap; not built.
-- **Saving results.** The guard refuses `git push`, and a VM is thrown away, so a cloud session's commits are lost. Untested: the web UI's own push or pull request button (outside the Bash tool, so outside the guard). Not built: a guard exception for cloud sessions that pushes to a `claude/` branch, which needs branch protection on the default branch and a decision on how runs' branches are merged (the research, "If the spike passes").
-- **Connector sources.** Gmail, Google Drive, Teams and Jira through claude.ai connectors in a cloud session or routine: whether each instance binds the cloud session's tool names (re-bind in the cloud session), and the permission rules. A plugin synced from the claude.ai account failed to reach its own MCP server through the session's network proxy.
+- **Saving results.** The guard refuses `git push`, and a VM is thrown away, so a cloud session's commits are lost. Untested: the web UI's own push or pull request button (outside the Bash tool, so outside the guard). The GitHub connector's tools (`push_files`, `create_pull_request`, `merge_pull_request`) would be another way; the guard refuses every GitHub tool until that is a deliberate decision. Not built: a guard exception for cloud sessions that pushes to a `claude/` branch, which needs branch protection on the default branch and a decision on how runs' branches are merged (the research, "If the spike passes").
+- **Connector sources.** Gmail, Google Drive, Teams and Jira through claude.ai connectors in a cloud session or routine: the cloud session's tool names differ (`mcp__Gmail__*`, `mcp__Microsoft_365__*`, `mcp__Atlassian_MCP__*`), and re-binding an instance there would unbind it locally (open), and the permission rules. Atlassian connects since 2026-11-24. A plugin synced from the claude.ai account failed to reach its own MCP server through the session's network proxy.
 - **Typing skills** (`/wiki:ingest`, `/wiki:clarify` and the other manual-only skills) in the web UI and on the phone.
 - **Permission prompts.** Routines run in auto mode; the wikis rely on the user's answer in a few places (e.g. the reader binding).
 - **Git identity.** Commits are made as `Claude <noreply@anthropic.com>`, not the user. Untested: `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL` as environment variables.
