@@ -7,7 +7,9 @@ import os
 import re
 import shutil
 
+import lint
 import pytest
+import wiki_check
 
 from conftest import CACHE, GMAIL_READER, PLUGIN, SCRIPTS, copytree, git, home_env, posix, write
 
@@ -257,6 +259,19 @@ def test_stray_markdown(mk, cli):
     assert ("INFO 3 Markdown file(s) outside the wiki layout: `draft.md` `notes/CLAUDE.md` `notes/mail.MD`. "
             "Move each to `work/` (drafts) or `raw/` (source material), or delete it") in out, out
     assert "Failures: 0." in out
+
+
+@pytest.mark.checks("wiki-check/lint-internal-error")
+def test_lint_failure_is_named(mk, monkeypatch):
+    """A bug in lint is a failure that names the error, on one line."""
+    def boom(*_args):
+        raise RuntimeError("no\nluck")
+    monkeypatch.setattr(lint, "report", boom)
+    monkeypatch.chdir(mk("f25"))
+    c = wiki_check.Check(posix(PLUGIN))
+    c.run()
+    assert any(ln.startswith("- FAIL lint.sh didn't run (internal error: RuntimeError: no luck). Fix: ")
+               for ln in c.out), c.out
 
 
 @pytest.mark.checks("wiki-check/outside-git")
