@@ -337,16 +337,20 @@ class Check:
             # Read below only when n is not None, so after log_history returned;
             # bound on every path all the same.
             hist: list[lint.LogEdit] = []
+            why = ""
             try:
                 hist = lint.log_history(root)
                 _, n = lint.report(root, self.plugin, hist)
                 n -= len(hist)
-            except Exception:
-                n = None
+            except (lint.Die, sourcelib.GitBashPath) as e:
+                n, why = None, str(e)
+            except Exception as e:  # named, so a bug in lint isn't hidden
+                n, why = None, "internal error: %s: %s" % (type(e).__name__, e)
             if n == 0:
                 self.ok("lint finds no structural errors")
             elif n is None:
-                self.fail("lint.sh didn't run", "run `bash %s/lint.sh` and read its error" % self.here)
+                self.fail("lint.sh didn't run (%s)" % " ".join(why.split()),
+                          "run `bash %s/lint.sh` and read its error" % self.here)
             else:
                 self.fail("lint finds %d structural error(s)" % n, "run /wiki:lint")
             if n is not None and hist:
