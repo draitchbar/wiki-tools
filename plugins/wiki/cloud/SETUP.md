@@ -51,7 +51,7 @@ A guided setup for opening a wiki at claude.ai/code (web or phone) or running it
    - `eval "git push --dry-run origin HEAD"` is refused with "wiki guard: git push is not allowed in wiki sessions". **If not, the plugin didn't load and the session is unguarded: stop using it.**
    - `bash /opt/wiki-plugin/scripts/wiki-check.sh` passes, except for rules that name a reader by a path on the user's machine (expected: that reader isn't in the cloud);
    - which plugin it runs: Read `/opt/wiki-plugin/.wiki-tools-ref` (the commit the setup script checked out). The script's own output isn't shown to the session.
-   - the wiki's `.claude/settings.json` denies the Google Calendar write tools under their cloud names (`mcp__Google_Calendar__create_event`, `update_event`, `delete_event`, `respond_to_event`), as `templates/project-settings.json` does; a wiki set up before that template change adds them by hand. A cloud session has every connector of the account, in auto mode. GitHub's tools (`mcp__github__*`, among them `push_files`) the guard refuses itself.
+   - GitHub's tools (`mcp__github__*`, among them `push_files`) are refused by the guard itself. A cloud session has every connector of the account, in auto mode, and nothing yet denies the write tools of connectors no source uses (Google Calendar, Meetings, Claude Docs, Claude Data): add deny rules for those you don't want, until the roadmap's "Connector tools opt-in" is built.
 5. **user, optional: a routine** at claude.ai/code/routines: this wiki as its repository, the environment, only the connectors the wiki's sources need (none for a `raw`-only wiki), the prompt `/wiki:ingest all --unattended`, a schedule of hourly or slower. A routine's prompt starts the manual-only `/wiki:ingest`. Each run is a session in the user's history, and its results aren't saved yet.
 
 ### The setup script
@@ -94,7 +94,6 @@ A spike on 2026-11-21, Claude Code 2.1.330, in an environment with this setup (i
 - **Typing skills** (`/wiki:ingest`, `/wiki:clarify` and the other manual-only skills) in the web UI and on the phone.
 - **Permission prompts.** Routines run in auto mode; the wikis rely on the user's answer in a few places (e.g. the reader binding).
 - **Git identity.** Commits are made as `Claude <noreply@anthropic.com>`, not the user. Untested: `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL` as environment variables.
-- **Other connectors' write tools.** A cloud session also has the account's Meetings, Claude Docs and Claude Data connectors (seen 2026-11-24), with nothing denying their write tools; which to deny is open.
 - **Cloud-only tools.** The guard doesn't classify `ListConnectors`, `ListPlugins`, `ListSkills`, `SearchMcpRegistry`, `SearchPlugins`, `SearchSkills`, `SuggestConnectors`, `SuggestPluginInstall` and `SuggestSkills`, so it refuses them (fail closed).
 - **Sources and the cloud.** `sources.sh` and the contracts' `platforms` don't know the cloud; source files that name a reader by a local path fail there.
 - **Reading fetched files.** `pdftotext` and LibreOffice aren't in the VM; the setup script could install `poppler-utils` and `libreoffice`.
