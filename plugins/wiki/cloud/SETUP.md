@@ -38,7 +38,7 @@ A guided setup for opening a wiki at claude.ai/code (web or phone) or running it
 
 ## Setup
 
-1. **user: the wiki on GitHub, private.** Check with `git remote -v`. If there is no remote, the user creates a private repository and pushes from a terminal, e.g. `gh repo create <name> --private --source . --push`. Checking access first and a ruleset against force pushes and branch deletion: `docs/setup.md` in wiki-tools, "Optional: the wiki on GitHub".
+1. **user: the wiki on GitHub, private.** Check with `git remote -v`. If there is no remote, the user creates a private repository and pushes from a terminal, e.g. `gh repo create <name> --private --source . --push`. A ruleset against force pushes and branch deletion: `docs/setup.md` in wiki-tools, "Optional: the wiki on GitHub".
 2. **user: GitHub access for Claude.** If the Claude GitHub app is installed for selected repositories only, add this one (GitHub, Settings, Applications, Claude, Repository access).
 3. **user: a cloud environment** at claude.ai/code (the environment selector, add environment). One environment can serve several wikis.
    - **Name:** e.g. `wikis`.

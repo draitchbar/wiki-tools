@@ -41,18 +41,8 @@ The shared starting template for people and organisations is `plugins/wiki/templ
 
 A private GitHub repository gives the wiki an offsite copy, and a ruleset stops anyone from force-pushing over its history or deleting its main branch by accident. You run every step in a terminal; the guard stops Claude from pushing.
 
-1. **Check who will see it.** A wiki holds confidential source material, so check access before the first push. In an organisation, the org's admins and any teams it adds automatically can read every repository:
-   ```
-   gh api 'orgs/<org>/members?role=admin' --jq '.[].login'
-   ```
-   After step 2, check the repository's own access:
-   ```
-   gh api repos/<org>/<wiki>/collaborators --jq '.[] | "\(.login)\t\(.role_name)"'
-   gh api repos/<org>/<wiki>/teams
-   ```
-   `gh api orgs/<org> --jq .default_repository_permission` (the base permission for all members) prints nothing unless you're an org owner.
-2. **Create the repository and push:** `gh repo create <org>/<wiki> --private --source=. --remote=origin --push` (just `<wiki>` for your personal account).
-3. **Add the ruleset.** Save this as `ruleset.json`, outside the wiki or deleted afterwards:
+1. **Create the repository and push:** `gh repo create <org>/<wiki> --private --source=. --remote=origin --push` (just `<wiki>` for your personal account). Private, because a wiki is meant for you alone or a chosen group of contributors, never for everyone.
+2. **Add the ruleset.** Save this as `ruleset.json`, outside the wiki or deleted afterwards:
    ```json
    {
      "name": "protect-default-branch",
@@ -68,7 +58,7 @@ A private GitHub repository gives the wiki an offsite copy, and a ruleset stops 
    - With an empty `bypass_actors`, the rules apply to admins too. That's deliberate: an admin who really means to force-push turns the ruleset off under Settings → Rules first.
    - `~DEFAULT_BRANCH` means whatever the default branch is, so it still applies if `master` is renamed to `main`.
    - **Plan:** GitHub documents rulesets on private repositories for Pro, Team and Enterprise Cloud only. On a Free plan, the ruleset may be saved without being enforced, so check that Settings → Rules doesn't say it isn't enforced.
-4. **Force-push deny rules (optional).** The settings template already denies every `git push` (`Bash(git push *)`), and the guard refuses pushes too, so today these add nothing. If a wiki ever lets Claude push, keep these in `permissions.deny` in `.claude/settings.json`, in place of the blanket rule:
+3. **Force-push deny rules (optional).** The settings template already denies every `git push` (`Bash(git push *)`), and the guard refuses pushes too, so today these add nothing. If a wiki ever lets Claude push, keep these in `permissions.deny` in `.claude/settings.json`, in place of the blanket rule:
    ```
    "Bash(git push --force*)",
    "Bash(git push -f*)",
