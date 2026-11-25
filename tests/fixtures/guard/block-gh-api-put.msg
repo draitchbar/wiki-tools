@@ -1,0 +1,1 @@
+wiki guard: gh api, pr, repo, release, workflow, secret and gist are not allowed in wiki sessions: they can write to GitHub past git. Commit locally; the user pushes. A source reads GitHub only through its wrapper (see its SOURCE.md).

@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"gh api -X PUT repos/example/wiki/contents/wiki/a.md -f message=x -f content=eA==","description":"x"},"tool_use_id":"x"}
