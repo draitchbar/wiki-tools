@@ -30,7 +30,7 @@ def good(tmp_path_factory, cli):
     w = t / "good"
     git(t, "init", "-q", "good")
     write(w / "CLAUDE.md", "# Test wiki\n\n## Purpose\n\nTesting.\n")
-    write(w / ".gitignore", ".obsidian/\n.claude/*\n!.claude/settings.json\n!.claude/sources/\n")
+    write(w / ".gitignore", ".obsidian/\n.claude/*\n!.claude/settings.json\n!.claude/sources/\n!.claude/skills/\n")
     write(w / "raw/sync-log.md", "# Sync Log\n\nlast_checked_raw: never\nlast_checked_gmail: never\nlast_checked_scans: never\n")
     # gmail is access: tools (docs/adr.md 23): bound, so it has rules.
     write(w / ".claude/sources/instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: Test\nstate:\n"
@@ -161,6 +161,7 @@ FAULTS = [  # name, change, text
     ("settings-not-json", _edit(SETTINGS, lambda s: s.replace('"allow": [', '"allow": [,', 1)),
      'FAIL `.claude/settings.json` is not valid JSON: unexpected ","'),
     ("gitignore-sources", _drop_line(".gitignore", "!.claude/sources"), "FAIL `.gitignore` lacks `!.claude/sources/`"),
+    ("gitignore-skills", _drop_line(".gitignore", "!.claude/skills"), "FAIL `.gitignore` lacks `!.claude/skills/`"),
     ("instance-invalid", lambda w: write(w / ".claude/sources/instances/bad.md", "---\nkey: bad\ntype: nosuch\n---\n"),
      "FAIL source `bad` doesn't validate: unknown source type 'nosuch'"),
     ("instance-dirty", _append(".claude/sources/instances/scans.md", "\nNotes.\n"),

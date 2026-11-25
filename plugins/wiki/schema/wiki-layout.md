@@ -16,6 +16,7 @@ For wikis that follow the raw/wiki pattern. Each wiki's CLAUDE.md names its fold
 - `.claude/sources/`: the wiki's sources (guard-protected; the user installs each file with `${CLAUDE_PLUGIN_ROOT}/scripts/install-source-file.sh` and commits them):
   - `instances/<key>.md`: one per source instance: its type, parameters and agreed state fields. The key is the `/wiki:ingest <key>` argument and names its state lines in `raw/sync-log.md`; `raw` and `all` are reserved.
   - `types/<type>/SOURCE.md`: wiki-local source types (contract plus optional wrapper scripts). Standard types live in `${CLAUDE_PLUGIN_ROOT}/sources/`.
+- `.claude/skills/<name>/SKILL.md` (optional): wiki-local skills, versioned with the wiki. They run later with the session's rights, so they are guard-protected: the user installs and commits each one, as wiki-conventions **Protected files** says.
 - Fetched source files are cached outside the repo in `~/.cache/wiki-sources/<wiki>/<key>/`. Don't copy them into the repo.
 
 ## Page frontmatter

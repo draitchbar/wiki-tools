@@ -92,6 +92,7 @@ Draft the plan (step 5's content). Then dispatch one reviewer subagent with the 
    .claude/*
    !.claude/settings.json
    !.claude/sources/
+   !.claude/skills/
    raw/**/*.pdf
    raw/**/*.PDF
    raw/**/*.docx
@@ -146,6 +147,6 @@ Also list files that adopt mode left in place, and any open questions.
 1. Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/wiki-check.sh`. If it prints only `wiki-check: no Python 3.11 or later found ...` instead of a report, that is the one failure: report it with the fix it names (the guard refuses every Bash, Write and Edit call until Python is installed), and stop.
 2. Check that the shared conventions are actually loaded: they are if your instructions contain the heading "Ask for context, don't guess" from wiki-conventions.md and "Data model" from wiki-layout.md. If not, the plugin's SessionStart hook didn't run: check that the plugin is enabled (step 0.3), then tell the user to restart `claude` here.
    - If wiki-check reports that CLAUDE.md still imports the schema by path (a wiki set up before the plugin loaded it), propose removing those lines. After the user's go, remove them and commit CLAUDE.md alone with the message `Load the shared schema from the plugin`.
-3. Report every FAIL with its fix as a short numbered list, and say which ones only the user can do (settings, files under `.claude/sources/`, commits of `.claude/` files, installing Python). Pass on an INFO line about Markdown files outside the wiki layout too, with its fix.
+3. Report every FAIL with its fix as a short numbered list, and say which ones only the user can do (settings, files under `.claude/sources/` or `.claude/skills/`, commits of `.claude/` files, installing Python). Pass on an INFO line about Markdown files outside the wiki layout too, with its fix.
 4. If everything passes: say so, and suggest `/wiki:sync-status`, then the first `/wiki:ingest <source>`.
 Check mode writes nothing except the commits the user approves (removing old schema imports), and calls no source.

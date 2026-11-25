@@ -235,6 +235,7 @@ class Check:
             pats = [".obsidian/", ".claude/*", "!.claude/settings.json"]
             if instances:
                 pats.append("!.claude/sources/")
+            pats.append("!.claude/skills/")
             for pat in pats:
                 if pat in have:
                     self.ok("`.gitignore` has `%s`" % pat)
