@@ -43,7 +43,7 @@ Shell tools (Bash, PowerShell, Monitor's command):
   (or "git.exe") directly followed by "stash push"; `git -C stash push`
   could be a real push. Known false positive: a command naming both "git"
   and the word "push", e.g. in a commit message. Rephrase it.
-- gh api, pr, repo, release, workflow, secret or gist, right after git
+- gh api, pr, repo, release, workflow, secret, variable or gist, right after git
   push: they write to GitHub past git. "gh" counts only as a command word
   (options such as -R owner/repo may stand before the subcommand), never as
   text; a plain call of an allowed script (a wrapper around gh) passes.
@@ -172,20 +172,21 @@ _CLAUDE_CMD = re.compile(
 # gh writing to GitHub past git (`gh api -X PUT .../contents/...` changes
 # the default branch with no push): "gh" (a path ending in /gh, or gh.exe,
 # bare or in quotes) as a command word, found as _CLAUDE_CMD finds claude,
-# also after { eval sudo bash sh zsh pwsh powershell and an opening quote
-# (`bash -c "gh api ..."`); then any options (`-R owner/repo`, each with an
-# optional value: gh finds its subcommand past them) and one of these
-# subcommands, bare or quoted. Never as text: echo gh api, a commit message.
-_GH_SUBCOMMANDS = ("api", "pr", "repo", "release", "workflow", "secret", "gist")
+# also after { or a variable assignment ($x = gh ..., PowerShell), after
+# eval sudo bash sh zsh pwsh powershell and an opening quote (`bash -c "gh
+# api ..."`); then any options (`-R owner/repo`, each with an optional
+# value: gh finds its subcommand past them) and one of these subcommands,
+# bare or quoted. Never as text: echo gh api, a commit message.
+_GH_SUBCOMMANDS = ("api", "pr", "repo", "release", "workflow", "secret", "variable", "gist")
 _GH_CMD = re.compile(
-    r"(?:\A|[;&|(`{])" + WS + "*"
+    r"(?:\A|[;&|(`{]|\$\{?[a-z0-9_:]+\}?" + WS + "*=(?!=))" + WS + "*"
     r"(?:(?:[a-z_][a-z0-9_]*=[^ \t\n\v\f\r;&|]*|env|exec|command|builtin|nohup|time|nice|stdbuf"
     r"|xargs|timeout|then|do|else|!|eval|sudo|bash|sh|zsh|pwsh|powershell"
-    r"|-[^ \t\n\v\f\r;&|]*|[0-9][0-9.]*[smhd]?)" + WS + "+)*"
+    r"|-[^ \t\n\v\f\r;&|(){}`]*|[0-9][0-9.]*[smhd]?)" + WS + "+)*"
     r"""(?:"(?:[^"]*/)?gh(?:\.exe)?"|'(?:[^']*/)?gh(?:\.exe)?'"""
-    r"""|["']?(?:[^ \t\n\v\f\r;&|()`"']*/)?gh(?:\.exe)?)"""
-    r"(?:" + WS + r"""+["']?-[^ \t\n\v\f\r;&|()`]*"""
-    r"(?:" + WS + r"""+[^- \t\n\v\f\r;&|()`][^ \t\n\v\f\r;&|()`]*)?)*"""
+    r"""|["']?(?:[^ \t\n\v\f\r;&|(){}`"']*/)?gh(?:\.exe)?)"""
+    r"(?:" + WS + r"""+["']?-[^ \t\n\v\f\r;&|(){}`]*"""
+    r"(?:" + WS + r"""+[^- \t\n\v\f\r;&|(){}`][^ \t\n\v\f\r;&|(){}`]*)?)*"""
     + WS + r"""+["']?(?:""" + "|".join(_GH_SUBCOMMANDS) + r""")["']?(?=[ \t\n\v\f\r;&|)`]|\Z)""",
     re.ASCII)
 
@@ -750,17 +751,17 @@ def no_push(call: HookCall, ctx: Context) -> str | None:
 
 def no_gh_write(call: HookCall, ctx: Context) -> str | None:
     """A shell command running gh with a subcommand that can write to
-    GitHub past git (api, pr, repo, release, workflow, secret, gist): the
-    same protection as no_push, so right after it. A plain call of an
-    allowed script (a source's wrapper around gh) passes."""
+    GitHub past git (api, pr, repo, release, workflow, secret, variable,
+    gist): the same protection as no_push, so right after it. A plain call
+    of an allowed script (a source's wrapper around gh) passes."""
     if call.kind != "shell":
         return None
     cmd = norm(call.command)
     if not _GH_CMD.search(cmd) or ctx.bash_script(cmd) is not None:
         return None
-    return ("gh api, pr, repo, release, workflow, secret and gist are not allowed in wiki "
-            "sessions: they can write to GitHub past git. Commit locally; the user pushes. A "
-            "source reads GitHub only through its wrapper (see its SOURCE.md).")
+    return ("gh api, pr, repo, release, workflow, secret, variable and gist are not allowed "
+            "in wiki sessions: they can write to GitHub past git. Commit locally; the user "
+            "pushes. A source reads GitHub only through its wrapper (see its SOURCE.md).")
 
 
 def shell_has_command(call: HookCall, ctx: Context) -> str | None:
