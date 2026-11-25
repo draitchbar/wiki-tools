@@ -1,1 +1,1 @@
-wiki guard: save.sh --allow saves paths that need the user's permission, and runs only as save.sh printed it: bash <plugin>/scripts/save.sh --allow <paths>, as a Bash call of its own (no ; & | < > $ or backtick), so the user is asked. Run that call.
+wiki guard: save.sh runs only as a plain call of the plugin's copy, one per Bash call: bash <plugin>/scripts/save.sh with --check, --update, --unattended or --allow <paths> (no ; & | < > $ or backtick, no variable). Any other command naming save.sh is refused, a commit message too: leave the name out.

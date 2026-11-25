@@ -59,11 +59,14 @@ Shell tools (Bash, PowerShell, Monitor's command):
   scripts, or of a script a contract lists, with no ; & | < > ` $ and no
   "..". Wrappers outside the plugin don't count: the wikis' settings allow
   them by wildcard.
-- save.sh --allow <paths> (saving paths that need the user's permission):
-  only as a plain Bash call of the plugin's save.sh, which every other
-  check lets through, and then not a plain pass: the guard answers "ask"
+- save.sh: only as a plain call of the plugin's copy. With no arguments
+  but --check, --update and --unattended it passes like any core script.
+  Any other argument is the permission case (save.sh --allow <paths>,
+  saving paths that need the user's permission): only from the Bash tool,
+  only as --allow followed by plain paths, and then, if every other check
+  lets it through, not a plain pass: the guard answers "ask"
   (hookjson.ask), so the user gets Claude Code's permission prompt. Any
-  other command naming save.sh and --allow is refused.
+  other command naming save.sh is refused.
 Write tools (Write, Edit, MultiEdit, NotebookEdit): no protected path,
 nothing in the plugin folder, nothing inside a filesystem root (the path
 resolved first), no guard word in non-Markdown content (a helper script
@@ -140,6 +143,7 @@ _STASH_PUSH = re.compile(r"\bgit(\.exe)?\s+stash\s+push\b", re.ASCII)
 _PUSH = re.compile(r"\bgit\b.*\bpush\b", re.ASCII | re.DOTALL)
 
 _PLAIN = re.compile(NOCHAIN + "*")
+_WS_SPLIT = re.compile(WS + "+")
 _CHAIN_CHAR = re.compile("[;&|<>`$]")
 _SCRIPT_QUOTED = re.compile(WS + "*bash" + WS + '+"([^"]+)"(' + WS + ".*)?", re.DOTALL)
 _SCRIPT_BARE = re.compile(WS + "*bash" + WS + '+([^ \t\n\v\f\r"]+)(' + WS + ".*)?", re.DOTALL)
@@ -203,6 +207,21 @@ CORE_SCRIPTS = ("scripts/ocr.sh", "scripts/sync-status.sh", "scripts/lint.sh",
                 "scripts/wiki-check.sh", "scripts/sources.sh", "scripts/decode-download.sh",
                 "scripts/file-snapshot.sh", "scripts/save.sh")
 LOOKALIKE_ENDS = tuple("/" + s for s in CORE_SCRIPTS)
+
+# save.sh: the arguments that save only free paths; any other argument is
+# the permission case. save.sh named in a command (normalised text), not
+# as part of a longer name (autosave.sh).
+SAVE_FLAGS = frozenset(("--check", "--update", "--unattended"))
+_SAVE_WORD = re.compile(r"(?<![a-z0-9_.-])save\.sh", re.ASCII)
+# A path the permission prompt shows, as save.sh gets it: no character a
+# shell expands or a reader could misread (control, invisible and bidi
+# characters, Unicode spaces).
+_SAVE_PATH_BAD = "*?[]{}()~#\\=\"'!"
+_SAVE_PATH_INVISIBLE = re.compile(
+    r"[\x00-\x1f\x7f-\x9f\u00a0\u061c\u1680\u180e\u2000-\u200f\u2028-\u202f\u205f-\u206f"
+    r"\u3000\ufeff]")
+SAVE_MAX_PATHS = 50
+SAVE_MAX_CHARS = 2000
 
 
 def block(msg: str) -> NoReturn:
@@ -760,15 +779,18 @@ def no_push(call: HookCall, ctx: Context) -> str | None:
 
 def save_hint(ctx: Context) -> str:
     """" Or run /wiki:save." when saving is on for the wiki: its
-    .claude/settings.wiki-save.json in the working tree parses as a JSON
-    object with "enabled": true. Wording only (the push is refused either
-    way), so the working-tree copy is enough (save.sh reads HEAD's); any
-    error gives ""."""
+    .claude/settings.wiki-save.json in the working tree is a regular file
+    (not a FIFO, which open would wait on) that parses as a JSON object with
+    "enabled": true. Wording only (the push is refused either way), so the
+    working-tree copy is enough (save.sh reads HEAD's); any error gives ""."""
     root = ctx.wiki_root
     if not root:
         return ""
+    f_path = root + "/.claude/settings.wiki-save.json"
     try:
-        with open(root + "/.claude/settings.wiki-save.json", "rb") as f:
+        if not os.path.isfile(f_path):
+            return ""
+        with open(f_path, "rb") as f:
             data: object = json.loads(f.read(65536))
     except (OSError, ValueError, RecursionError):
         return ""
@@ -911,22 +933,88 @@ def lookalike_script(call: HookCall, ctx: Context) -> str | None:
     return None
 
 
-def save_allow_plain(call: HookCall, ctx: Context) -> str | None:
-    """A shell command naming save.sh and --allow that isn't a plain Bash
-    call of the plugin's save.sh: chained, substituted, through a variable,
-    a lookalike, Monitor or PowerShell. Only the plain call gets the
-    permission prompt (save_ask); any other form could push those paths
-    without it. Known false positive: a commit message naming both."""
+def save_words(call: HookCall, ctx: Context) -> list[str] | None:
+    """The argument words of a plain call of the plugin's save.sh (any
+    shell tool), as the command writes them, not lowercased; None for any
+    other command. norm keeps every character's position, so the words are
+    cut from the command as Claude wrote it."""
+    cmd = norm(call.command)
+    if ctx.allowed_script(cmd) != ("", "save.sh"):
+        return None
+    m = _SCRIPT_QUOTED.fullmatch(cmd) or _SCRIPT_BARE.fullmatch(cmd)
+    if not m or not m.group(2):
+        return []
+    return [w for w in _WS_SPLIT.split(call.command[m.start(2):m.end(2)]) if w]
+
+
+def save_permission(words: list[str] | None) -> bool:
+    """True for save.sh words with any argument but --check, --update and
+    --unattended: the permission case, whatever the spelling (--al""low,
+    --allo, --{allow,check} too)."""
+    return words is not None and any(w not in SAVE_FLAGS for w in words)
+
+
+def allow_problem(words: list[str]) -> str:
+    """What keeps save.sh's words from being --allow followed by plain
+    paths, which the permission prompt can show as they are; "" if
+    nothing."""
+    if not words or words[0] != "--allow":
+        return "'%s' is not --allow" % (words[0] if words else "")
+    paths = words[1:]
+    if not paths:
+        return "no paths after --allow"
+    if len(paths) > SAVE_MAX_PATHS:
+        return "more than %d paths" % SAVE_MAX_PATHS
+    if len(" ".join(words)) > SAVE_MAX_CHARS:
+        return "longer than %d characters" % SAVE_MAX_CHARS
+    for p in paths:
+        if _SAVE_PATH_INVISIBLE.search(p):
+            return "a path holds a control, invisible or space character"
+        bad = contains_any(p, _SAVE_PATH_BAD)
+        if bad:
+            return "path '%s' contains '%s'" % (p, bad)
+        if p.startswith("-"):
+            return "path '%s' starts with '-'" % p
+        if ".." in p.split("/"):
+            return "path '%s' has a '..' segment" % p
+    return ""
+
+
+def save_form(call: HookCall, ctx: Context) -> str | None:
+    """save.sh other than as a plain call of the plugin's copy with plain
+    arguments: any other command naming save.sh (chained, substituted,
+    through a variable, a copy outside the plugin), the permission case
+    from Monitor or PowerShell, or permission-case words that aren't
+    --allow followed by plain paths. Only the plain Bash call gets the
+    permission prompt (save_ask); any other form could save those paths
+    without it. Known false positive: any other command naming save.sh, a
+    commit message too. Also any command naming save.py's test seams
+    (WIKI_SAVE_TEST_*, which point a save at a local test repository): no
+    session sets them, in front of save.sh or as an export of its own."""
     if call.kind != "shell":
         return None
-    cmd = norm(call.command)
-    if "save.sh" not in cmd or "--allow" not in cmd:
+    if "wiki_save_test_" in norm(call.command):
+        return ("WIKI_SAVE_TEST_* are save.sh's test settings, not for wiki sessions. Run save.sh "
+                "plainly: bash <plugin>/scripts/save.sh with its arguments only.")
+    words = save_words(call, ctx)
+    if words is None:
+        if not _SAVE_WORD.search(norm(call.command)):
+            return None
+        return ("save.sh runs only as a plain call of the plugin's copy, one per Bash call: "
+                "bash <plugin>/scripts/save.sh with --check, --update, --unattended or --allow "
+                "<paths> (no ; & | < > $ or backtick, no variable). Any other command naming "
+                "save.sh is refused, a commit message too: leave the name out.")
+    if not save_permission(words):
         return None
-    if call.tool == "Bash" and ctx.bash_script(cmd) == ("", "save.sh"):
-        return None
-    return ("save.sh --allow saves paths that need the user's permission, and runs only as "
-            "save.sh printed it: bash <plugin>/scripts/save.sh --allow <paths>, as a Bash call of "
-            "its own (no ; & | < > $ or backtick), so the user is asked. Run that call.")
+    if call.tool != "Bash":
+        return ("save.sh with an argument other than --check, --update or --unattended (--allow "
+                "<paths>) runs only from the Bash tool, which asks the user. Run it as a Bash call.")
+    problem = allow_problem(words)
+    if problem:
+        return ("save.sh's arguments are --check, --update, --unattended or --allow followed by "
+                "plain paths (no quotes, * ? [ ] { } ( ) ~ # \\ = !, no '..', at most %d paths); "
+                "here %s. Run the call exactly as save.sh printed it." % (SAVE_MAX_PATHS, problem))
+    return None
 
 
 def protected_shell(call: HookCall, ctx: Context) -> str | None:
@@ -1028,7 +1116,7 @@ CHECKS: list[Check] = [
     agent_only_ops,
     reader_tools,
     lookalike_script,
-    save_allow_plain,
+    save_form,
     protected_shell,
     roots_shell,
     protected_write,
@@ -1038,24 +1126,19 @@ CHECKS: list[Check] = [
 
 
 def save_ask(call: HookCall, ctx: Context) -> str | None:
-    """For a plain Bash call of the plugin's save.sh with --allow, which
-    every check lets through: the reason for the user's permission prompt
-    (the paths, as the command gives them), else None. Not a check: it
-    never refuses, and runs only when no check does."""
+    """For a plain Bash call of the plugin's save.sh in the permission case
+    (save_form has let only --allow followed by plain paths through), which
+    every check lets through: the reason for the user's permission prompt,
+    naming exactly those paths; else None. Not a check: it never refuses,
+    and runs only when no check does."""
     if call.tool != "Bash":
         return None
-    cmd = norm(call.command)
-    if "--allow" not in cmd or ctx.bash_script(cmd) != ("", "save.sh"):
+    words = save_words(call, ctx)
+    if words is None or not save_permission(words) or allow_problem(words):
         return None
-    # norm keeps every character's position, so the paths are cut from the
-    # command as Claude wrote it.
-    m = _SCRIPT_QUOTED.fullmatch(cmd) or _SCRIPT_BARE.fullmatch(cmd)
-    args = call.command[m.start(2):m.end(2)].strip(" \t\n\v\f\r") if m and m.group(2) else ""
-    if lower(args).startswith("--allow"):
-        args = args[len("--allow"):].strip(" \t\n\v\f\r")
     return ("saving will push changes to: %s. These paths can change how Claude, git or the "
             "host behave in this wiki. Check the diff first (git diff <base>..HEAD -- <paths>), "
-            "then choose Yes, not \"don't ask again\"." % (args or "(no paths)"))
+            "then choose Yes, not \"don't ask again\"." % " ".join(words[1:]))
 
 
 def decide(call: HookCall, ctx: Context | None = None) -> tuple[Check, str] | tuple[None, None]:

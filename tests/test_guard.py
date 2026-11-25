@@ -85,7 +85,7 @@ def _ask_reason(r):
 @pytest.mark.parametrize("msg", [pytest.param(m, id="fixtures/%s has a fixture" % m.name)
                                  for m in sorted(FIXTURES.glob("*/*.msg"))])
 def test_message_has_fixture(msg):
-    """Every message is checked (test_fixture): a pass- or block- fixture beside it."""
+    """Every message is checked (test_fixture): a pass-, block- or ask- fixture beside it."""
     assert msg.with_suffix(".json").is_file() and msg.stem.startswith(("pass-", "block-", "ask-"))
 
 
@@ -117,6 +117,8 @@ SAVE_CONFIGS = [
     ("not-utf8", b'{"enabled": true, "x": "\xff"}', False),
     ("deep", b"[" * 5000 + b"]" * 5000, False),
     ("folder", "folder", False),
+    # A FIFO, which open() would wait on (the guard checks for a regular file).
+    ("fifo", "fifo", False),
 ]
 
 
@@ -128,6 +130,11 @@ def test_save_hint(fixture, named, config, gw, guard_run):
     path = gw / ".claude" / "settings.wiki-save.json"
     if config == "folder":
         path.mkdir(parents=True)
+    elif config == "fifo":
+        if not hasattr(os, "mkfifo"):
+            pytest.skip("no FIFOs here")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        os.mkfifo(path)
     elif config is not None:
         write(path, config)
     r = guard_run(subst((FIXTURES / (fixture + ".json")).read_text(encoding="utf-8"), wiki), wiki)

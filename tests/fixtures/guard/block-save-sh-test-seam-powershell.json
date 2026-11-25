@@ -1,0 +1,1 @@
+{"session_id":"t","transcript_path":"/tmp/t.jsonl","cwd":"/home/u/wikis/mywiki","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"PowerShell","tool_input":{"command":"$env:WIKI_SAVE_TEST_FILE_URLS = '1'","description":"Save"},"tool_use_id":"x"}
