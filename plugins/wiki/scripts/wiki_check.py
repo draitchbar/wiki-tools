@@ -15,7 +15,9 @@ of the test suite on both), except:
   message and exits 1 instead of a report;
 - two checks the bash version never had: Markdown files outside the
   layout (INFO), and, outside a git repo, a pointer to /wiki:init when
-  the folder's settings enable the plugin.
+  the folder's settings enable the plugin;
+- the save config, .claude/settings.wiki-save.json (save.py's own
+  validation), and the .gitignore and .gitattributes lines saving needs.
 
   wiki_check.py --plugin DIR
 
@@ -33,6 +35,7 @@ template path; CLAUDE_CONFIG_DIR (as in Claude Code) moves ~/.claude.
 from __future__ import annotations
 
 import datetime
+import json
 import os
 import re
 import sys
@@ -42,6 +45,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import contract  # noqa: E402
 import lint  # noqa: E402
+import save  # noqa: E402
 import sourcelib  # noqa: E402
 from sourcelib import git, read_text  # noqa: E402
 
@@ -159,6 +163,51 @@ class Check:
         ok, lines = sourcelib.quietly(fn, *args)
         text = "\n".join(lines).rstrip("\n").replace(self.root + "/", "")
         return ok, ";".join(text.split("\n")) if text else ""
+
+    def save_config(self, root: str) -> None:
+        """The save config (save.py checks it the same way) and the lines
+        saving needs in .gitignore and .gitattributes."""
+        f = save.CONFIG
+        rc, _ = git(root, "check-ignore", "-q", "--no-index", "--", f)
+        gi = root + "/.gitignore"
+        lacks = os.path.isfile(gi) and "!" + f not in {ln.rstrip("\r") for ln in _grep_lines(gi)}
+        if rc == 0 and lacks:
+            self.info("`.gitignore` lacks `!%s`, so the save config can't be committed; add the line "
+                      "before turning saving on" % f)
+        if not os.path.isfile(root + "/" + f):
+            self.info("saving to the wiki's remote is off (no `%s`)" % f)
+            return
+        try:
+            cfg = json.loads(read_text(root + "/" + f))
+        except ValueError as e:
+            self.fail("`%s` is not valid JSON: %s" % (f, e), "correct it (you, not Claude)")
+            cfg = None
+        if cfg is not None:
+            errs, unknown = save.validate(cfg)
+            if errs:
+                self.fail("`%s` is invalid: %s" % (f, "; ".join(errs)), "correct it (you, not Claude)")
+            if unknown:
+                self.info("`%s` has unknown key(s) %s; saving ignores them"
+                          % (f, " ".join("`%s`" % k for k in unknown)))
+            if not errs and isinstance(cfg, dict):
+                if cfg.get("enabled") is True:
+                    self.ok("saving is on: `%s` at %s" % (cfg["base"], cfg["url"]))
+                    ga = root + "/.gitattributes"
+                    have = {" ".join(ln.split()) for ln in _grep_lines(ga)} if os.path.isfile(ga) else set()
+                    if "wiki/log.md merge=union" not in have:
+                        self.info("`.gitattributes` lacks `wiki/log.md merge=union`; without it every merge "
+                                  "with the remote conflicts in `wiki/log.md`. Add the line (saving it "
+                                  "needs your permission once)")
+                else:
+                    self.info("saving to the wiki's remote is off (`enabled` is false in `%s`)" % f)
+        if self.tracked(f) and self.changed(f):
+            self.fail("`%s` has uncommitted changes" % f, "review them, then `git add -- %s && git commit` "
+                      "(you, not Claude); saving reads only the committed config" % f)
+        elif self.tracked(f):
+            self.ok("`%s` is committed" % f)
+        else:
+            self.fail("`%s` isn't committed" % f, "`git add -- %s && git commit` (you, not Claude); "
+                      "saving reads only the committed config" % f)
 
     def run(self) -> int:
         root = self.root
@@ -294,6 +343,10 @@ class Check:
             else:
                 self.fail("`%s` isn't committed" % f, "`git add -- %s && git commit` "
                           "(you, not Claude)" % f)
+
+        # 5b. Saving to the wiki's remote (save.sh): opt-in, so only a
+        # config that is there can fail.
+        self.save_config(root)
 
         # 6. Sources in .claude/sources/: every instance valid, available,
         # committed.

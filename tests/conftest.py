@@ -148,7 +148,8 @@ _DROP = ("CLAUDECODE", "CLAUDE_PLUGIN_DATA", "CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJE
          "CLAUDE_CONFIG_DIR", "WIKI_LINT_TODAY", "WIKI_CHECK_TEMPLATE", "WIKI_INSTALL_ANSWER",
          "WIKI_HOOK_TIMING", "MSYS2_ARG_CONV_EXCL", "MSYS2_ENV_CONV_EXCL", "GIT_DIR",
          "GIT_WORK_TREE", "WIKI_TOOLS_DEV_VENV", "UV_PROJECT_ENVIRONMENT", "UV_PYTHON_DOWNLOADS",
-         "CLAUDE_CODE_REMOTE")
+         "CLAUDE_CODE_REMOTE", "WIKI_SAVE_TEST_FILE_URLS", "WIKI_SAVE_TEST_GITHUB_REMOTE",
+         "FAKE_GH_MODE", "FAKE_GH_LOG")
 
 
 @pytest.fixture(scope="session")
@@ -337,13 +338,13 @@ def call_main(fn, argv, cwd=None, env=None, input=b""):
 
 # Each script: its module and how its launcher calls main().
 def _launcher_args(name, args):
-    if name in ("wiki-check", "sources", "sourcelib"):
+    if name in ("wiki-check", "sources", "sourcelib", "save"):
         return ["--plugin", PLUGIN_BASH] + list(args)
     return list(args)
 
 
 _MODULES = {"lint": "lint", "wiki-check": "wiki_check", "sync-status": "sync_status",
-            "sources": "sources", "sourcelib": "sourcelib"}
+            "sources": "sources", "sourcelib": "sourcelib", "save": "save"}
 # The bridge as the wrappers call it: lib-source.sh's _src_py, SRC_PLUGIN the
 # plugin as bash spells it.
 _BRIDGE = '. "$1/lib-source.sh"; SRC_PLUGIN=$2; shift 2; _src_py "$@"'
