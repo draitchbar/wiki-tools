@@ -27,7 +27,8 @@ never; anything else, only with the user's permission (--allow, or the
 holding branch).
 
 Git runs in a cleaned environment: every inherited GIT_* variable is dropped
-except GIT_SSL_CAINFO and GIT_SSL_CAPATH, GIT_TERMINAL_PROMPT=0,
+except GIT_SSL_CAINFO and GIT_SSL_CAPATH, and so is MSYS2_ARG_CONV_EXCL
+(see clean_env); GIT_TERMINAL_PROMPT=0,
 GIT_NO_REPLACE_OBJECTS=1, `-c core.hooksPath=<the plugin's git-hooks-off
 folder>` and `-c http.sslVerify=true`. Pushes go to the
 explicit URL, `<sha>:refs/heads/<branch>`, never forced, with
@@ -88,6 +89,7 @@ USAGE = ("usage: save.sh [--check | --update | --unattended | --update --unatten
 FORMS = {(): "save", ("--check",): "check", ("--update",): "update",
          ("--unattended",): "unattended", ("--update", "--unattended"): "update-unattended"}
 _KEEP_GIT = ("GIT_SSL_CAINFO", "GIT_SSL_CAPATH")
+_DROP_ENV = ("MSYS2_ARG_CONV_EXCL",)
 _NEVER_MODES = ("120000", "160000")
 # Names that configure Claude or git: a path with one of these as a
 # component, at any depth, needs permission even inside content_paths.
@@ -241,9 +243,14 @@ def in_content(path: str, cps: list[str]) -> bool:
 def clean_env() -> dict[str, str]:
     """The environment for git and gh: no inherited GIT_* but the TLS ones
     (the cloud proxy's CA bundle), no prompts. Proxy and GH_* variables
-    stay (the cloud proxy needs them)."""
+    stay (the cloud proxy needs them). MSYS2_ARG_CONV_EXCL goes too: on
+    Windows py-run.sh sets it to * for this Python's own arguments, and
+    left in place it would also stop Git Bash's sh, which git runs for a
+    local remote's `git-upload-pack '/C:/x'`, from turning /C:/x into
+    C:/x, and the upload-pack would find no repository there."""
     env = {k: v for k, v in os.environ.items()
-           if not k.upper().startswith("GIT_") or k.upper() in _KEEP_GIT}
+           if (not k.upper().startswith("GIT_") or k.upper() in _KEEP_GIT)
+           and k.upper() not in _DROP_ENV}
     env["GIT_TERMINAL_PROMPT"] = "0"
     env["GIT_NO_REPLACE_OBJECTS"] = "1"
     return env
@@ -413,14 +420,19 @@ def transport(url: str) -> str:
     return url
 
 
-def gh_json(gh: str, env: dict[str, str], *args: str) -> object:
+def gh_json(gh: str, env: dict[str, str], *args: str, body: object = None) -> object:
     """`gh api --hostname github.com ARGS` as JSON; GH_HOST is dropped, so
-    gh can't be pointed at another host."""
+    gh can't be pointed at another host. A body goes as JSON on stdin
+    (`--input -`), never in the arguments: on Windows gh can be a .cmd
+    launcher, which cuts an argument at a newline."""
     env = {k: v for k, v in env.items() if k.upper() != "GH_HOST"}
+    argv = [gh, "api", "--hostname", "github.com"] + list(args)
+    if body is not None:
+        argv += ["--input", "-"]
     try:
-        r = subprocess.run([gh, "api", "--hostname", "github.com"] + list(args), env=env,
-                           stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                           timeout=120)
+        r = subprocess.run(argv, env=env,
+                           input=b"" if body is None else json.dumps(body).encode("utf-8"),
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as e:
         raise _GhError("gh can't be run: %s" % e) from None
     if r.returncode != 0:
@@ -703,8 +715,8 @@ def open_pr(g: Git, url: str, branch: str, base: str, perm: list[str]) -> None:
         if not gh:
             raise _GhError("gh isn't installed")
         pr = gh_json(gh, g.env, "-X", "POST", "repos/%s/%s/pulls" % gr,
-                     "-f", "title=Wiki changes that need your permission", "-f", "head=" + branch,
-                     "-f", "base=" + base, "-f", "body=" + body, "-F", "draft=true")
+                     body={"title": "Wiki changes that need your permission", "head": branch,
+                           "base": base, "body": body, "draft": True})
         u = pr.get("html_url") if isinstance(pr, dict) else None
         if not isinstance(u, str):
             raise _GhError("no html_url in the reply")

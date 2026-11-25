@@ -2,7 +2,8 @@
 GitHub. test_save.py puts a `gh` launcher for it first on PATH (a shell
 script, or gh.cmd on Windows) that runs it with the test's Python.
 
-Every call is appended to $FAKE_GH_LOG as one JSON line (the arguments).
+Every call is appended to $FAKE_GH_LOG as one JSON line: {"args": the
+arguments, "input": the JSON read from stdin with `--input -`, else null}.
 A set GH_HOST fails the call (save.py must drop it). $FAKE_GH_MODE picks
 the canned replies:
   ok                 the base's rules include non_fast_forward and deletion
@@ -23,10 +24,16 @@ import os
 import sys
 
 args = sys.argv[1:]
+body = None
+if "--input" in args:
+    if args[args.index("--input") + 1:][:1] != ["-"]:
+        sys.stderr.write("fake gh: --input takes only -\n")
+        sys.exit(1)
+    body = json.loads(sys.stdin.buffer.read().decode("utf-8"))
 log = os.environ.get("FAKE_GH_LOG")
 if log:
     with open(log, "a", encoding="utf-8") as f:
-        f.write(json.dumps(args) + "\n")
+        f.write(json.dumps({"args": args, "input": body}) + "\n")
 mode = os.environ.get("FAKE_GH_MODE", "ok")
 
 

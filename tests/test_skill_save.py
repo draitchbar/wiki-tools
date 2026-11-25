@@ -7,7 +7,7 @@ import re
 
 import pytest
 
-from conftest import PLUGIN_BASH, TESTS
+from conftest import PLUGIN_BASH, TESTS, posix
 from test_guard import gbash, gw  # noqa: F401
 
 PLUGIN = TESTS.parent / "plugins" / "wiki"
@@ -97,7 +97,9 @@ def test_init_writes_save_lines():
 
 
 def _guard(folder, guard_run, cmd):
-    wiki = str(folder)
+    # Forward slashes, as test_guard spells the wiki: a native Windows path
+    # put into the JSON text raw would hold invalid \ escapes.
+    wiki = posix(folder)
     return guard_run(gbash(cmd).replace("/home/u/wikis/mywiki", wiki), wiki)
 
 

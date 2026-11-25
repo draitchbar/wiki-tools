@@ -113,8 +113,11 @@ class Wiki:
     def short(self, ref="HEAD"):
         return out("rev-parse", "--short", ref, cwd=self.w)
 
-    def gh_calls(self):
+    def gh_log(self):
         return [json.loads(ln) for ln in self.log.read_text().splitlines()] if self.log.exists() else []
+
+    def gh_calls(self):
+        return [c["args"] for c in self.gh_log()]
 
 
 @pytest.fixture
@@ -890,6 +893,11 @@ def test_file_url_forms(url, monkeypatch):
 def test_git_hardening(wk, monkeypatch):
     monkeypatch.setenv("GIT_NO_REPLACE_OBJECTS", "0")
     assert save.clean_env()["GIT_NO_REPLACE_OBJECTS"] == "1"
+    # py-run.sh's MSYS2_ARG_CONV_EXCL='*' is for Python's own arguments: git's
+    # helpers run by Git Bash's sh need the conversion (Windows: a local
+    # remote's /C:/... path for git-upload-pack).
+    monkeypatch.setenv("MSYS2_ARG_CONV_EXCL", "*")
+    assert "MSYS2_ARG_CONV_EXCL" not in save.clean_env()
     g = call_in(wk, save.Git)
     assert "http.sslVerify=true" in g.argv("status")
 
@@ -915,10 +923,16 @@ def test_unattended_hold(ghw):
                      "needs your permission: CLAUDE.md\n" % branch)
     assert ghw.remote() == before
     assert ghw.remote(branch) == ghw.head()
-    post = ghw.gh_calls()[-1]
-    assert post[:6] == ["api", "--hostname", "github.com", "-X", "POST", "repos/example/wiki/pulls"]
-    assert ["-f", "head=" + branch] == post[8:10] and ["-f", "base=main"] == post[10:12]
-    assert post[-2:] == ["-F", "draft=true"]
+    post = ghw.gh_log()[-1]
+    # The fields go as JSON on stdin: a multi-line body survives a gh.cmd launcher.
+    assert post["args"] == ["api", "--hostname", "github.com", "-X", "POST", "repos/example/wiki/pulls",
+                            "--input", "-"]
+    body = post["input"]
+    assert {k: body[k] for k in ("title", "head", "base", "draft")} == {
+        "title": "Wiki changes that need your permission", "head": branch, "base": "main", "draft": True}
+    assert body["body"].startswith("An unattended wiki run changed paths that need your permission:\n\n"
+                                   "- `CLAUDE.md`\n\nLook at the diff")
+    assert sorted(body) == ["base", "body", "draft", "head", "title"]
     # Clean start of the next unattended run: refused while it waits.
     r = ghw.save("--update", "--unattended")
     refused(r, "a holding branch is on the wiki's remote (%s): merge it, then delete the branch" % branch)
@@ -971,6 +985,10 @@ def test_hold_name_exact(wk):
         git(wk.other, "push", "-q", "origin", "HEAD:refs/heads/" + name)
     r = wk.save("--update", "--unattended")
     assert so(r) == "updated main: up to date\n", r
+    # Upper case hex isn't a holding branch. Its own step, then deleted: on
+    # Windows a remote's loose refs are files on a case-insensitive file
+    # system, where it and the lower-case name can't both exist.
+    git(wk.other, "push", "-q", "origin", ":refs/heads/claude/wiki-0123456789AB")
     git(wk.other, "push", "-q", "origin", "HEAD:refs/heads/claude/wiki-0123456789ab")
     refused(wk.save("--update", "--unattended"), "a holding branch is on the wiki's remote "
             "(claude/wiki-0123456789ab)")
