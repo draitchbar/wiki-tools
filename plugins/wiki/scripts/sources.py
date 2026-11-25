@@ -16,8 +16,10 @@ dual run's edge cases are kept in tests/fixtures/sources/edge.out):
 --plugin is the plugin folder as bash spells it (the launcher passes it):
 messages and filled-in contracts use that spelling, files are opened
 through its native form (sourcelib.native). Run it from inside a wiki.
-Writes nothing. Exit 1: a refusal or a problem (as the bash version);
-exit 3: an internal error.
+`show` also lists a reader binding's tools with their cloud names
+(sources/connectors.md; docs/adr.md, 25) and whether this session is
+local or cloud (CLAUDE_CODE_REMOTE). Writes nothing. Exit 1: a refusal
+or a problem (as the bash version); exit 3: an internal error.
 
 Known differences from bash, accepted in the plan: names and types are
 split into words on space, tab and newline but never glob-expanded; type,
@@ -226,6 +228,31 @@ def check_needed(w: Wiki, k: str, f: str) -> str | None:
     return None
 
 
+def reader_names(w: Wiki, f: str) -> None:
+    """Each `reader` item with its tool's cloud name (docs/adr.md, 25), and
+    which surface this session is on: how Check picks the name to use."""
+    remote = os.environ.get("CLAUDE_CODE_REMOTE", "").lower() == "true"
+    out("Reader tools and their cloud names (this session: %s; plugins/wiki/sources/connectors.md):"
+        % ("cloud" if remote else "local"))
+    has_mcp = any(r.startswith("mcp__") for r in sourcelib.binding_rules(f))
+    pairs = sourcelib.connector_pairs(w.plugin) if has_mcp else {}
+    free = sourcelib.free_cloud(w.root, w.plugin, pairs) if pairs else set()
+    for it in contract.list_(f, "reader"):
+        p = contract.reader_item(it)
+        if p is None:
+            continue
+        cn = sourcelib.cloud_name(p[1], pairs)
+        if not p[1].startswith("mcp__") or sourcelib.is_cloud(p[1], pairs):
+            where = "the same"
+        elif cn is None:
+            where = "unknown (no pair in connectors.md)"
+        elif p[2] and cn not in free:
+            where = "denied (%s; the limit holds only under the bound name)" % cn
+        else:
+            where = cn
+        out("- %s; cloud: %s" % (it, where))
+
+
 def op_show(w: Wiki, args: list[str]) -> int:
     if len(args) != 1:
         raise Die("usage: sources.sh show <key>")
@@ -263,6 +290,8 @@ def op_show(w: Wiki, args: list[str]) -> int:
         else:
             out("Check needed: %s names no tools (access: tools) and this instance has no reader "
                 "binding yet; /wiki:bind-reader %s drafts it." % (t, k))
+    elif contract.field(c, "access") == "tools":
+        reader_names(w, f)
     out("")
     out("===== Instance file %s =====" % (f[len(w.root) + 1:] if f.startswith(w.root + "/") else f))
     raw(read_bytes(f).replace(b"\r", b""))
@@ -432,7 +461,8 @@ def op_settings(w: Wiki, args: list[str]) -> int:
                 f = "%s/%s.md" % (w.idir, key)
                 if (contract.field(c, "access") == "tools" and os.path.isfile(f)
                         and contract.field(f, "type") == t):
-                    rules += sourcelib.reader_rules(f)
+                    # The cloud names as the whole wiki's settings give them.
+                    rules += sourcelib.reader_rules(f, *sourcelib.cloud_setup(w.root, w.plugin))
             else:
                 rules += ["%s\t%s\t%s" % (ln.split("\t")[0], _f(ln, 1), _f(ln, 1)) for ln in tr]
 
@@ -445,6 +475,8 @@ def op_settings(w: Wiki, args: list[str]) -> int:
     if wide:
         out("\nCache rules are narrowed to this wiki and instance (~/.cache/wiki-sources/<wiki>/<key>/); "
             "a broader rule already in settings.json, e.g. %s, covers them too." % _f(wide[0], 2))
+    if _cloud_lines(w, rules):
+        out("\n%s %s" % (sourcelib.SETTINGS_CLOUD, sourcelib.CLOUD_NOTE))
     # access: tools types name no tools, so they add nothing above; say so.
     if not types:
         seen: set[str] = set()
@@ -488,6 +520,15 @@ def op_settings(w: Wiki, args: list[str]) -> int:
     return 0
 
 
+def _cloud_lines(w: Wiki, rules: list[str]) -> set[str]:
+    """The lines of rules (needed_rules form) in a connector's cloud name;
+    the pair table is read only when one of them is an MCP rule."""
+    if not any(_f(ln, 1).startswith("mcp__") for ln in rules):
+        return set()
+    pairs = sourcelib.wiki_pairs(w.root, w.plugin)
+    return {ln for ln in rules if sourcelib.is_cloud(_f(ln, 1), pairs)}
+
+
 def _f(ln: str, n: int) -> str:
     """awk -F'\\t' field n+1 ("" when missing)."""
     fs = ln.split("\t")
@@ -523,12 +564,23 @@ def op_check_settings(w: Wiki, args: list[str]) -> int:
     hs = set(have)
     reader: set[str] = set()
     need = sourcelib.needed_rules(w.root, w.plugin, reader)
-    user = sourcelib.user_rules() if reader else []
+    cloud = {(_f(ln, 0), _f(ln, 1)) for ln in _cloud_lines(w, need)}
+    user = sourcelib.user_rules() if reader or cloud else []
     if reader:
         out("reader rules (from the instances' reader bindings) count in your user settings too "
-            "(~/.claude/settings.json, %d permission rules)" % len(user))
+            "(~/.claude/settings.json, %d permission rules)%s" % (len(user), (
+                ", except their cloud names (plugins/wiki/sources/connectors.md), which count only here"
+                if cloud else "")))
     missing, blocked = sourcelib.rules_check(need, reader, have, user)
-    miss = ["  %s: %s" % m for m in missing]
+    us = set(user)
+
+    def why(m: tuple[str, str]) -> str:
+        if m not in cloud:
+            return ""
+        if "%s\t%s" % m in us:
+            return " (cloud name; only in ~/.claude/settings.json, which a cloud session doesn't read)"
+        return " (cloud name)"
+    miss = ["  %s: %s%s" % (m[0], m[1], why(m)) for m in missing]
     if miss:
         bad = 1
         out("missing (rules your sources need):\n" + "\n".join(miss))
@@ -602,7 +654,7 @@ def _main(argv: list[str]) -> int:
 def main(argv: list[str]) -> int:
     try:
         rc = _main(argv)
-    except Die as e:
+    except (Die, sourcelib.BindingMixError) as e:
         err("sources: %s" % e)
         rc = 1
     except sourcelib.GitBashPath as e:

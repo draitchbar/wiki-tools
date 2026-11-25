@@ -147,7 +147,8 @@ BASH = _find_bash()
 _DROP = ("CLAUDECODE", "CLAUDE_PLUGIN_DATA", "CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR",
          "CLAUDE_CONFIG_DIR", "WIKI_LINT_TODAY", "WIKI_CHECK_TEMPLATE", "WIKI_INSTALL_ANSWER",
          "WIKI_HOOK_TIMING", "MSYS2_ARG_CONV_EXCL", "MSYS2_ENV_CONV_EXCL", "GIT_DIR",
-         "GIT_WORK_TREE", "WIKI_TOOLS_DEV_VENV", "UV_PROJECT_ENVIRONMENT", "UV_PYTHON_DOWNLOADS")
+         "GIT_WORK_TREE", "WIKI_TOOLS_DEV_VENV", "UV_PROJECT_ENVIRONMENT", "UV_PYTHON_DOWNLOADS",
+         "CLAUDE_CODE_REMOTE")
 
 
 @pytest.fixture(scope="session")
@@ -295,6 +296,7 @@ def reset_modules():
     """Module state that would leak between in-process calls."""
     contract._cache.clear()
     sourcelib._shown.clear()
+    sourcelib._pairs.clear()
     sourcelib._sink = None
 
 

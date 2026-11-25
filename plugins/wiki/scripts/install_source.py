@@ -232,6 +232,10 @@ def write(target_arg: str, scratch: str, plugin: str) -> int:
             sourcelib.out('  under "permissions" -> "allow":\n' + "\n".join(allow))
         if deny:
             sourcelib.out('  under "permissions" -> "deny":\n' + "\n".join(deny))
+        # settings_check got this far, so the table read (if any) worked and is cached.
+        pairs = sourcelib.wiki_pairs(root, plugin)
+        if any(sourcelib.is_cloud(r, pairs) for _, r in miss or []):
+            sourcelib.out("  " + sourcelib.CLOUD_NOTE)
     elif miss is not None and not blocked:
         sourcelib.out("\n.claude/settings.json has every rule these sources need.")
     if blocked:

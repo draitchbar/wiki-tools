@@ -127,6 +127,11 @@ def _code_rules(w, cli=None):
 
 
 SETTINGS = ".claude/settings.json"
+CLOUD_MISSING = ('FAIL source permission rules missing from .claude/settings.json: "mcp__Gmail__send_message". '
+                 "Fix: add them as `sources.sh settings` prints (allow: read and bookkeeping tools, deny: "
+                 "forbidden tools); Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's "
+                 ".claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session "
+                 "reads no other settings file.\n")
 FAULTS = [  # name, change, text
     ("old-import", _append("CLAUDE.md", "@~/src/wiki-tools/schema/wiki-layout.md\n"),
      "FAIL CLAUDE.md still imports the schema by path: @~/src/wiki-tools/schema/wiki-layout.md"),
@@ -150,6 +155,9 @@ FAULTS = [  # name, change, text
      "FAIL source `scans` has no `last_checked_scans` line"),
     ("source-rule-missing", _edit(SETTINGS, lambda s: s.replace('"mcp__claude_ai_Gmail__send_message",', "", 1)),
      'FAIL source permission rules missing from .claude/settings.json: "mcp__claude_ai_Gmail__send_message"'),
+    # A cloud name (docs/adr.md, 25): the fix says where those lines go.
+    ("cloud-rule-missing", _edit(SETTINGS, lambda s: s.replace('"mcp__Gmail__send_message",', "", 1)),
+     CLOUD_MISSING),
     ("settings-not-json", _edit(SETTINGS, lambda s: s.replace('"allow": [', '"allow": [,', 1)),
      'FAIL `.claude/settings.json` is not valid JSON: unexpected ","'),
     ("gitignore-sources", _drop_line(".gitignore", "!.claude/sources"), "FAIL `.gitignore` lacks `!.claude/sources/`"),
@@ -173,6 +181,18 @@ def test_fault(change, want, mk, cli, tmp_path):
     (home / ".claude").mkdir(parents=True)
     out = text(wc(cli, w, env=dict(home_env(posix(home)), HOME=posix(home))))
     assert want in out, out
+
+
+@pytest.mark.checks("wiki-check/cloud-rule-only-in-user")
+def test_cloud_rule_only_in_user(mk, cli, tmp_path):
+    """A cloud name in the user's settings doesn't count: a cloud session
+    reads only the wiki's."""
+    w = mk("f2")
+    FAULTS[[n for n, *_ in FAULTS].index("cloud-rule-missing")][1](w)
+    home = tmp_path / "home"
+    write(home / ".claude/settings.json", '{"permissions": {"deny": ["mcp__Gmail__send_message"]}}\n')
+    out = text(wc(cli, w, env=dict(home_env(posix(home)), HOME=posix(home))))
+    assert CLOUD_MISSING in out, out
 
 
 @pytest.mark.checks("wiki-check/fault-exits-1")
