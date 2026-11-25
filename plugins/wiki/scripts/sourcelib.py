@@ -35,7 +35,9 @@ table is read only when a binding has an mcp__ rule.
 
 --plugin stands in for lib-source.sh's SRC_PLUGIN (default: this script's
 plugin folder). Exit 3: an internal error (a bug, an unreadable settings
-file, or a Git Bash path on Windows), never "invalid".
+file, or a Git Bash path on Windows), never "invalid". Exit 1 from
+needed-rules and missing-rules: the wiki's bindings name one connector
+under its local and its cloud name (BindingMixError), message on stderr.
 
 Paths. Every path comes back in messages exactly as it was given. Python
 opens files through the native form: on Windows Git Bash's /c/x is c:/x;
@@ -453,18 +455,21 @@ def free_cloud(root: str, plugin: str | None, pairs: dict[str, str]) -> set[str]
 
 
 def wiki_binding_error(root: str, plugin: str | None, pairs: dict[str, str]) -> tuple[str, str] | None:
-    """(message, key) when one instance names a paired connector under its
-    local name and another under its cloud name; None otherwise."""
+    """(message, key) when the wiki's bindings name a paired connector under
+    its local name and its cloud name: in two instances, or in one (which
+    validation refuses too, but its rules would still be printed); key is
+    the instance with the cloud name. None otherwise."""
     insts = [(k, {server_of(r) for r in binding_rules(f)}) for k, f in tools_instances(root, plugin)]
     for lo, cl in pairs.items():
         loc = [k for k, s in insts if lo in s]
         for k2 in (k for k, s in insts if cl in s):
-            k1 = next((k for k in loc if k != k2), None)
-            if k1 is not None:
-                return ("instances %s, %s name one connector under both its local name (mcp__%s__…) and "
-                        "its cloud name (mcp__%s__…); bind every instance with the local names: sources.sh "
-                        "settings adds the cloud names (plugins/wiki/sources/connectors.md)"
-                        % (k1, k2, lo, cl), k2)
+            k1 = next((k for k in loc if k != k2), k2 if k2 in loc else None)
+            if k1 is None:
+                continue
+            who = "instance %s names" % k2 if k1 == k2 else "instances %s, %s name" % (k1, k2)
+            return ("%s one connector under both its local name (mcp__%s__…) and its cloud name "
+                    "(mcp__%s__…); bind every instance with the local names: sources.sh settings adds "
+                    "the cloud names (plugins/wiki/sources/connectors.md)" % (who, lo, cl), k2)
     return None
 
 
@@ -1175,6 +1180,9 @@ def _main(argv: list[str]) -> int:
 def main(argv: list[str]) -> int:
     try:
         rc = _main(argv)
+    except BindingMixError as e:  # the wiki's bindings, not a bug
+        err("sourcelib: %s" % e)
+        rc = 1
     except GitBashPath as e:
         err("sourcelib: %s" % e)
         rc = 3

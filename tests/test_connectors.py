@@ -212,25 +212,59 @@ def test_install_refuses_both_forms(tmp_path, run):
     assert r.rc == 1 and BOTH in o and not (w / ".claude/sources/instances/gmail.md").exists(), o
 
 
-def test_mixed_forms_across_wiki(tmp_path, cli):
-    """One instance in local names, another in cloud names: refused, since a
-    cloud name's allow or deny would depend on which instance wins."""
+def _mix_msg(who):
+    return ("%s one connector under both its local name (mcp__claude_ai_Atlassian_MCP__…) and its cloud name "
+            "(mcp__Atlassian_MCP__…); bind every instance with the local names: sources.sh settings adds the cloud "
+            "names (plugins/wiki/sources/connectors.md)" % who)
+
+
+@pytest.mark.parametrize("case", ["across", "one-instance"])
+def test_mixed_forms_across_wiki(case, tmp_path, cli):
+    """One instance in local names, another in cloud names, or one instance
+    with both: refused, since a cloud name's allow or deny would depend on
+    which binding wins (one instance alone is invalid too, but its rules
+    would still be printed)."""
     w = gw(tmp_path)
-    write(w / ".claude/sources/instances/b.md", jira("b", AC))
+    inst = w / ".claude/sources/instances"
+    if case == "across":
+        write(inst / "b.md", jira("b", AC))
+        msg, later = _mix_msg("instances tracker, b name"), "source `tracker` (type jira) is valid"
+    else:
+        (inst / "tracker.md").unlink()
+        write(inst / "b.md", jira("b", AT, ["find project: %sexecuteRead name=x" % AT, "count: %sexecuteRead" % AC]))
+        msg, later = _mix_msg("instance b names"), "source `gmail` (type gmail) is valid"
     write(w / ".claude/settings.json", "{}\n")
     with pytest.raises(sourcelib.BindingMixError) as e:
         sourcelib.needed_rules(posix(w), P)
-    msg = ("instances tracker, b %s (mcp__claude_ai_Atlassian_MCP__…) and its cloud name (mcp__Atlassian_MCP__…); "
-           "bind every instance with the local names: sources.sh settings adds the cloud names "
-           "(plugins/wiki/sources/connectors.md)" % BOTH)
     assert str(e.value) == msg and e.value.key == "b"
     env = empty_home(tmp_path)
-    for args in (["settings"], ["settings", "jira", "--key", "tracker"], ["check-settings"]):
+    for args in (["settings"], ["settings", "jira", "--key", "b"], ["check-settings"]):
         r = cli("sources", *args, cwd=w, env=env)
         assert r.rc == 1 and r.err.decode() == "sources: %s\n" % msg, (args, r)
+    # The bridge's commands: a user error (exit 1), not an internal one.
+    for args in (["needed-rules", posix(w)], ["missing-rules", posix(w), posix(w / ".claude/settings.json")]):
+        r = cli("sourcelib", *args, cwd=w, env=env)
+        assert r.rc == 1 and r.err.decode() == "sourcelib: %s\n" % msg, (args, r)
     o = cli("wiki-check", cwd=w, env=env).merged.decode("utf-8", "surrogateescape")
     assert "- FAIL %s. Fix: bind the instance again locally with /wiki:bind-reader b\n" % msg in o, o
-    assert "source `tracker` (type jira) is valid" in o, o  # the later checks still run
+    assert later in o, o  # the later checks still run
+
+
+@pytest.mark.checks("connectors/install-mixed-forms")
+def test_install_mixed_forms(tmp_path, run):
+    """An instance valid alone, in cloud names, beside one in local names:
+    installed, then the settings rules can't be given; the message is the
+    user's to act on, not an internal error, and the exit is 1."""
+    git(tmp_path, "init", "-q", "iw")
+    w = tmp_path / "iw"
+    write(w / "CLAUDE.md", "# W\n")
+    write(w / ".claude/sources/instances/tracker.md", jira("tracker", AT))
+    r = run(["bash", SCRIPTS_P + "/install-source-file.sh", "instances/b.md"], cwd=w, input=jira("b", AC).encode(),
+            env={"CLAUDECODE": None, "WIKI_INSTALL_ANSWER": "y", "HOME": posix(tmp_path / "home")})
+    err = r.err.decode("utf-8", "surrogateescape")
+    assert r.rc == 1 and (w / ".claude/sources/instances/b.md").is_file(), r
+    assert err == "install-source-file: %s\n" % _mix_msg("instances tracker, b name"), err
+    assert "Installed .claude/sources/instances/b.md." in r.out.decode(), r
 
 
 # --- a broken table --------------------------------------------------------------

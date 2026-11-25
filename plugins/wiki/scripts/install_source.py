@@ -21,7 +21,9 @@ the diff, the y/n prompt) and calls this script for the rest:
   install_source.py [--plugin DIR] write TARGET SCRATCH
       install SCRATCH/new, then print the settings rules
       (.claude/settings.json) the wiki's source types need that are
-      still missing, and how to commit
+      still missing, and how to commit; exit 1 (the file is installed)
+      when the wiki's bindings name one connector under its local and its
+      cloud name, so the rules can't be given
 
 TARGET is instances/<key>.md or types/<type>/<file>, relative to
 .claude/sources/ (a leading ./ or .claude/sources/ is dropped). Run from
@@ -212,9 +214,13 @@ def write(target_arg: str, scratch: str, plugin: str) -> int:
     # lacks (a broader Read/Edit rule, e.g. the contract's own form, covers
     # one too), and those a deny rule blocks (deny wins).
     sf = root + "/.claude/settings.json"
+    rc = 0
     try:
         miss: list[tuple[str, str]] | None
         miss, blocked = sourcelib.settings_check(root, plugin, sf)
+    except sourcelib.BindingMixError as e:  # the wiki's bindings, not a bug
+        sourcelib.err("install-source-file: %s" % e)
+        miss, blocked, rc = None, [], 1
     except Exception as e:
         sourcelib.err("sourcelib: internal error: %s: %s" % (type(e).__name__, e))
         miss, blocked = None, []
@@ -244,7 +250,7 @@ def write(target_arg: str, scratch: str, plugin: str) -> int:
                       + "\n".join('  "%s" blocks "%s"' % (d, r) for r, d in blocked))
     sourcelib.out("\nWhen all files are in, commit them yourself, e.g.\n  git add -- "
                   ".claude/sources/%s && git commit -m \"Add source files\"" % target)
-    return 0
+    return rc
 
 
 def _main(argv: list[str]) -> int:
