@@ -397,6 +397,7 @@ def q_out(tmp_path_factory, cli):
     write(w / "wiki/b.md", _lfm("B") + "\n[[a]] ^[open: q-2026-10-01-orphan-marker]\n")
     write(w / "open-questions.md", "# Open questions\n\n"
           "### q-2026-10-02-unmarked\n- kind: conflict\n- raised: 2026-10-02, raw\n- pages: [[a]]\n\n"
+          "### q-2026-10-03-planted\n- kind: suspicious\n- raised: 2026-10-03, raw\n- items: raw/x.md\n\n"
           "### q-2026-09-16-fresh\n- kind: unclear\n- raised: 2026-09-16, raw\n- pages: [[a]]\n\n"
           "### q-2026-09-15-boundary\n- kind: unclear\n- raised: 2026-09-15, raw\n- pages: [[a]]\n\n"
           "### %s\n- kind: unclear\n- raised: 2026-09-01, gmail\n- pages: [[a]], [[gone]]\n\n"
@@ -415,13 +416,17 @@ def q_out(tmp_path_factory, cli):
                 "- `q-2026-10-02-unmarked`: no page carries its marker\n"),
     ("malformed", "### WARN: open-questions.md malformed (3)\n\n"
                   "- `q-2026-09-01-vat-basis`: pages links to [[gone]], no such page\n"
-                  "- `q-2026-09-01-vat-basis`: duplicate ID; kind `guess` is not one of unclear, conflict, filing; "
+                  "- `q-2026-09-01-vat-basis`: duplicate ID; kind `guess` is not one of unclear, conflict, filing, suspicious; "
                   "raised `soon` has no YYYY-MM-DD date\n"
                   "- `Bad heading`: not a question ID (q-YYYY-MM-DD-<slug>)\n"),
     ("summary", "Errors: 0. Warnings: 7. Info: 0."),
 ]])
 def test_questions(want, q_out):
     assert want in q_out
+
+
+def test_suspicious_kind_needs_no_marker(q_out):
+    assert "q-2026-10-03-planted" not in q_out
 
 
 @pytest.mark.checks("lint/questions-fresh-and-log-ignored")

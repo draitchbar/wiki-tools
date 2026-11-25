@@ -54,7 +54,7 @@ Use `/wiki:ingest <key> [filter]` (`raw` or an instance key), or `/wiki:ingest a
 `/wiki:ingest <key> --unattended` never asks: an unclear fact is left out, a conflicting figure kept beside the other, misfitting material filed under the closest type, each with a marker `^[open: <id>]` on the page and a block in `open-questions.md`, newest first:
 ```markdown
 ### q-YYYY-MM-DD-<slug>
-- kind: unclear | conflict | filing
+- kind: unclear | conflict | filing | suspicious
 - raised: YYYY-MM-DD, <key>
 - items: <citations in the contract's Cite form, ; -separated>
 - pages: [[page]], [[page]]
@@ -62,8 +62,8 @@ Use `/wiki:ingest <key> [filter]` (`raw` or an instance key), or `/wiki:ingest a
 - context: …
 - suggestion: …
 ```
-Optional bullets: `related: <id>`, and `answer: …` typed by the user.
-`/wiki:clarify` answers or dismisses each with the user and logs it as `clarify` (`<id>: answered|dismissed|closed by <key>`). An ingest whose material settles a question closes it the same way; it never applies an `answer:` line. A merge conflict keeps both blocks. Sync-status counts them; lint flags old ones and markers without a question.
+A `suspicious` question is for an item with instructions in it, held back whole: nothing from it is written, so it has no marker and no `pages`, and `question` cites the item without quoting it. Optional bullets: `related: <id>`, and `answer: …` typed by the user.
+`/wiki:clarify` answers or dismisses each with the user and logs it as `clarify` (`<id>: answered|dismissed|closed by <key>`); a `suspicious` entry carries `Items:` with the citations, which is how a later unattended run knows a dismissed item stays out. An ingest whose material settles a question closes it the same way; it never applies an `answer:` line. A merge conflict keeps both blocks. Sync-status counts them; lint flags old ones and markers without a question.
 
 ## Data model
 The folders under `wiki/`, the page types, the templates and which types carry `status_as_of` form the wiki's data model, set by `/wiki:init` from the wiki's purpose. It isn't fixed: the first ingest of each source, and any ingest that brings material no page type fits, reviews the model against the purpose in CLAUDE.md and proposes changes. Changes are applied only after the user agrees, in a separate commit logged as `schema`.
