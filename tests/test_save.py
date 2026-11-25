@@ -11,6 +11,7 @@ calls (tests/sources/save/fake_gh.py). Never the network.
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -474,12 +475,40 @@ def test_allow_nothing_needed(wk):
     assert "run: %s\n" % CALL in se(r)
 
 
-@pytest.mark.checks("save/allow-call-quoted")
-def test_allow_call_quoted(wk):
-    wk.commit("odd", "my notes.md")
+@pytest.mark.parametrize("name", [pytest.param("my notes.md", id="save/unallowable-space"),
+                                  pytest.param("a(b).md", id="save/unallowable-paren"),
+                                  pytest.param("it's.md", id="save/unallowable-quote"),
+                                  pytest.param("x#1.md", id="save/unallowable-hash"),
+                                  pytest.param("[x].md", id="save/unallowable-bracket")])
+def test_unallowable_path(name, wk):
+    """A path the guard wouldn't let through --allow gets no dead-end run:
+    line, but the way out."""
+    wk.commit("odd", name, "CLAUDE.md")
     r = wk.save()
-    assert "run: %s --allow 'my notes.md'\n" % CALL in se(r)
-    assert wk.save("--allow", "my notes.md").rc == 0
+    refused(r, "these changes need your permission: ")
+    assert "run:" not in se(r)
+    assert ("can't be allowed by --allow: %s. Rename it, or save with --unattended (a holding branch "
+            "for you to merge)" % shlex.quote(name)) in se(r)
+    r = wk.save("--allow", "CLAUDE.md")
+    refused(r, "the --allow list isn't the set of paths that need permission")
+    assert "run:" not in se(r)
+
+
+@pytest.mark.parametrize("plugin,want", [
+    pytest.param("/opt/plug ins/wiki", 'run: bash "/opt/plug ins/wiki/scripts/save.sh" --allow CLAUDE.md\n',
+                 id="save/call-path-double-quoted"),
+    pytest.param("/opt/plugins/wiki", "run: bash /opt/plugins/wiki/scripts/save.sh --allow CLAUDE.md\n",
+                 id="save/call-path-plain"),
+    pytest.param("/opt/$x/wiki", "the plugin's path /opt/$x/wiki/scripts/save.sh holds a character the call "
+                 "can't carry", id="save/call-path-unusable"),
+])
+def test_call_script_path(plugin, want, wk):
+    wk.commit("rules", "CLAUDE.md")
+    r = call_main(save.main, ["--plugin", plugin], cwd=wk.w, env=wk.env)
+    assert r.rc == 1
+    assert want in r.err.decode()
+    if "$" in plugin:
+        assert "run:" not in r.err.decode()
 
 
 def _index_entry(wk, mode, sha, path):
@@ -494,6 +523,21 @@ def test_symlink(wk):
     git(wk.w, "commit", "-qm", "link")
     refused(wk.save(), "symlinks and submodules are never saved: wiki/link.md")
     refused(wk.save("--allow", "wiki/link.md"), "symlinks and submodules are never saved: wiki/link.md")
+
+
+@pytest.mark.checks("save/delete-symlink-needs-permission")
+def test_delete_symlink(wk):
+    """Removing a symlink the remote already has needs permission; it isn't
+    'never'."""
+    blob = subprocess.run(["git", "-C", str(wk.w), "hash-object", "-w", "--stdin"], input=b"index.md",
+                          stdout=subprocess.PIPE, check=True).stdout.decode().strip()
+    _index_entry(wk, "120000", blob, "wiki/link.md")
+    git(wk.w, "commit", "-qm", "link")
+    git(wk.w, "push", "-q", posix(wk.bare), "HEAD:refs/heads/main")
+    git(wk.w, "rm", "-q", "--cached", "wiki/link.md")
+    git(wk.w, "commit", "-qm", "unlink")
+    refused(wk.save(), "these changes need your permission: wiki/link.md")
+    assert wk.save("--allow", "wiki/link.md").rc == 0
 
 
 @pytest.mark.checks("save/refuse-submodule")
@@ -792,6 +836,62 @@ def test_unattended_hold(ghw):
     refused(r, "merge or delete %s first" % branch)
     # An attended update isn't held up.
     assert ghw.save("--update").rc == 0
+
+
+@pytest.mark.checks("save/unattended-refused-while-held")
+def test_unattended_while_held(ghw):
+    """A plain unattended save doesn't stack on a holding branch either."""
+    ghw.commit("rules", "CLAUDE.md")
+    assert ghw.save("--unattended").rc == 0
+    branch = "claude/wiki-" + ghw.head()[:12]
+    ghw.commit("page", "wiki/page.md")
+    refused(ghw.save("--unattended"), "merge or delete %s first" % branch)
+
+
+@pytest.mark.checks("save/holding-branch-exists")
+def test_holding_branch_exists(ghw, monkeypatch):
+    """A holding branch of the same name already there (a race past the
+    check): its own message, not "moved meanwhile"."""
+    ghw.commit("rules", "CLAUDE.md")
+    branch = "claude/wiki-" + ghw.head()[:12]
+    ghw.commit("elsewhere", "wiki/x.md", d=ghw.other)
+    git(ghw.other, "push", "-q", "origin", "HEAD:refs/heads/" + branch)
+    real = save.remote_heads
+    monkeypatch.setattr(save, "remote_heads", lambda g, u: {k: v for k, v in real(g, u).items()
+                                                            if "claude/wiki-" not in k})
+    r = ghw.save("--unattended")
+    refused(r, "%s already exists on the wiki's remote: merge or delete it first" % branch)
+
+
+@pytest.mark.checks("save/error-after-push")
+def test_error_after_push(wk, monkeypatch):
+    """An internal error once the push went through doesn't say refused."""
+    wk.commit("page", "wiki/page.md")
+    real = save._say
+
+    def boom(s):
+        if s.startswith("saved "):
+            raise RuntimeError("late")
+        real(s)
+    monkeypatch.setattr(save, "_say", boom)
+    r = call_main(save.main, ["--plugin", PLUGIN_BASH], cwd=wk.w, env=wk.env)
+    assert r.rc == 1
+    assert wk.remote() == wk.head()
+    assert r.err.decode() == ("save: internal error after the push (%s is on main): RuntimeError: late\n"
+                              % wk.head()[:12])
+
+
+@pytest.mark.skipif(IS_WIN, reason="a file name that isn't UTF-8 needs a POSIX file system")
+@pytest.mark.checks("save/non-utf8-path")
+def test_non_utf8_path(wk, run):
+    blob = subprocess.run(["git", "-C", str(wk.w), "hash-object", "-w", "--stdin"], input=b"x\n",
+                          stdout=subprocess.PIPE, check=True).stdout.decode().strip()
+    subprocess.run([b"git", b"-C", str(wk.w).encode(), b"update-index", b"--add", b"--cacheinfo",
+                    b"100644," + blob.encode() + b",bad\xff.md"], check=True)
+    git(wk.w, "commit", "-qm", "odd name")
+    r = run(["bash", SCRIPTS_P + "/save.sh"], cwd=wk.w, env=wk.env)
+    assert r.rc == 1
+    assert r.err.startswith(b"save: refused: these changes need your permission: bad\xff.md\n"), r
 
 
 @pytest.mark.checks("save/unattended-pr-fails")

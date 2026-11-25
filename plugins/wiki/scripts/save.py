@@ -60,7 +60,7 @@ import shlex
 import shutil
 import subprocess
 import sys
-from typing import Any
+from typing import Any, TextIO
 
 CONFIG = ".claude/settings.wiki-save.json"
 DEFAULT_CONTENT = ["wiki/", "raw/", "outputs/", "open-questions.md"]
@@ -113,13 +113,19 @@ class Conflict(Exception):
         self.base, self.files = base, files
 
 
+def _put(stream: TextIO, s: str) -> None:
+    """Text as UTF-8 bytes; a path that isn't UTF-8 goes out as git gave it."""
+    stream.buffer.write(s.encode("utf-8", "surrogateescape"))
+    stream.flush()
+
+
 def _say(s: str) -> None:
-    sys.stdout.write(s + "\n")
+    _put(sys.stdout, s + "\n")
 
 
 def _warn(s: str) -> None:
     sys.stdout.flush()
-    sys.stderr.write("save: %s\n" % s)
+    _put(sys.stderr, "save: %s\n" % s)
 
 
 def _file_urls_on() -> bool:
@@ -296,14 +302,20 @@ def _lines(b: bytes) -> list[str]:
 
 # --- the steps ---------------------------------------------------------------
 
-_ALLOW_BAD = re.compile(r"[\x00-\x1f\x7f*?\[\]\\]")
+# What the guard lets through after --allow: plain tokens, so no quoting,
+# wildcard, shell or brace character, no space or control character.
+_ALLOW_BAD = re.compile(r"""[\s*?\[\]\\{}()~#="'!$`&|;<>^]""")
+# A script path printed bare; with only spaces or quote-safe characters
+# beyond these it goes in double quotes; with ", $, ` or \ not at all.
+_SCRIPT_BAD = re.compile(r"""[\s*?\[\]{}()~#="'!&|;<>^]""")
+_SCRIPT_DEAD = re.compile(r'["$`\\]')
 
 
 def allow_path_ok(p: str) -> bool:
-    """A path as git lists it, plain: relative, no .. part, no leading - or
-    /, no wildcard, backslash or control character."""
-    return (bool(p) and not p.startswith(("-", "/")) and not _ALLOW_BAD.search(p)
-            and ".." not in p.split("/"))
+    """A path that can follow --allow: relative, no .. part, no leading -
+    or /, nothing outside plain tokens, printable."""
+    return (bool(p) and p.isprintable() and not p.startswith(("-", "/"))
+            and not _ALLOW_BAD.search(p) and ".." not in p.split("/"))
 
 
 def parse_args(argv: list[str]) -> tuple[str, list[str]]:
@@ -317,7 +329,7 @@ def parse_args(argv: list[str]) -> tuple[str, list[str]]:
         if bad:
             raise Refused("not a plain relative path after --allow: %s" % shlex.join(bad),
                           "--allow takes the paths save.sh printed: relative, with no .. part, no "
-                          "leading - or /, no wildcard or control character.")
+                          "leading - or /, no space, quote, wildcard, shell or control character.")
         return "allow", list(t[1:])
     raise Refused("unknown arguments: %s" % (shlex.join(argv) or "(none)"), USAGE)
 
@@ -589,10 +601,13 @@ def marked(g: Git, ch: list[tuple[str, str, str, str]]) -> list[str]:
 
 def tiers(ch: list[tuple[str, str, str, str]], cps: list[str]) -> tuple[list[str], list[str]]:
     """(never, needs permission) paths, each sorted."""
-    never = sorted({p for om, nm, _, p in ch if om in _NEVER_MODES or nm in _NEVER_MODES
+    # A symlink or submodule removed (or turned into a file) needs
+    # permission; one added or changed is never saved.
+    never = sorted({p for _, nm, _, p in ch if nm in _NEVER_MODES
                     or _parts(p) & {".gitmodules"}}, key=_key)
-    perm = sorted({p for _, _, _, p in ch if p not in never
-                   and (p == CONFIG or _parts(p) & _CONTROL or not in_content(p, cps))}, key=_key)
+    perm = sorted({p for om, _, _, p in ch if p not in never
+                   and (p == CONFIG or om in _NEVER_MODES or _parts(p) & _CONTROL
+                        or not in_content(p, cps))}, key=_key)
     return never, perm
 
 
@@ -606,19 +621,32 @@ def _key(p: str) -> bytes:
 
 
 def call(script: str, paths: list[str]) -> str:
-    """The exact --allow call (or the plain one, with no paths)."""
-    s = "bash " + shlex.quote(script)
-    return s + (" --allow " + " ".join(shlex.quote(p) for p in paths) if paths else "")
+    """The detail line with the exact --allow call (or the plain one, with
+    no paths) as the guard asks for it; when a path can't be passed or the
+    script's own path can't be written, the way out instead."""
+    bad = [p for p in paths if not allow_path_ok(p)]
+    if bad:
+        return ("can't be allowed by --allow: %s. Rename it, or save with --unattended (a holding "
+                "branch for you to merge)" % " ".join(shlex.quote(p) for p in bad))
+    if not script.isprintable() or _SCRIPT_DEAD.search(script):
+        return ("the plugin's path %s holds a character the call can't carry (\", $, ` or \\); run "
+                "save from a plugin path without them" % script)
+    s = "bash " + ('"%s"' % script if _SCRIPT_BAD.search(script) else script)
+    return "run: " + s + (" --allow " + " ".join(paths) if paths else "")
 
 
-def push(g: Git, turl: str, url: str, sha: str, branch: str) -> None:
+def push(g: Git, turl: str, url: str, sha: str, branch: str, held: bool = False) -> None:
     r = g.run("push", "--no-follow-tags", "--no-signed", "--recurse-submodules=no", turl,
               "%s:refs/heads/%s" % (sha, branch))
     if r.returncode != 0:
         err = _lines(r.stderr)
         if any("[rejected]" in ln or "non-fast-forward" in ln or "fetch first" in ln for ln in err):
+            if held:
+                raise Refused("%s already exists on the wiki's remote: merge or delete it first" % branch,
+                              *err)
             raise Refused("%s on the wiki's remote moved meanwhile; run save again" % branch, *err)
         raise Refused("the push to %s failed" % url, *err)
+    _pushed.append("%s is on %s" % (sha[:12], branch))
 
 
 def open_pr(g: Git, url: str, branch: str, base: str, perm: list[str]) -> None:
@@ -649,6 +677,8 @@ def open_pr(g: Git, url: str, branch: str, base: str, perm: list[str]) -> None:
 
 # Warnings and notes for stderr once the save is done (a refusal shows only its own).
 _later: list[str] = []
+# What was pushed, for an internal error after it ("<sha> is on <branch>").
+_pushed: list[str] = []
 
 
 def dirty_warning(g: Git) -> None:
@@ -674,7 +704,7 @@ def run(form: str, allow: list[str], script: str) -> int:
     if "refs/heads/" + base not in heads:
         raise Refused("the wiki's remote has no %s yet: create %s on the remote first (you, not Claude)"
                       % (base, base))
-    if form == "update-unattended":
+    if form in ("unattended", "update-unattended"):
         held = sorted(r[len("refs/heads/"):] for r in heads if r.startswith("refs/heads/" + HOLD_PREFIX))
         if held:
             raise Refused("merge or delete %s first" % " ".join(held),
@@ -709,14 +739,14 @@ def run(form: str, allow: list[str], script: str) -> int:
 
     if form == "allow" and set(allow) != set(perm):
         if not perm:
-            raise Refused("no path needs permission", "run: " + call(script, []))
+            raise Refused("no path needs permission", call(script, []))
         raise Refused("the --allow list isn't the set of paths that need permission",
-                      "need permission: %s" % " ".join(perm), "run: " + call(script, perm))
+                      "need permission: %s" % " ".join(perm), call(script, perm))
     if perm and form in ("save", "check"):
         raise Refused("these changes need your permission: %s" % " ".join(perm),
                       "look: git diff %s %s -- %s" % (g.short(frm), g.short(sha),
                                                       " ".join(shlex.quote(p) for p in perm)),
-                      "run: " + call(script, perm))
+                      call(script, perm))
 
     dirty_warning(g)
     if note:
@@ -732,7 +762,7 @@ def run(form: str, allow: list[str], script: str) -> int:
     if perm and form == "unattended":
         revs = g.must("can't list the commits", "rev-list", "--reverse", "%s..%s" % (rsha, sha)).split()
         branch = HOLD_PREFIX + revs[0][:12]
-        push(g, turl, url, sha, branch)
+        push(g, turl, url, sha, branch, held=True)
         _say("held %s" % branch)
         open_pr(g, url, branch, base, perm)
         _say("needs your permission: %s" % " ".join(perm))
@@ -752,6 +782,7 @@ def main(argv: list[str]) -> int:
     if argv[:1] == ["--plugin"] and len(argv) > 1:
         plugin, argv = argv[1], argv[2:]
     _later.clear()
+    _pushed.clear()
     try:
         form, allow = parse_args(argv)
         rc = run(form, allow, plugin + "/scripts/save.sh")
@@ -759,9 +790,7 @@ def main(argv: list[str]) -> int:
             _warn(w)
     except Refused as e:
         sys.stdout.flush()
-        sys.stderr.write("save: refused: %s\n" % e.reason)
-        for d in e.details:
-            sys.stderr.write(d + "\n")
+        _put(sys.stderr, "save: refused: %s\n" % e.reason + "".join(d + "\n" for d in e.details))
         rc = 1
     except Conflict as e:
         for f in e.files:
@@ -771,7 +800,10 @@ def main(argv: list[str]) -> int:
         rc = 3
     except Exception as e:  # an internal error is never a save
         sys.stdout.flush()
-        sys.stderr.write("save: refused: internal error: %s: %s\n" % (type(e).__name__, e))
+        if _pushed:
+            _warn("internal error after the push (%s): %s: %s" % (", ".join(_pushed), type(e).__name__, e))
+        else:
+            _put(sys.stderr, "save: refused: internal error: %s: %s\n" % (type(e).__name__, e))
         rc = 1
     sys.stdout.flush()
     return rc
