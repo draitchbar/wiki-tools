@@ -493,6 +493,75 @@ def test_submodule(wk):
             "symlinks and submodules are never saved: .gitmodules wiki/sub")
 
 
+@pytest.mark.checks("save/nested-control-files")
+def test_nested_control_files(wk):
+    """Files that configure Claude or git need permission at any depth,
+    inside content folders too."""
+    paths = ["wiki/CLAUDE.md", "wiki/notes/claude.local.md", "wiki/.claude/settings.json", "raw/x/.gitattributes",
+             "outputs/.gitignore", "wiki/.MCP.json", "wiki/.github/workflows/a.yml", "raw/.githooks/pre-push"]
+    for p in paths:
+        write(wk.w / p, "x\n")
+    write(wk.w / "wiki/claude-notes.md", "x\n")
+    git(wk.w, "add", "-A")
+    git(wk.w, "commit", "-qm", "nested")
+    r = wk.save()
+    refused(r, "these changes need your permission: " + " ".join(sorted(paths)))
+
+
+@pytest.mark.checks("save/refuse-nested-gitmodules")
+def test_nested_gitmodules(wk):
+    wk.commit("m", "wiki/.gitmodules")
+    refused(wk.save("--allow", "wiki/.gitmodules"), "symlinks and submodules are never saved: wiki/.gitmodules")
+
+
+@pytest.mark.checks("save/config-autocrlf")
+def test_config_autocrlf(wk):
+    """A checkout with core.autocrlf=true has CRLF in the config; git
+    still sees it unchanged."""
+    git(wk.w, "config", "core.autocrlf", "true")
+    p = wk.w / save.CONFIG
+    p.write_bytes(p.read_bytes().replace(b"\n", b"\r\n"))
+    write(wk.w / "wiki/page.md", "page\n")
+    git(wk.w, "add", "wiki/page.md")   # (the test's git turns autocrlf off)
+    git(wk.w, "commit", "-qm", "page")
+    r = wk.save()
+    assert r.rc == 0, r
+
+
+@pytest.mark.checks("save/refuse-config-staged")
+def test_config_staged(wk):
+    p = wk.w / save.CONFIG
+    good = p.read_bytes()
+    wk.config(enabled=True, url=file_url(wk.t / "elsewhere.git"), base="main")
+    git(wk.w, "add", save.CONFIG)
+    p.write_bytes(good)
+    refused(wk.save(), ".claude/settings.wiki-save.json differs from the committed one")
+
+
+@pytest.mark.checks("save/setext-heading-not-a-marker")
+def test_setext_heading(wk):
+    wk.commit("h", "wiki/page.md", content="Title\n=======\n\ntext\n")
+    wk.commit("h2", "wiki/half.md", content="<<<<<<< not a conflict on its own\n")
+    assert wk.save().rc == 0
+
+
+@pytest.mark.checks("save/markers-fail-closed")
+def test_markers_fail_closed(wk):
+    """A blob that can't be read refuses (never counts as clean)."""
+    g = call_in(wk, save.Git)
+    with pytest.raises(save.Refused, match="can't read wiki/x.md"):
+        call_in(wk, save.marked, g, [("100644", "100644", "1" * 40, "wiki/x.md")])
+
+
+def call_in(wk, fn, *args):
+    here = os.getcwd()
+    os.chdir(wk.w)
+    try:
+        return fn(*args)
+    finally:
+        os.chdir(here)
+
+
 @pytest.mark.checks("save/refuse-conflict-markers")
 def test_markers(wk):
     wk.commit("m", "wiki/page.md", content="a\n<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> theirs\n")

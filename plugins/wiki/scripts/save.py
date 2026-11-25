@@ -77,7 +77,14 @@ FORMS = {(): "save", ("--check",): "check", ("--update",): "update",
          ("--unattended",): "unattended", ("--update", "--unattended"): "update-unattended"}
 _KEEP_GIT = ("GIT_SSL_CAINFO", "GIT_SSL_CAPATH")
 _NEVER_MODES = ("120000", "160000")
-_MARKERS = re.compile(rb"^(<<<<<<< |=======\r?$|>>>>>>> )", re.M)
+# Names that configure Claude or git: a path with one of these as a
+# component, at any depth, needs permission even inside content_paths.
+_CONTROL = {"claude.md", "claude.local.md", ".claude", ".mcp.json", ".gitattributes", ".gitignore",
+            ".github", ".githooks"}
+# A conflict left in a file: both a start and an end marker line (a lone
+# ======= line is a Markdown setext heading).
+_MARK_START = re.compile(rb"^<<<<<<< ", re.M)
+_MARK_END = re.compile(rb"^>>>>>>> ", re.M)
 
 # URL forms (printable ASCII, no spaces). The host is group 1, the path group 2.
 _HOST = r"([A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)"
@@ -244,9 +251,12 @@ class Git:
             raise Refused("not inside a git repo; run it from the wiki")
         self.root = top.rstrip("\n")
 
+    def argv(self, *args: str) -> list[str]:
+        return ["git", "-c", "core.hooksPath=" + self.hooks] + list(args)
+
     def run(self, *args: str, input: bytes = b"") -> subprocess.CompletedProcess[bytes]:
         try:
-            return subprocess.run(["git", "-c", "core.hooksPath=" + self.hooks] + list(args),
+            return subprocess.run(self.argv(*args),
                                   cwd=self.root, env=self.env, input=input,
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except OSError as e:
@@ -311,12 +321,11 @@ def load_config(g: Git) -> dict[str, Any]:
     head = g.blob("HEAD:" + CONFIG)
     if head is None:
         raise Refused("saving is off for this wiki (no committed %s)" % CONFIG)
-    try:
-        with open(os.path.join(str(g.root), CONFIG), "rb") as f:
-            work: bytes | None = f.read()
-    except OSError:
-        work = None
-    if work != head:
+    # Through git, so line-ending conversion (core.autocrlf) counts as no
+    # change; staged and working-tree changes both refuse.
+    if (not g.ok("diff", "--quiet", "--no-ext-diff", "HEAD", "--", CONFIG)
+            or not g.ok("diff", "--quiet", "--no-ext-diff", "--cached", "HEAD", "--", CONFIG)
+            or not os.path.isfile(os.path.join(str(g.root), CONFIG))):
         raise Refused("%s differs from the committed one" % CONFIG,
                       "Commit or restore it (you, not Claude): saving reads only the committed config.")
     try:
@@ -523,31 +532,53 @@ def marked(g: Git, ch: list[tuple[str, str, str, str]]) -> list[str]:
             if nm.startswith("100") and blob.strip("0")]
     if not todo:
         return []
-    r = g.run("cat-file", "--batch", input="".join(b + "\n" for b, _ in todo).encode())
-    data, pos, bad = r.stdout, 0, []
-    for _, path in todo:
-        nl = data.find(b"\n", pos)
-        if nl < 0:
-            break
-        head = data[pos:nl].split(b" ")
-        if len(head) < 3 or head[1] != b"blob":
-            pos = nl + 1
-            continue
-        size = int(head[2])
-        body = data[nl + 1:nl + 1 + size]
-        pos = nl + 1 + size + 1
-        if b"\0" not in body[:8000] and _MARKERS.search(body):
-            bad.append(path)
+    bad: list[str] = []
+    try:
+        p = subprocess.Popen(g.argv("cat-file", "--batch"), cwd=g.root, env=g.env,
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except OSError as e:
+        raise Refused("git can't be started: %s" % e) from None
+    assert p.stdin is not None and p.stdout is not None
+    try:
+        # One blob at a time: a wiki's raw/ can be large.
+        for blob, path in todo:
+            why = "can't read %s to check it for conflict markers" % path
+            try:
+                p.stdin.write(blob.encode("ascii") + b"\n")
+                p.stdin.flush()
+                head = p.stdout.readline().split()
+            except (OSError, UnicodeEncodeError):
+                raise Refused(why) from None
+            if len(head) != 3 or head[1] != b"blob" or not head[2].isdigit():
+                raise Refused(why)
+            size = int(head[2])
+            body = p.stdout.read(size)
+            if len(body) != size or p.stdout.read(1) != b"\n":
+                raise Refused(why)
+            if b"\0" not in body[:8000] and _MARK_START.search(body) and _MARK_END.search(body):
+                bad.append(path)
+    finally:
+        try:
+            p.stdin.close()
+        except OSError:
+            pass
+        p.stdout.close()
+        p.wait()
     return bad
 
 
 def tiers(ch: list[tuple[str, str, str, str]], cps: list[str]) -> tuple[list[str], list[str]]:
     """(never, needs permission) paths, each sorted."""
     never = sorted({p for om, nm, _, p in ch if om in _NEVER_MODES or nm in _NEVER_MODES
-                    or p == ".gitmodules"}, key=_key)
+                    or _parts(p) & {".gitmodules"}}, key=_key)
     perm = sorted({p for _, _, _, p in ch if p not in never
-                   and (p == CONFIG or not in_content(p, cps))}, key=_key)
+                   and (p == CONFIG or _parts(p) & _CONTROL or not in_content(p, cps))}, key=_key)
     return never, perm
+
+
+def _parts(p: str) -> set[str]:
+    """The path's components in lower case (case-insensitive file systems)."""
+    return {c.lower() for c in p.split("/")}
 
 
 def _key(p: str) -> bytes:
