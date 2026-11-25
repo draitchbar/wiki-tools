@@ -2,9 +2,10 @@
 guard failing closed on broken source files (formerly the guard-fixtures and
 guard-broken sections of run-tests.sh).
 
-Fixtures live in tests/fixtures/<group>/<pass|block>-<case>.json (group push
-or guard). "pass" expects exit 0, "block" 2; a <case>.msg beside it holds
-the exact message (@PLUGIN@ the plugin folder as bash prints it,
+Fixtures live in tests/fixtures/<group>/<pass|block|ask>-<case>.json (group
+push or guard). "pass" expects exit 0 and no output, "block" 2, "ask" exit 0
+and the "ask" reply on stdout (hookjson.ask); a <case>.msg beside it holds
+the exact message (for "ask", the reply's reason) (@PLUGIN@ the plugin folder as bash prints it,
 @PLUGIN_DRIVE@ as Claude Code substitutes it on Windows, C:/...; @WIKI@ the
 test wiki). They run on a copy of tests/guard-wiki with HOME=/home/u, the
 home the fixtures use; in-process, or with --e2e through hooks.json's
@@ -43,7 +44,7 @@ def _fixture_params():
     out = []
     for f in sorted(FIXTURES.glob("*/*.json")):
         case = f.stem
-        if case.startswith(("pass-", "block-")):
+        if case.startswith(("pass-", "block-", "ask-")):
             out.append(pytest.param(f, id="%s/%s" % (f.parent.name, case)))
     return out
 
@@ -57,19 +58,35 @@ def test_fixture(fixture, gw, guard_run):
     wiki = str(gw).replace("\\", "/")
     data = subst(fixture.read_bytes().decode("utf-8"), wiki)
     r = guard_run(data, wiki)
-    assert r.rc == (0 if fixture.stem.startswith("pass-") else 2), r
+    assert r.rc == (2 if fixture.stem.startswith("block-") else 0), r
+    got = _message(r, wiki)
+    if r.rc == 0:
+        # A pass prints nothing; an ask prints only its reply.
+        assert r.err == b"", r
+        if fixture.stem.startswith("ask-"):
+            got = _ask_reason(r)
+        else:
+            assert r.out == b"", r
     # The message, when a <case>.msg is beside it: same guard run.
     msg = fixture.with_suffix(".msg")
     if msg.is_file():
         want = subst(msg.read_bytes().decode("utf-8"), wiki).rstrip("\n")
-        assert _message(r, wiki) == norm(want, wiki)
+        assert norm(got, wiki) == norm(want, wiki)
+
+
+def _ask_reason(r):
+    """The reason of the "ask" reply on r's stdout, which holds nothing else."""
+    reply = json.loads(r.out)
+    reason = reply["hookSpecificOutput"].pop("permissionDecisionReason")
+    assert reply == {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask"}}
+    return reason
 
 
 @pytest.mark.parametrize("msg", [pytest.param(m, id="fixtures/%s has a fixture" % m.name)
                                  for m in sorted(FIXTURES.glob("*/*.msg"))])
 def test_message_has_fixture(msg):
     """Every message is checked (test_fixture): a pass- or block- fixture beside it."""
-    assert msg.with_suffix(".json").is_file() and msg.stem.startswith(("pass-", "block-"))
+    assert msg.with_suffix(".json").is_file() and msg.stem.startswith(("pass-", "block-", "ask-"))
 
 
 # --- the checks: an ordered list, each one tested -------------------------
@@ -78,6 +95,45 @@ def test_message_has_fixture(msg):
 def test_no_push_first():
     """git push is checked before anything else can decide."""
     assert guard.CHECKS[0] is guard.no_push
+
+
+# Saving on (.claude/settings.wiki-save.json in the working tree, "enabled":
+# true): the push refusals name /wiki:save; only the wording changes. Any
+# other content, or a file that can't be read, keeps the old message. The
+# gh refusal never changes.
+SAVE_ON = b'{"enabled": true, "url": "https://example.com/wiki.git", "base": "main"}'
+SAVE_HINT = [
+    ("git-push", "push/block-git-push", True),
+    ("mcp-github", "push/block-mcp-github-push-files", True),
+    ("gh-api", "guard/block-gh-api-put", False),
+]
+SAVE_CONFIGS = [
+    ("on", SAVE_ON, True),
+    ("absent", None, False),
+    ("off", b'{"enabled": false, "url": "https://example.com/wiki.git"}', False),
+    ("enabled-string", b'{"enabled": "true"}', False),
+    ("not-object", b'[{"enabled": true}]', False),
+    ("truncated", SAVE_ON[:20], False),
+    ("not-utf8", b'{"enabled": true, "x": "\xff"}', False),
+    ("deep", b"[" * 5000 + b"]" * 5000, False),
+    ("folder", "folder", False),
+]
+
+
+@pytest.mark.parametrize("fixture,named,config", [
+    pytest.param(f, named and on, config, id="guard/save-hint-%s-%s" % (case, cname))
+    for case, f, named in SAVE_HINT for cname, config, on in SAVE_CONFIGS])
+def test_save_hint(fixture, named, config, gw, guard_run):
+    wiki = str(gw).replace("\\", "/")
+    path = gw / ".claude" / "settings.wiki-save.json"
+    if config == "folder":
+        path.mkdir(parents=True)
+    elif config is not None:
+        write(path, config)
+    r = guard_run(subst((FIXTURES / (fixture + ".json")).read_text(encoding="utf-8"), wiki), wiki)
+    assert r.rc == 2
+    want = (FIXTURES / (fixture + ".msg")).read_text(encoding="utf-8").rstrip("\n")
+    assert _message(r, wiki) == norm(want + (" Or run /wiki:save." if named else ""), wiki)
 
 
 def _deciding_check(data, wiki):

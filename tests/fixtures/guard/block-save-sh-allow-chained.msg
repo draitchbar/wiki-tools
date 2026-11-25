@@ -1,0 +1,1 @@
+wiki guard: save.sh --allow saves paths that need the user's permission, and runs only as save.sh printed it: bash <plugin>/scripts/save.sh --allow <paths>, as a Bash call of its own (no ; & | < > $ or backtick), so the user is asked. Run that call.

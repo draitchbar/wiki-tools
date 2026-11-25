@@ -1,0 +1,1 @@
+wiki guard: saving will push changes to: .gitattributes CLAUDE.md. These paths can change how Claude, git or the host behave in this wiki. Check the diff first (git diff <base>..HEAD -- <paths>), then choose Yes, not "don't ask again".

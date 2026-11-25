@@ -43,6 +43,9 @@ Shell tools (Bash, PowerShell, Monitor's command):
   (or "git.exe") directly followed by "stash push"; `git -C stash push`
   could be a real push. Known false positive: a command naming both "git"
   and the word "push", e.g. in a commit message. Rephrase it.
+  When saving is on for the wiki (its .claude/settings.wiki-save.json in
+  the working tree says "enabled": true), the message names /wiki:save;
+  only the wording changes.
 - gh api, pr, repo, release, workflow, secret or gist, right after git
   push: they write to GitHub past git. "gh" counts only as a command word
   (options such as -R owner/repo may stand before the subcommand), never as
@@ -56,6 +59,11 @@ Shell tools (Bash, PowerShell, Monitor's command):
   scripts, or of a script a contract lists, with no ; & | < > ` $ and no
   "..". Wrappers outside the plugin don't count: the wikis' settings allow
   them by wildcard.
+- save.sh --allow <paths> (saving paths that need the user's permission):
+  only as a plain Bash call of the plugin's save.sh, which every other
+  check lets through, and then not a plain pass: the guard answers "ask"
+  (hookjson.ask), so the user gets Claude Code's permission prompt. Any
+  other command naming save.sh and --allow is refused.
 Write tools (Write, Edit, MultiEdit, NotebookEdit): no protected path,
 nothing in the plugin folder, nothing inside a filesystem root (the path
 resolved first), no guard word in non-Markdown content (a helper script
@@ -104,6 +112,7 @@ if sys.version_info < (3, 11):
 # -I leaves this folder off sys.path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import json  # noqa: E402
 import re  # noqa: E402
 
 import contract as C  # noqa: E402
@@ -191,7 +200,7 @@ _GH_CMD = re.compile(
 
 CORE_SCRIPTS = ("scripts/ocr.sh", "scripts/sync-status.sh", "scripts/lint.sh",
                 "scripts/wiki-check.sh", "scripts/sources.sh", "scripts/decode-download.sh",
-                "scripts/file-snapshot.sh")
+                "scripts/file-snapshot.sh", "scripts/save.sh")
 LOOKALIKE_ENDS = tuple("/" + s for s in CORE_SCRIPTS)
 
 
@@ -739,13 +748,32 @@ def no_push(call: HookCall, ctx: Context) -> str | None:
         server = call.tool[len("mcp__"):].split("__", 1)[0]
         if "github" in lower(server):
             return ("%s is a GitHub tool, and GitHub tools are not allowed in wiki sessions "
-                    "(they can push). Commit locally; the user pushes." % call.tool)
+                    "(they can push). Commit locally; the user pushes.%s" % (call.tool, save_hint(ctx)))
         return None
     if call.kind != "shell":
         return None
     if _PUSH.search(_STASH_PUSH.sub("git stash", norm(call.command))):
-        return "git push is not allowed in wiki sessions. Commit locally; the user pushes."
+        return "git push is not allowed in wiki sessions. Commit locally; the user pushes.%s" % save_hint(ctx)
     return None
+
+
+def save_hint(ctx: Context) -> str:
+    """" Or run /wiki:save." when saving is on for the wiki: its
+    .claude/settings.wiki-save.json in the working tree parses as a JSON
+    object with "enabled": true. Wording only (the push is refused either
+    way), so the working-tree copy is enough (save.sh reads HEAD's); any
+    error gives ""."""
+    root = ctx.wiki_root
+    if not root:
+        return ""
+    try:
+        with open(root + "/.claude/settings.wiki-save.json", "rb") as f:
+            data: object = json.loads(f.read(65536))
+    except (OSError, ValueError, RecursionError):
+        return ""
+    if isinstance(data, dict) and data.get("enabled") is True:
+        return " Or run /wiki:save."
+    return ""
 
 
 def no_gh_write(call: HookCall, ctx: Context) -> str | None:
@@ -882,6 +910,24 @@ def lookalike_script(call: HookCall, ctx: Context) -> str | None:
     return None
 
 
+def save_allow_plain(call: HookCall, ctx: Context) -> str | None:
+    """A shell command naming save.sh and --allow that isn't a plain Bash
+    call of the plugin's save.sh: chained, substituted, through a variable,
+    a lookalike, Monitor or PowerShell. Only the plain call gets the
+    permission prompt (save_ask); any other form could push those paths
+    without it. Known false positive: a commit message naming both."""
+    if call.kind != "shell":
+        return None
+    cmd = norm(call.command)
+    if "save.sh" not in cmd or "--allow" not in cmd:
+        return None
+    if call.tool == "Bash" and ctx.bash_script(cmd) == ("", "save.sh"):
+        return None
+    return ("save.sh --allow saves paths that need the user's permission, and runs only as "
+            "save.sh printed it: bash <plugin>/scripts/save.sh --allow <paths>, as a Bash call of "
+            "its own (no ; & | < > $ or backtick), so the user is asked. Run that call.")
+
+
 def protected_shell(call: HookCall, ctx: Context) -> str | None:
     """A shell command naming a protected path, a protected word or a guard
     word. A Bash command that would be an allowed script call but for a
@@ -981,6 +1027,7 @@ CHECKS: list[Check] = [
     agent_only_ops,
     reader_tools,
     lookalike_script,
+    save_allow_plain,
     protected_shell,
     roots_shell,
     protected_write,
@@ -989,10 +1036,32 @@ CHECKS: list[Check] = [
 ]
 
 
-def decide(call: HookCall) -> tuple[Check, str] | tuple[None, None]:
+def save_ask(call: HookCall, ctx: Context) -> str | None:
+    """For a plain Bash call of the plugin's save.sh with --allow, which
+    every check lets through: the reason for the user's permission prompt
+    (the paths, as the command gives them), else None. Not a check: it
+    never refuses, and runs only when no check does."""
+    if call.tool != "Bash":
+        return None
+    cmd = norm(call.command)
+    if "--allow" not in cmd or ctx.bash_script(cmd) != ("", "save.sh"):
+        return None
+    # norm keeps every character's position, so the paths are cut from the
+    # command as Claude wrote it.
+    m = _SCRIPT_QUOTED.fullmatch(cmd) or _SCRIPT_BARE.fullmatch(cmd)
+    args = call.command[m.start(2):m.end(2)].strip(" \t\n\v\f\r") if m and m.group(2) else ""
+    if lower(args).startswith("--allow"):
+        args = args[len("--allow"):].strip(" \t\n\v\f\r")
+    return ("saving will push changes to: %s. These paths can change how Claude, git or the "
+            "host behave in this wiki. Check the diff first (git diff <base>..HEAD -- <paths>), "
+            "then choose Yes, not \"don't ask again\"." % (args or "(no paths)"))
+
+
+def decide(call: HookCall, ctx: Context | None = None) -> tuple[Check, str] | tuple[None, None]:
     """(check, reason) for the first check in CHECKS that refuses the call,
     or (None, None)."""
-    ctx = Context(call)
+    if ctx is None:
+        ctx = Context(call)
     for check in CHECKS:
         reason = check(call, ctx)
         if reason is not None:
@@ -1004,9 +1073,14 @@ def main() -> NoReturn:
     call = hookjson.parse(sys.stdin.buffer.read())
     if call is None:
         block("could not parse hook input; refusing (fail closed).")
-    reason = decide(call)[1]
+    ctx = Context(call)
+    reason = decide(call, ctx)[1]
     if reason is not None:
         block(reason)
+    question = save_ask(call, ctx)
+    if question is not None:
+        sys.stdout.buffer.write(hookjson.ask("wiki guard: " + question))
+        sys.stdout.flush()
     sys.exit(0)
 
 
