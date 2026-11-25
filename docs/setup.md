@@ -31,7 +31,7 @@ Only you can start `/wiki:init` (`disable-model-invocation`). Claude can run its
 
 `raw/` is the only built-in source. Every other source is chosen during init with the same flow as `/wiki:add-source`.
 
-It ends with a guide for the steps only you can do, because the guard blocks Claude from them: pasting `.claude/settings.json` (from `plugins/wiki/templates/project-settings.json` plus the sources' rules) and the files under `.claude/sources/`, committing them and restarting `claude`. Setting up the git remote and pushing is also yours (Optional: the wiki on GitHub, below).
+It ends with a guide for the steps only you can do, because the guard blocks Claude from them: pasting `.claude/settings.json` (from `plugins/wiki/templates/project-settings.json` plus the sources' rules) and the files under `.claude/sources/`, committing them and restarting `claude`. Setting up the git remote and pushing is also yours (Optional: the wiki on GitHub, below), unless you turn on saving, which lets `/wiki:save` push for you (Optional: saving from Claude, below).
 
 Sources start at `last_checked_<key>: never`. The first `/wiki:ingest <key>` of each source checks it, asks for a starting point and reviews the data model (folders, page types, templates) against the wiki's purpose.
 
@@ -39,7 +39,7 @@ The shared starting template for people and organisations is `plugins/wiki/templ
 
 ### Optional: the wiki on GitHub
 
-A private GitHub repository gives the wiki an offsite copy, and a ruleset stops anyone from force-pushing over its history or deleting its main branch by accident. You run every step in a terminal; the guard stops Claude from pushing.
+A private GitHub repository gives the wiki an offsite copy, and a ruleset stops anyone from force-pushing over its history or deleting its main branch by accident. You run every step in a terminal; the guard stops Claude from pushing. The ruleset is also what saving from Claude requires on GitHub (below).
 
 1. **Create the repository and push:** `gh repo create <org>/<wiki> --private --source=. --remote=origin --push` (just `<wiki>` for your personal account). Private, because a wiki is meant for you alone or a chosen group of contributors, never for everyone.
 2. **Add the ruleset.** Save this as `ruleset.json`, outside the wiki or deleted afterwards:
@@ -57,8 +57,8 @@ A private GitHub repository gives the wiki an offsite copy, and a ruleset stops 
    - `non_fast_forward` refuses force pushes, and `deletion` refuses deleting the branch. Ordinary pushes work as before; there's no pull-request flow.
    - With an empty `bypass_actors`, the rules apply to admins too. That's deliberate: an admin who really means to force-push turns the ruleset off under Settings → Rules first.
    - `~DEFAULT_BRANCH` means whatever the default branch is, so it still applies if `master` is renamed to `main`.
-   - **Plan:** GitHub documents rulesets on private repositories for Pro, Team and Enterprise Cloud only. On a Free plan, the ruleset may be saved without being enforced, so check that Settings → Rules doesn't say it isn't enforced.
-3. **Force-push deny rules (optional).** The settings template already denies every `git push` (`Bash(git push *)`), and the guard refuses pushes too, so today these add nothing. If a wiki ever lets Claude push, keep these in `permissions.deny` in `.claude/settings.json`, in place of the blanket rule:
+   - **Plan:** GitHub documents rulesets on private repositories for Pro, Team and Enterprise Cloud only. On a Free plan, the ruleset may be saved without being enforced, so check that Settings → Rules doesn't say it isn't enforced. Saving from Claude checks it, so it isn't available for such a repository.
+3. **Force-push deny rules (optional).** The settings template already denies every `git push` (`Bash(git push *)`), and the guard refuses pushes too, so today these add nothing (saving from Claude pushes through `save.sh`, never `git push` by Claude, and keeps the blanket rule). If a wiki ever lets Claude push, keep these in `permissions.deny` in `.claude/settings.json`, in place of the blanket rule:
    ```
    "Bash(git push --force*)",
    "Bash(git push -f*)",
@@ -70,9 +70,43 @@ A private GitHub repository gives the wiki an offsite copy, and a ruleset stops 
 
 **What a ruleset can't do:** stop someone deleting the repository. An org owner can restore a deleted org repository within 90 days. Your local clone is a full copy, and an occasional `git bundle create <path> --all` (stored outside the wiki) is a single-file backup.
 
+### Optional: saving from Claude
+
+With saving on, Claude saves the wiki's commits to its remote with `/wiki:save`, and a scheduled `/wiki:ingest … --unattended` brings in the remote's changes at its start and saves at its end. Claude still never runs `git push`: the core script `save.sh` pushes, only to the default branch at the URL pinned in the wiki's committed `.claude/settings.wiki-save.json`, never forced (`docs/adr.md`, 26). In a cloud session it is what keeps a session's work: an idle VM is thrown away with every commit not pushed. In a wiki session, `/wiki:init` (check mode) walks you through these steps.
+
+1. **The remote, with the default branch on it.** Create it and push once yourself (`save.sh` refuses a remote that has no such branch yet).
+2. **The host refuses force pushes and deletion of that branch.** `save.sh` relies on it: a save merges, so its pushes are fast-forwards, and the host is what stops anything else.
+   - **GitHub:** the ruleset above. `save.sh` checks it before every save with `gh api repos/<owner>/<repo>/rules/branches/<base>`: it wants the `non_fast_forward` and `deletion` rules, and you mustn't be able to bypass them (`current_user_can_bypass` is `never`, so no bypass actors); otherwise it refuses and points here. `gh` must be installed and signed in wherever saving runs (a cloud session's proxy supplies the login). A private repository on GitHub Free: the ruleset isn't enforced, the check fails, and saving isn't available there until the plan or the visibility changes.
+   - **GitLab:** protect the default branch (Settings → Repository → Protected branches) with "Allowed to force push" off; a protected branch can't be deleted.
+   - **Gitea, Forgejo:** a branch protection rule for the default branch (Settings → Branches), with force pushes off; a protected branch can't be deleted.
+   - **A bare repository you host** (a server or a shared folder): `git -C <repo.git> config receive.denyNonFastForwards true` and `git -C <repo.git> config receive.denyDeletes true`.
+   - On these other hosts `save.sh` can't check and prints a reminder with each save: confirm the setting once, when you turn saving on.
+3. **Two lines in the wiki.** `.gitignore`: `!.claude/settings.wiki-save.json` (without it the config can't be committed); `.gitattributes`: `wiki/log.md merge=union` (both sides of a merge prepend to the log; git's built-in union driver keeps both, with no setup on any machine). `/wiki:init` writes both into new wikis; in an older wiki Claude adds them and commits them.
+4. **The config,** which you write (it is protected; Claude shows the content): `.claude/settings.wiki-save.json`
+   ```json
+   {
+     "enabled": true,
+     "url": "https://github.com/<owner>/<wiki>",
+     "base": "main"
+   }
+   ```
+   - `url`: the remote's full URL, `https://…`, `ssh://…` or `user@host:path`. A wiki that runs in a cloud session needs the `https://github.com/<owner>/<repo>` form: there it must equal the session's `origin`.
+   - `base`: the default branch.
+   - `content_paths` (optional): the paths a save pushes freely, default `["wiki/", "raw/", "outputs/", "open-questions.md"]`; a trailing `/` is a folder. A save takes them from the remote branch's config when it has one, so a local change to them takes effect only once you have pushed it.
+   - `enabled: false`, or no file, turns saving off.
+5. **Commit and push it yourself:** `git add -- .claude/settings.wiki-save.json && git commit -m "Turn on saving" && git push`. The script reads the config from the commit, never from the working tree, and refuses a working-tree copy that differs; a later change to the config is a path that needs your permission, and a pin the remote doesn't share is refused.
+6. **Check:** `/wiki:init` (check mode, or Claude runs `wiki-check.sh`) reports `saving is on`; `/wiki:save --check` says what a save would push and pushes nothing.
+
+What a save does with each path, and how you give permission:
+- **Content** (`content_paths`): pushed.
+- **Everything else** (`CLAUDE.md`, `.gitignore`, `.gitattributes`, `templates/`, `.claude/…`, `.github/…`, `.githooks/…`, `.mcp.json`), and these control files at any depth even inside the content folders (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/`, `.mcp.json`, `.gitattributes`, `.gitignore`, `.github/`, `.githooks/`), and the save config itself: needs your permission. `/wiki:save` shows you the diff and runs `save.sh --allow <those paths>`; the guard then asks you, with Claude Code's permission prompt. Answer a plain Yes if the diff is what you want saved, never "don't ask again". An unattended run can't ask: it pushes to a holding branch `claude/wiki-<12 hex>` instead (on GitHub with a draft pull request), and merging it is your permission. While such a branch is on the remote, unattended runs neither start nor save; merge or delete it. A path `--allow` can't carry (spaces, quotes, glob or other special characters, a leading `-`) can't be allowed interactively: rename it, or let it go through a holding branch.
+- **Symlinks and submodules:** never saved.
+
+Conflicts are merged, never rebased: Claude resolves them by fixed rules and logs each merge in `wiki/log.md` (`docs/skills.md`, "Saving"). Personal data in the pushed content is an accepted risk (the wiki is private); lint and wiki-check findings never block a save.
+
 ## Cloud sessions
 
-A wiki can run in a Claude Code cloud session (claude.ai/code on the web or phone, or a routine on a schedule) when its environment brings the plugin: a setup script clones wiki-tools and `CLAUDE_CODE_PLUGIN_DIRS` loads `plugins/wiki/`. The guided setup, what was checked and what is still untested: `plugins/wiki/cloud/SETUP.md`. In a wiki session, ask Claude to walk you through it; it reads the page from the plugin. Saving a cloud session's commits is not solved yet. To reach a wiki on your own machine from the web or phone instead, Remote Control works unchanged.
+A wiki can run in a Claude Code cloud session (claude.ai/code on the web or phone, or a routine on a schedule) when its environment brings the plugin: a setup script clones wiki-tools and `CLAUDE_CODE_PLUGIN_DIRS` loads `plugins/wiki/`. The guided setup, what was checked and what is still untested: `plugins/wiki/cloud/SETUP.md`. In a wiki session, ask Claude to walk you through it; it reads the page from the plugin. A cloud session's commits last only once saved: turn on saving (Optional: saving from Claude, above). To reach a wiki on your own machine from the web or phone instead, Remote Control works unchanged.
 
 ## Known issues
 

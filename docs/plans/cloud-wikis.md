@@ -1,6 +1,6 @@
 # Research: running a wiki in a Claude Code cloud session
 
-Status: research, 2026-11-20, reviewed the same day (one round, folded in); **spike run 2026-11-21: option 2's second variant works** (**Spike results**), written up as a guided setup in `plugins/wiki/cloud/SETUP.md`. Nothing here is built beyond that page. Facts marked **(docs)** come from the Claude Code documentation as fetched that day (`code.claude.com/docs/en/`: `claude-code-on-the-web`, `cloud-environments`, `routines`, `settings`, `plugins/install`, `plugins/org`, `plugins/loading`, `hooks`, `mcp`, `skills`, `remote-control`); nothing was tried in a real cloud session. Cloud scheduled tasks are a research preview, so the facts may change.
+Status: research, 2026-11-20, reviewed the same day (one round, folded in); **spike run 2026-11-21: option 2's second variant works** (**Spike results**), written up as a guided setup in `plugins/wiki/cloud/SETUP.md`. Nothing here is built beyond that page, and saving to the remote (**Saving to the remote**, at the end). Facts marked **(docs)** come from the Claude Code documentation as fetched that day (`code.claude.com/docs/en/`: `claude-code-on-the-web`, `cloud-environments`, `routines`, `settings`, `plugins/install`, `plugins/org`, `plugins/loading`, `hooks`, `mcp`, `skills`, `remote-control`); nothing was tried in a real cloud session. Cloud scheduled tasks are a research preview, so the facts may change.
 
 ## The question
 
@@ -128,3 +128,18 @@ Live checks still open:
 2. Each pair's short tool names match, compared in both directions (the cloud side is done, above; the local tool lists are still to compare).
 3. An allow rule for a tool that doesn't exist raises no settings warning locally.
 4. A wiki bound locally ingests end to end in a cloud routine, with no stalled prompt.
+
+### Saving to the remote
+
+Built (2026-11): `save.sh`, `/wiki:save` and the unattended ingest's update and save; the decision and its residual risks are in `docs/adr.md`, 26, the setup in `docs/setup.md`, "Optional: saving from Claude", and in `plugins/wiki/cloud/SETUP.md`, step 6.
+
+Live checks 1 and 4 of the design, observed in a Claude Code cloud session on 2026-11-25:
+- **The URL and the proxy.** `origin` is the plain `https://github.com/<owner>/<repo>` URL; there is no loopback form. Traffic goes through `HTTPS_PROXY=http://127.0.0.1:<port>`, and the proxy injects the credentials (`GH_TOKEN=proxy-injected`). Git's config arrives through `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`: `credential.interactive=false`, and `url.https://github.com/.insteadOf` for `git@github.com:` and `ssh://git@github.com/`; no `pushInsteadOf`. `GIT_SSL_CAINFO` (the proxy's CA bundle) is needed for TLS.
+- **The clone** is shallow, and the session works on its own `claude/…` branch. `CLAUDE_CODE_REMOTE=true`.
+- **What it changed in the design:** the script doesn't clear every inherited `GIT_*` variable (that would break the push in the cloud) but keeps `GIT_SSL_CAINFO` and `GIT_SSL_CAPATH`, and leaves the proxy variables alone; in the cloud, `origin`'s URL must equal the pinned one after normalising (no proxy rewrite needs allowing); a save into a shallow clone with no merge base fetches again with `--unshallow`, once.
+
+Live checks still open, run from the pull request's test plan:
+1. **A push to the default branch** through the proxy (design check 2), and whether a ruleset with no bypass actors stops a force push from the proxy's account.
+2. **The API through the proxy** (design check 3): `gh api …/rules/branches/<base>` and `gh api -X POST …/pulls` (the protection check and the draft pull request); and whether `curl` or Python reach GitHub's API too (if they do, that is the guard's text-matching limit, as for an obfuscated push).
+3. **Prompts** (design check 5): whether the guard's "ask" reply for `save.sh --allow` prompts in auto mode, in the web UI, and with a matching allow rule in `settings.local.json`. If it doesn't, interactive cloud sessions use the holding branch too.
+4. **Routines** (design check 6): whether a routine's unattended ingest runs `save.sh` without a prompt that stalls it.

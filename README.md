@@ -39,8 +39,9 @@ Then run `/wiki:init <what the wiki is for>`. It agrees the wiki's purpose, page
 | `/wiki:clarify` | Answer or dismiss the questions an unattended ingest left in `open-questions.md` |
 | `/wiki:lint`, `/wiki:audit <page>` | Check the wiki's health; fact-check a page against its sources |
 | `/wiki:commit-themes` | Commit the changes as one commit per theme |
+| `/wiki:save` | Save the wiki's commits to its remote, once you have turned saving on (`docs/setup.md`, "Optional: saving from Claude") |
 
-Claude can't push: you push the wiki yourself.
+Claude can't run `git push`: you push the wiki yourself, or turn on saving, and `/wiki:save` pushes through a script pinned to the wiki's own remote.
 
 ## Update
 
