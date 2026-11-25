@@ -46,10 +46,10 @@ Not documented: whether a setup script can install a plugin, or whether `claude`
 | Source | In the cloud |
 |---|---|
 | `raw` | Only what is committed: Markdown and text, `raw/ocr/*.txt`. `/wiki:init`'s `.gitignore` keeps PDFs, Office files and images out of the repo, so those never reach the VM; ingesting and auditing them stays local. |
-| `gmail` | The connector loads, with its tools named `mcp__Gmail__*` (seen 2026-11-22). The contract is tool-neutral and Gmail read-only now (`docs/adr.md`, 23), and the local binding serves the cloud too once its settings carry both names: **Connector names**, below. |
-| `google-drive` | Should work with the claude.ai Google Drive connector, if the instance's binding names the same tools and its rules are in the wiki's settings. |
-| `ms-teams` | Should work with the claude.ai Microsoft 365 connector, if the instance's binding names the session's tools (`mcp__Microsoft_365__*` in a cloud session: re-bind there) and its rules are in the wiki's settings; folders only in part (the cache, above). |
-| `jira` | The Atlassian connector connects (2026-11-24; it failed on 2026-11-22), with its tools named `mcp__Atlassian_MCP__*`: `getJiraIssue`, `searchJiraIssuesUsingJql`, `listJiraIssueComments`, `executeRead` and `getAccessibleAtlassianResources` among them; `executeWrite`, `executeDestructive` and `showConfluenceEditor` weren't offered. The same names question as `gmail`; `executeRead`, bound with limits, stays denied under its cloud name (**Connector names**). |
+| `gmail` | The connector loads, with its tools named `mcp__Gmail__*` (seen 2026-11-22). The contract is tool-neutral and Gmail read-only now (`docs/adr.md`, 23), and the local binding serves the cloud too once its settings carry both names (`docs/adr.md`, 25). |
+| `google-drive` | No, not yet: the claude.ai Google Drive connector's cloud name hasn't been seen (not attached on 2026-11-25), so it isn't in the pair table: it can't run in a cloud session until that name is seen and paired (`docs/adr.md`, 25). |
+| `ms-teams` | Should work with the claude.ai Microsoft 365 connector, if the instance is bound locally and its settings carry the cloud names too (`mcp__Microsoft_365__*`, `docs/adr.md`, 25); folders only in part (the cache, above). |
+| `jira` | The Atlassian connector connects (2026-11-24; it failed on 2026-11-22), with its tools named `mcp__Atlassian_MCP__*`: `getJiraIssue`, `searchJiraIssuesUsingJql`, `listJiraIssueComments`, `executeRead` and `getAccessibleAtlassianResources` among them; `executeWrite`, `executeDestructive` and `showConfluenceEditor` weren't offered on 2026-11-24; offered 2026-11-25. The pair table covers it, as for `gmail`; `executeRead`, bound with limits, stays denied under its cloud name (`docs/adr.md`, 25). |
 | `codebase` | No, as built. The clone would be a second repository in the session, which turns off the wiki's hooks and rules; the root in the instance is a per-machine path; `gh.sh` first asks `gh auth token -u <gh_user>`, which has no login to answer (`git.sh`'s fetch likewise), and its `gh pr` and `gh issue` calls are refused by the proxy. |
 | `local-folder` | No: the folders are on the user's machine. |
 | `proton-files`, `onenote` | No: their readers need a local sign-in. |
@@ -109,54 +109,22 @@ Run through one-off routines created with the routines API, which the session's 
 - **Setup script.** Where it lives (a file in wiki-tools the user pastes into the environment), what it installs (the plugin, `poppler-utils`, LibreOffice), and how a plugin update reaches a cached snapshot (it is rebuilt when the script changes and after about seven days).
 - **Platform.** A way for contracts and `sources.sh due` to say "not available in the cloud" (`platforms` today names operating systems).
 - **Cache-held state:** the `ms-teams` folder snapshot (`file-snapshot.sh`'s).
-- **Tools and connectors.** Classifying the cloud-only tools in `hookjson.py`; which connectors a task includes (all, by default); the connectors' cloud tool names (**Connector names**, below).
+- **Tools and connectors.** Classifying the cloud-only tools in `hookjson.py`; which connectors a task includes (all, by default); the connectors' cloud tool names (`docs/adr.md`, 25).
 - **Settings.** Reader rules in the wiki's settings rather than the user's; `attribution.sessionUrl` off if the trailer isn't wanted.
 - **Auto mode** in place of the user's answer to a prompt.
 - **Privacy.** A cloud wiki's content is on GitHub and in an Anthropic-hosted VM. A decision per wiki; a work wiki also needs its organisation to allow cloud sessions.
 - **Pushing from a managed account.** A wiki on a GitHub Enterprise Managed User account can't get the Claude GitHub App, and `/web-setup` wasn't offered (Claude Code 2.1.330), so its cloud sessions may never push. The setup page should say a cloud wiki needs a repository the session can push to.
 
-### Connector names (2026-11-22; design 2026-11-25)
+### Connector names
 
-Seen in a wiki's cloud session: `/wiki:ingest gmail` stopped at Check, correctly, because the Gmail tools there are `mcp__Gmail__*`. Locally, on Linux and Windows alike, claude.ai connectors are `mcp__claude_ai_<Connector>__*` (the name comes from the connector, not the system; Google Drive was bound on Linux with those names). Microsoft 365 (`mcp__Microsoft_365__*`) and Atlassian (`mcp__Atlassian_MCP__*`) are renamed the same way; whether Google Drive is isn't known. The settings' rules are literal names generated from an instance's binding, so in the cloud nothing denies `send_message`, `reply`, `trash` and the rest, and routines run in auto mode. Re-binding in a cloud session would unbind the local side, and its instance file needs `install-source-file.sh`, which a cloud session has no terminal of the user's for.
+Built (2026-11-25): a wiki's committed `.claude/settings.json` carries each connector rule under both names, from the pair table `plugins/wiki/sources/connectors.md`. The decision, the reasons and the rejected alternatives are in `docs/adr.md`, 25; the live checks run from the pull request's test plan.
 
-What Claude Code offers (docs, `settings` and `permissions`, read 2026-11-25): a one-repository cloud session reads only the committed `.claude/settings.json`; `~/.claude/settings.json` and `.claude/settings.local.json` are "not read". Permission lists merge across files, and a deny beats an allow. An MCP rule can't constrain a tool's input. No setting changes with the environment, and `--settings` can't be passed to a cloud session. Community reports (anthropics/claude-code #42323, #77598, #92787) confirm the cloud names and add a third form: the Desktop app's `mcp__<connection-uuid>__*`, which differs per user and changes on its own. No Anthropic statement on unifying them.
+Sightings. Seen in a wiki's cloud session: `/wiki:ingest gmail` stopped at Check (2026-11-22) because the Gmail tools there are `mcp__Gmail__*`. Locally, on Linux and Windows alike, claude.ai connectors are `mcp__claude_ai_<Connector>__*`; Microsoft 365 (`mcp__Microsoft_365__*`) and Atlassian (`mcp__Atlassian_MCP__*`) are renamed the same way in the cloud, and Google Drive's cloud name isn't known. Community reports (anthropics/claude-code #42323, #77598, #92787) confirm the cloud names and add a third form, the Desktop app's `mcp__<connection-uuid>__*`, which differs per user and changes on its own. No Anthropic statement on unifying them. A one-repository cloud session reads only the committed `.claude/settings.json` (docs, `settings` and `permissions`, read 2026-11-25).
 
-**Design: both names in the committed settings, from a pair table.**
+Cloud side of live check 2, observed from a cloud session on 2026-11-25: the Gmail tool set equals the gmail contract's short names exactly (all reads and every listed write and deny tool); Microsoft 365 offers only read tools (no `teams_send_*`, no `outlook_create_event`), whose short names match the ms-teams contract; Atlassian offers, among them, `getJiraIssue`, `searchJiraIssuesUsingJql`, `listJiraIssueComments`, `executeRead` and `getAccessibleAtlassianResources`, and now also `executeWrite`, `executeDestructive` and `showConfluenceEditor` (not offered on 2026-11-24); Google Drive wasn't attached, so it stays unpaired.
 
-1. **A pair table in the plugin:** `plugins/wiki/sources/connectors.md` (protected, as all of `plugins/wiki/sources`), flat frontmatter like the other source files (ADR 2), one item per connector seen live on both surfaces, and the sightings in its body:
-   ```
-   servers:
-     - local=claude_ai_Gmail cloud=Gmail
-     - local=claude_ai_Microsoft_365 cloud=Microsoft_365
-     - local=claude_ai_Atlassian_MCP cloud=Atlassian_MCP
-   ```
-   The server segment (between `mcp__` and the next `__`) matches exactly, never as a prefix; an unlisted connector (Google Drive, until its cloud name is seen) is as today. Mapping goes one way, local to cloud; a binding with cloud names is taken literally. wiki-tools keeps the table by pull request; a parity test holds it in step with the server names in the contracts' `## Bind` notes. Read by `sourcelib.py`, not `contract.py`: the guard doesn't use it.
-2. **Bindings unchanged.** `reader` and `reader_deny` keep the names they were bound with (local, since binding is local). Validation refuses a binding that names both forms of one server, across `reader` and `reader_deny` together, compared after mapping. No re-binding in the cloud.
-3. **Settings: both names in the committed `settings.json`.** `sources.sh settings` (`reader_rules`, `needed_rules`) emits each binding rule under the cloud name too, when the server has a pair: allow `mcp__claude_ai_Gmail__search_threads` and `mcp__Gmail__search_threads`, deny `mcp__claude_ai_Gmail__send_message` and `mcp__Gmail__send_message`. Each half matches nothing on the other surface.
-   - **A tool bound only with limits** (a dispatcher, e.g. Atlassian's `executeRead`) gets its cloud name **denied**, not allowed: the guard's limits (ADR 13) hold only under the bound name, and settings can't limit a tool's input. In the cloud the operations bound through it are then unavailable; for `jira` only **find project** and **list remote links**, both recommended, so a cloud Jira wiki works without them and its ingest says so. The way back is an Atlassian reader plugin (`docs/roadmap.md`, **Reader plugins for connector workarounds**).
-   - **Only the wiki's settings count for cloud-name rules.** Reader rules may otherwise sit in the user's `~/.claude/settings.json` (ADR 13), which a cloud session doesn't read; `check-settings` and wiki-check require the cloud-name lines in the wiki's `settings.json`, and bind-reader's handover says so.
-   - Installed as today: `/wiki:init`, `/wiki:add-source` and `/wiki:bind-reader` hand over the lines, and the user commits them with the instance file. Stale and missing reports follow from `needed_rules`.
-   - **Migration:** every bound wiki with a paired connector fails `check-settings` and wiki-check until the cloud-name lines are added, cloud user or not; the fix is one `sources.sh settings` run, pasted and committed.
-4. **Tool selection.** The model picks, as today. `sources.sh show` prints each bound tool with its other name. Each tool-neutral contract's Check step 1 (gmail, jira, ms-teams, google-drive) says: use the binding's own name if the session has it, else the other; with neither in a cloud session, stop with "attach the connector", not `/wiki:bind-reader`, whose install a cloud session can't do. The contracts' "bind the names this session has" goes.
-5. **The guard is unchanged.** Dispatcher limits move out of the core guard only with the reader plugin above.
-
-A decision when built (ADR 25, "Connector names per surface come from a plugin table"): it amends ADR 13's consequence that a moved wiki is re-bound, and reverses the two rejections this section held until now: both name sets in the committed `settings.json`, and treating two names as one server, now only for listed pairs seen live.
-
-Rejected (2026-11-25):
-- A binding per environment in each instance: copies the same mapping into every instance. Parked as the escape for a connector whose short tool names also differ, or a different reader per surface.
-- A gitignored binding overlay written by the setup script: two sources of a binding, unreviewed in git.
-- A generated `settings.local.json`, or the VM's user settings, written by the setup script: neither is read in cloud sessions (docs), the script is skipped when the environment is cached, and sessions start from a fresh clone.
-- Per-environment settings files copied into place (`settings.loc.json`, `settings.cloud.json`): the same unverified copy step, and a silent miss fails open.
-- An uncommitted, per-clone `settings.json`: the cloud has none without a reliable writer.
-- Deny rules with a glob server (`mcp__*__send_message`): documented for deny rules, untested in the cloud, and it denies the tool on every server.
-- A guard that denies or allowlists under the cloud name: a second layer over rules that can express it (ADR 3, 13).
-
-Out of scope: the Desktop app's UUID names, which no pair can hold; wiki-local types' connectors; write tools only the cloud offers, which the local tool list misses (found by live check 2, then named in the contract's `## Bind` deny notes).
-
-Changes: `sourcelib.py` (the table, the cloud name for a rule, `reader_rules`, `needed_rules`, the both-forms check in `reader_errors`, cloud-name rules only from the wiki's settings), `sources.py` (`show`), `wiki_check.py`; the four contracts' Check step 1 and the gmail and ms-teams `## Bind` notes; `bind-reader` (step 3's handover); `docs/sources.md`, `cloud/SETUP.md`, ADR 25. Tests: table parsing and validation, settings output with both names, a limited tool's cloud name denied, a server-only rule, an unpaired server, `check-settings` with a cloud-name line missing or only in user settings, the both-forms refusal, `show`, the parity test, `connectors.md` leaving the guard's sources and the catalog unbroken; the existing single-name fixtures (`tests/test_install.py`, `tests/test_reader_binding.py`, `tests/test_wiki_check.py`) updated.
-
-Live checks, in order:
+Live checks still open:
 1. A cloud-name deny rule in the committed `settings.json` hides or blocks the tool in a cloud session and in an auto-mode routine.
-2. Each pair's short tool names match, compared in both directions (the Atlassian tool sets offered differ, the `jira` row above).
+2. Each pair's short tool names match, compared in both directions (the cloud side is done, above; the local tool lists are still to compare).
 3. An allow rule for a tool that doesn't exist raises no settings warning locally.
 4. A wiki bound locally ingests end to end in a cloud routine, with no stalled prompt.

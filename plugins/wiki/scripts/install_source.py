@@ -21,7 +21,9 @@ the diff, the y/n prompt) and calls this script for the rest:
   install_source.py [--plugin DIR] write TARGET SCRATCH
       install SCRATCH/new, then print the settings rules
       (.claude/settings.json) the wiki's source types need that are
-      still missing, and how to commit
+      still missing, and how to commit; exit 1 (the file is installed)
+      when the wiki's bindings name one connector under its local and its
+      cloud name, so the rules can't be given
 
 TARGET is instances/<key>.md or types/<type>/<file>, relative to
 .claude/sources/ (a leading ./ or .claude/sources/ is dropped). Run from
@@ -212,9 +214,13 @@ def write(target_arg: str, scratch: str, plugin: str) -> int:
     # lacks (a broader Read/Edit rule, e.g. the contract's own form, covers
     # one too), and those a deny rule blocks (deny wins).
     sf = root + "/.claude/settings.json"
+    rc = 0
     try:
         miss: list[tuple[str, str]] | None
         miss, blocked = sourcelib.settings_check(root, plugin, sf)
+    except sourcelib.BindingMixError as e:  # the wiki's bindings, not a bug
+        sourcelib.err("install-source-file: %s" % e)
+        miss, blocked, rc = None, [], 1
     except Exception as e:
         sourcelib.err("sourcelib: internal error: %s: %s" % (type(e).__name__, e))
         miss, blocked = None, []
@@ -232,6 +238,10 @@ def write(target_arg: str, scratch: str, plugin: str) -> int:
             sourcelib.out('  under "permissions" -> "allow":\n' + "\n".join(allow))
         if deny:
             sourcelib.out('  under "permissions" -> "deny":\n' + "\n".join(deny))
+        # settings_check got this far, so the table read (if any) worked and is cached.
+        pairs = sourcelib.wiki_pairs(root, plugin)
+        if any(sourcelib.is_cloud(r, pairs) for _, r in miss or []):
+            sourcelib.out("  " + sourcelib.CLOUD_NOTE)
     elif miss is not None and not blocked:
         sourcelib.out("\n.claude/settings.json has every rule these sources need.")
     if blocked:
@@ -240,7 +250,7 @@ def write(target_arg: str, scratch: str, plugin: str) -> int:
                       + "\n".join('  "%s" blocks "%s"' % (d, r) for r, d in blocked))
     sourcelib.out("\nWhen all files are in, commit them yourself, e.g.\n  git add -- "
                   ".claude/sources/%s && git commit -m \"Add source files\"" % target)
-    return 0
+    return rc
 
 
 def _main(argv: list[str]) -> int:

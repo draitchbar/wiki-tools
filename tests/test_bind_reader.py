@@ -8,7 +8,8 @@ import re
 import pytest
 
 import contract
-from conftest import GMAIL_DENY, PLUGIN, posix
+import sourcelib
+from conftest import GMAIL_DENY, PLUGIN, TESTS, copytree, git, posix, write
 
 SOURCES = PLUGIN / "sources"
 SKILL = PLUGIN / "skills" / "bind-reader" / "SKILL.md"
@@ -204,3 +205,98 @@ def test_skill_carries_bind_extras():
     assert "plus any settings lines the `## Bind` section names" in hand
     body = text.split("\n---\n", 1)[1]
     assert not re.search(r"teams|outlook|Microsoft", body, re.I)
+
+
+def _check(t):
+    return _section((SOURCES / t / "SOURCE.md").read_text(encoding="utf-8"), "Check")
+
+
+TOOL_NAMED = ["gmail", "jira", "ms-teams", "google-drive"]
+# What a contract or the skill quotes from `sources.sh show`, with the contracts that quote it.
+QUOTED = {
+    "this session: cloud": TOOL_NAMED,
+    "Reader tools and their cloud names": TOOL_NAMED,
+    "cloud: denied": TOOL_NAMED,
+    "cloud: unknown": TOOL_NAMED,
+    "cloud rules missing from .claude/settings.json": TOOL_NAMED,
+}
+
+
+def _show_cloud(tmp_path):
+    """`sources.sh show` of a gmail, a jira and a google-drive instance in a cloud session."""
+    w = copytree(TESTS / "guard-wiki", tmp_path / "gw")
+    git(w, "init", "-q")
+    g = "mcp__claude_ai_Google_Drive__"
+    write(w / ".claude/sources/instances/drive.md",
+          "---\nkey: drive\ntype: google-drive\nfolders:\n  - Receipts (1AbCdEf)\nstate:\n  - last_checked\nreader:\n"
+          + "".join("  - %s\n" % r for r in ("get item: %sget_file_metadata" % g, "list folder: %ssearch_files" % g,
+                                             "search by name: %ssearch_files" % g,
+                                             "read file: %sread_file_content" % g,
+                                             "download file: %sdownload_file_content" % g))
+          + "reader_deny:\n  - %strash_file\n---\n" % g)
+    return w
+
+
+def test_contracts_quote_show_output(tmp_path, cli):
+    """Each string the contracts and the skill quote from `sources.sh show`
+    in a cloud session is in its real output, and in the contracts."""
+    w = _show_cloud(tmp_path)
+    out, heads = "", []
+    # proton is unbound: the session line comes for it too.
+    for k in ("gmail", "tracker", "drive", "proton"):
+        r = cli("sources", "show", k, cwd=w, env={"CLAUDE_CODE_REMOTE": "true"})
+        assert r.rc == 0, r
+        out += r.out.decode("utf-8", "surrogateescape")
+        heads.append(r.out.decode("utf-8", "surrogateescape").split("=====")[0])
+    assert len(heads) == 4 and all("this session: cloud" in h for h in heads), heads
+    assert "bind it in a local session" in heads[3], heads
+    skill = SKILL.read_text(encoding="utf-8")
+    assert "this session: cloud" in skill
+    for quoted, types in QUOTED.items():
+        assert quoted in out, quoted
+        for t in types:
+            assert quoted in (SOURCES / t / "SOURCE.md").read_text(encoding="utf-8"), (t, quoted)
+
+
+@pytest.mark.parametrize("t", TOOL_NAMED)
+def test_name_rule_outside_check(t):
+    """The cloud-name rule is in the contract's intro, which every ingest
+    follows (Check runs only on a first ingest), and Check refers to it."""
+    text = (SOURCES / t / "SOURCE.md").read_text(encoding="utf-8")
+    outside = text.replace(_section(text, "Check"), "")
+    assert "call each bound tool under its bound name" in outside
+    assert "this session: cloud" in outside and "cloud: unknown" in outside
+    assert "this session: cloud" in _section(text, "Check")
+
+
+def test_jira_denied_in_fetch():
+    text = (SOURCES / "jira" / "SOURCE.md").read_text(encoding="utf-8")
+    assert "cloud: denied" in _section(text, "Fetch") and "cloud: denied" in _section(text, "Check")
+
+
+# Google Drive's cloud name hasn't been seen, so it is not in connectors.md.
+UNPAIRED = {"claude_ai_Google_Drive"}
+_SERVER = re.compile(r"mcp__([A-Za-z0-9-]+(?:_[A-Za-z0-9-]+)*)__")
+
+
+def _bind_notes():
+    return {t: _section((SOURCES / t / "SOURCE.md").read_text(encoding="utf-8"), "Bind")
+            for t in _tool_neutral()}
+
+
+def test_connector_pairs_in_bind_notes():
+    """Each pair's local and cloud server appear, backticked, in some
+    tool-neutral contract's ## Bind."""
+    notes = " ".join(_bind_notes().values())
+    for local, cloud in sourcelib.connector_pairs(posix(PLUGIN)).items():
+        assert "`mcp__%s__`" % local in notes, local
+        assert "`mcp__%s__`" % cloud in notes, cloud
+
+
+def test_bind_servers_paired():
+    pairs = sourcelib.connector_pairs(posix(PLUGIN))
+    known = set(pairs) | set(pairs.values())
+    assert not UNPAIRED & known, "a connector in connectors.md is no longer unpaired"
+    for t, bind in _bind_notes().items():
+        for srv in _SERVER.findall(bind.replace("mcp__<server>__", "")):
+            assert srv in known | UNPAIRED, (t, srv)

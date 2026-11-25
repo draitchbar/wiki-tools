@@ -11,6 +11,8 @@ import time
 
 import pytest
 
+from sourcelib import CLOUD_NOTE
+
 from conftest import (GMAIL_READER, PLUGIN, SCRIPTS_P, TESTS, Story, git, norm, posix, recorded, story_assert, write)
 
 ISF = SCRIPTS_P + "/install-source-file.sh"
@@ -35,7 +37,7 @@ IEXPECT = [
 ]
 NAMES = (["install/" + n for n, *_ in IEXPECT]
          + ["install/no-frontmatter-not-written", "install/refused-in-claude", "install/gmail-new",
-            "install/gmail-rules", "install/present-rule-omitted", "install/codebase-narrow",
+            "install/gmail-rules", "install/gmail-rules-cloud", "install/present-rule-omitted", "install/codebase-narrow",
             "install/broad-cache-rule-counts", "install/wiki-cache-rule-counts", "install/unchanged",
             "install/diff-shown", "install/crlf", "install/crlf-stripped", "install/crlf-checkout-unchanged",
             "install/crlf-checkout-diff", "install/fs-no-roots", "install/cut-contract",
@@ -81,6 +83,7 @@ def story(tmp_path_factory, run):
     def iexpect(name, text, code, answer, target, content):
         o, rc = inst(answer, target, content)
         st.check("install/" + name, text in o and rc == code, "rc %d, output:\n%s" % (rc, o))
+        return o
 
     gmail = iw / ".claude/sources/instances/gmail.md"
     for i, row in enumerate(IEXPECT):
@@ -90,7 +93,9 @@ def story(tmp_path_factory, run):
     o, rc = inst("y", "instances/gmail.md", GM, env={"CLAUDECODE": "1"})
     st.check("install/refused-in-claude", "outside Claude" in o and rc == 1, o)
     iexpect("gmail-new", "New file .claude/sources/instances/gmail.md", 0, "y", "instances/gmail.md", GM)
-    iexpect("gmail-rules", '"mcp__claude_ai_Gmail__send_message",', 0, "y", "instances/gmail.md", GM + "More.\n")
+    o = iexpect("gmail-rules", '"mcp__claude_ai_Gmail__send_message",', 0, "y", "instances/gmail.md", GM + "More.\n")
+    # Its cloud name too (docs/adr.md, 25), and where those lines go.
+    st.check("install/gmail-rules-cloud", '"mcp__Gmail__send_message",' in o and "\n  " + CLOUD_NOTE + "\n" in o, o)
     o, _ = inst("y", "instances/gmail.md", GM + "More.\n")
     st.check("install/present-rule-omitted", '"mcp__claude_ai_Gmail__search_threads"' not in o, o)
     cbi = "---\nkey: code\ntype: codebase\nroots:\n  - %s\n---\n" % posix(iw)

@@ -4,6 +4,8 @@ validation, and the settings rules check-settings looks for, which may sit
 in the user's settings. The guard's side is in test_guard.py (fixtures
 *-mcp-reader-*, test_reader_*)."""
 
+import json
+
 import pytest
 
 import contract
@@ -15,6 +17,7 @@ GMAIL = posix(PLUGIN / "sources" / "gmail" / "SOURCE.md")
 CODEBASE = posix(PLUGIN / "sources" / "codebase" / "SOURCE.md")
 GDRIVE = posix(PLUGIN / "sources" / "google-drive" / "SOURCE.md")
 T = "mcp__claude_ai_Atlassian_MCP__"
+C = "mcp__Atlassian_MCP__"  # its cloud name (docs/adr.md, 25)
 OK = ["search: %ssearchJiraIssuesUsingJql" % T, "read issue: %sgetJiraIssue" % T,
       "list comments: %slistJiraIssueComments" % T]
 
@@ -109,10 +112,18 @@ def test_one_tool_two_operations(tmp_path):
 def test_reader_rules(tmp_path):
     f = _inst(tmp_path, "jira", OK + ["find project: %sexecuteRead name=a" % T, "count: %sexecuteRead name=b" % T],
               ("%sexecuteWrite" % T,))
+    # Without the pair table: the bound names only.
     assert sourcelib.reader_rules(f) == (
         ["allow\t%s\t%s" % (T + t, T + t) for t in
          ("searchJiraIssuesUsingJql", "getJiraIssue", "listJiraIssueComments", "executeRead", "executeRead")]
         + ["deny\t%sexecuteWrite\t%sexecuteWrite" % (T, T)])
+    # With it (docs/adr.md, 25): each line followed by its cloud name's; the
+    # dispatcher bound only with limits is denied under its cloud name.
+    assert sourcelib.reader_rules(f, sourcelib.connector_pairs(posix(PLUGIN))) == (
+        ["allow\t%s\t%s" % (p + t, p + t) for t in ("searchJiraIssuesUsingJql", "getJiraIssue", "listJiraIssueComments")
+         for p in (T, C)]
+        + ["allow\t%sexecuteRead\t%sexecuteRead" % (T, T), "deny\t%sexecuteRead\t%sexecuteRead" % (C, C)] * 2
+        + ["deny\t%sexecuteWrite\t%sexecuteWrite" % (T, T), "deny\t%sexecuteWrite\t%sexecuteWrite" % (C, C)])
 
 
 # check-settings on the test wiki (tracker is bound): reader rules may be
@@ -142,6 +153,8 @@ def test_check_settings_reader_ok(rw, cli):
     write(w / ".claude/settings.json", sjson)
     rc, o = _check(cli, w, env)
     assert rc == 0 and "missing: none" in o and "count in your user settings too" in o, o
+    assert ("(~/.claude/settings.json, 0 permission rules), except their cloud names "
+            "(the plugin's sources/connectors.md), which count only here\n") in o, o
 
 
 def test_check_settings_reader_missing(rw, cli):
@@ -152,6 +165,8 @@ def test_check_settings_reader_missing(rw, cli):
 
 
 def test_check_settings_reader_in_user(rw, cli):
+    """Still met: only the local names moved to the user's settings; their
+    cloud names stay in the wiki's (the cloud-name tests below)."""
     w, home, env, sjson = rw
     write(w / ".claude/settings.json", sjson.replace('      "%sgetJiraIssue",\n' % T, "")
           .replace('      "%sexecuteWrite",\n' % T, ""))
@@ -159,6 +174,52 @@ def test_check_settings_reader_in_user(rw, cli):
           % (T, T))
     rc, o = _check(cli, w, env)
     assert rc == 0 and "missing: none" in o and "(~/.claude/settings.json, 2 permission rules)" in o, o
+
+
+# The cloud names (docs/adr.md, 25) count only from the wiki's settings.
+
+def _drop(sjson, rule):
+    q = '"%s"' % rule
+    assert q in sjson
+    return sjson.replace("      %s,\n" % q, "").replace("      %s\n" % q, "")
+
+
+def test_check_settings_cloud_missing(rw, cli):
+    w, home, env, sjson = rw
+    write(w / ".claude/settings.json", _drop(sjson, C + "getJiraIssue"))
+    rc, o = _check(cli, w, env)
+    assert rc == 1 and "  allow: %sgetJiraIssue (cloud name)\n" % C in o, o
+
+
+def test_check_settings_cloud_only_in_user(rw, cli):
+    w, home, env, sjson = rw
+    write(w / ".claude/settings.json", _drop(sjson, C + "getJiraIssue"))
+    write(home / ".claude/settings.json", '{"permissions": {"allow": ["%sgetJiraIssue"]}}\n' % C)
+    rc, o = _check(cli, w, env)
+    assert rc == 1 and ("  allow: %sgetJiraIssue (cloud name; only in ~/.claude/settings.json, which a cloud "
+                        "session doesn't read)\n" % C) in o, o
+
+
+def test_check_settings_limited_cloud_deny_missing(rw, cli):
+    w, home, env, sjson = rw
+    deny = sjson.index('"deny"')
+    write(w / ".claude/settings.json", sjson[:deny] + _drop(sjson[deny:], C + "executeRead"))
+    rc, o = _check(cli, w, env)
+    assert rc == 1 and "  deny: %sexecuteRead (cloud name)\n" % C in o, o
+
+
+def test_check_settings_local_in_user_cloud_in_wiki(rw, cli):
+    """Every local reader name in the user's settings, the cloud names in
+    the wiki's: all met."""
+    w, home, env, sjson = rw
+    perms = json.loads(sjson)["permissions"]
+    local = {k: [r for r in v if r.startswith("mcp__claude_ai_")] for k, v in perms.items()}
+    rest = {k: [r for r in v if not r.startswith("mcp__claude_ai_")] for k, v in perms.items()}
+    assert local["allow"] and local["deny"] and any(r.startswith(C) for r in rest["deny"])
+    write(w / ".claude/settings.json", json.dumps({"permissions": rest}, indent=2) + "\n")
+    write(home / ".claude/settings.json", json.dumps({"permissions": local}) + "\n")
+    rc, o = _check(cli, w, env)
+    assert rc == 0 and "missing: none" in o, o
 
 
 def test_check_settings_reader_denied_in_user(rw, cli):
