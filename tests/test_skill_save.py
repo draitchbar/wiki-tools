@@ -39,6 +39,9 @@ def test_save_skill_frontmatter():
     # and the unattended forms belong to ingest.
     assert _save_tools(path) == [SAVE + ")", SAVE + " --check)"]
     assert "Bash(git push" not in fm
+    # Conflicts step 3 aborts a merge: the same exact form as ingest's.
+    assert "Bash(git merge --abort)" in _tools(path)
+    assert "Bash(git merge --abort)" in _tools(SKILLS / "ingest" / "SKILL.md")
 
 
 @pytest.mark.checks("save-skill/ingest-forms")
@@ -64,6 +67,7 @@ def test_conflict_rules_in_one_place():
     for f in ("`raw/sync-log.md`", "`open-questions.md`", "`wiki/index.md`", "Anything else"):
         assert "| %s" % f in rules or "| Pages under `wiki/`, %s" % f in rules, f
     assert "| merge |" in rules and "git commit --no-edit" in rules
+    assert "same date: keep the remote's state lines" in rules
     ingest = (SKILLS / "ingest" / "SKILL.md").read_text(encoding="utf-8")
     assert "skills/save/SKILL.md" in ingest and "**Conflicts**" in ingest
     assert "| `raw/sync-log.md` |" not in ingest, "the rule table lives in the save skill only"
@@ -75,6 +79,13 @@ def test_permission_flow():
     perm = save[save.index("## Permission"):save.index("## Conflicts")]
     assert perm.index("`look:`") < perm.index("`run:` line")
     assert "plain **Yes**" in perm and "don't ask again" in perm
+    # The way out where no call can be run: the guard's limits and the
+    # word push are named.
+    assert "50 paths or 2000 characters" in perm and "the word `push`" in perm
+    run = save[save.index("## 1. Run it"):save.index("## Permission")]
+    assert "never goes on to the permission call" in run
+    assert "fresh `look:` line" in run
+    assert "merge it, then delete the branch" in run
 
 
 @pytest.mark.checks("save-skill/init-lines")
