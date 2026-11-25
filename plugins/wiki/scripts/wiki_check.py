@@ -279,7 +279,7 @@ class Check:
                     miss_l, blocked_l = sourcelib.settings_check(root, self.plugin, st)
                 except sourcelib.ConnectorsError as e:
                     self.fail("source permission rules can't be checked: %s" % e,
-                              "update or reinstall the wiki plugin (plugins/wiki/sources/connectors.md)")
+                              "update or reinstall the wiki plugin (its sources/connectors.md)")
                 except sourcelib.BindingMixError as e:
                     self.fail(str(e), "bind the instance again locally with /wiki:bind-reader %s" % e.key)
                 else:
@@ -311,8 +311,11 @@ class Check:
                     self.info("source `%s` (type %s) isn't available on %s; it supports %s"
                               % (k, t, plat, " ".join(plats)))
             else:
-                self.fail("source `%s` doesn't validate: %s" % (k, errs),
-                          "correct `%s` (you, not Claude)" % f)
+                fix = "correct `%s` (you, not Claude)" % f
+                if sourcelib.TABLE_ERR in errs:  # the plugin's pair table, not the file
+                    fix = "update or reinstall the wiki plugin (its sources/connectors.md); for any other " \
+                          "error listed, " + fix
+                self.fail("source `%s` doesn't validate: %s" % (k, errs), fix)
             if self.tracked(f) and self.changed(f):
                 self.fail("`%s` has uncommitted changes" % f, "review them, then `git add -- "
                           "%s && git commit` (you, not Claude)" % f)

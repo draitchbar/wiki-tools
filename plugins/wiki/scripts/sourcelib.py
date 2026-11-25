@@ -317,10 +317,11 @@ _PAIR = re.compile(r"local=(%s) cloud=(%s)" % (_SERVER, _SERVER), re.ASCII)
 _SERVERS_KEY = re.compile(r"servers:")
 _pairs: dict[str, dict[str, str]] = {}  # plugin -> {local server: cloud server}
 
-CLOUD_NOTE = ("Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json "
+TABLE_ERR = "can't check its connector names: "  # an instance error from a broken table
+CLOUD_NOTE = ("Cloud names (the plugin's sources/connectors.md) go in this wiki's .claude/settings.json "
               "even when the local names are in ~/.claude/settings.json: a cloud session reads no other "
               "settings file.")
-SETTINGS_CLOUD = ("Each rule for a claude.ai connector listed in plugins/wiki/sources/connectors.md comes "
+SETTINGS_CLOUD = ("Each rule for a claude.ai connector listed in the plugin's sources/connectors.md comes "
                   "under its local name and its Claude Code cloud name (mcp__Gmail__… for "
                   "mcp__claude_ai_Gmail__…); a tool bound with a limit is denied under its cloud name, "
                   "where the limit can't hold.")
@@ -469,7 +470,7 @@ def wiki_binding_error(root: str, plugin: str | None, pairs: dict[str, str]) -> 
             who = "instance %s names" % k2 if k1 == k2 else "instances %s, %s name" % (k1, k2)
             return ("%s one connector under both its local name (mcp__%s__…) and its cloud name "
                     "(mcp__%s__…); bind every instance with the local names: sources.sh settings adds "
-                    "the cloud names (plugins/wiki/sources/connectors.md)" % (who, lo, cl), k2)
+                    "the cloud names (the plugin's sources/connectors.md)" % (who, lo, cl), k2)
     return None
 
 
@@ -483,6 +484,23 @@ def cloud_setup(root: str, plugin: str | None) -> tuple[dict[str, str], set[str]
     if mix:
         raise BindingMixError(*mix)
     return pairs, free_cloud(root, plugin, pairs)
+
+
+def cloud_missing(root: str, plugin: str | None, f: str) -> list[tuple[str, str]]:
+    """The cloud-name lines of instance f's binding (reader_rules, as the
+    wiki's settings give them) that the wiki's own .claude/settings.json
+    lacks: [(list, rule)]. A missing or invalid settings file lacks them
+    all (fail closed). Raises BindingMixError (cloud_setup)."""
+    pairs, free = cloud_setup(root, plugin)
+    if not pairs:
+        return []
+    lines = [ln for ln in reader_rules(f, pairs, free) if is_cloud(_fields(ln)[1], pairs)]
+    have, e = settings_rules(read_text(root + "/.claude/settings.json"))
+    res: list[tuple[str, str]] = []
+    for m in missing_rules(lines, have if e is None else []):
+        if m not in res:
+            res.append(m)
+    return res
 
 
 # The bridged functions.
@@ -619,7 +637,7 @@ def validate_instance(root: str, k: str, plugin: str | None) -> bool:
         try:
             pairs = connector_pairs(plugin)
         except ConnectorsError as e:
-            ie("can't check its connector names: %s" % e)
+            ie(TABLE_ERR + str(e))
     for m in reader_errors(f, c, pairs):
         ie(m)
     for r in contract.values(f, "roots"):
@@ -686,7 +704,7 @@ def reader_errors(f: str, c: str, pairs: dict[str, str] | None = None) -> list[s
     if pairs:
         res.extend("reader and reader_deny name one connector under both its local name (mcp__%s__…) and "
                    "its cloud name (mcp__%s__…); bind the local names only: sources.sh settings adds the "
-                   "cloud names (plugins/wiki/sources/connectors.md)" % lc
+                   "cloud names (the plugin's sources/connectors.md)" % lc
                    for lc in _both_forms(binding_rules(f, unquote=True), pairs))
     return res
 

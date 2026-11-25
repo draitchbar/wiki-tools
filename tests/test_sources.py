@@ -94,7 +94,7 @@ LIST_ETC = [
     # (docs/adr.md, 25): allowed, denied, and the note on where they go.
     ("settings-cloud-allow", '"mcp__Atlassian_MCP__getJiraIssue",', ["settings"]),
     ("settings-cloud-deny", '"mcp__Gmail__send_message",', ["settings"]),
-    ("settings-cloud-note", "Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json",
+    ("settings-cloud-note", "Cloud names (the plugin's sources/connectors.md) go in this wiki's .claude/settings.json",
      ["settings"]),
     ("settings-cloud-key", '"mcp__Gmail__download_gmail_attachment"', ["settings", "gmail", "--key", "gmail"]),
 ]

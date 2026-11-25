@@ -154,7 +154,7 @@ def test_check_settings_reader_ok(rw, cli):
     rc, o = _check(cli, w, env)
     assert rc == 0 and "missing: none" in o and "count in your user settings too" in o, o
     assert ("(~/.claude/settings.json, 0 permission rules), except their cloud names "
-            "(plugins/wiki/sources/connectors.md), which count only here\n") in o, o
+            "(the plugin's sources/connectors.md), which count only here\n") in o, o
 
 
 def test_check_settings_reader_missing(rw, cli):

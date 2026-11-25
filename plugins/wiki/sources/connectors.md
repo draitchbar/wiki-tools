@@ -22,6 +22,6 @@ A pair is added by pull request to wiki-tools, only after the connector was seen
 
 - **Gmail:** local 2026-11-22 (Linux, Windows). Cloud 2026-11-22 (a wiki's `/wiki:ingest gmail` stopped at Check: the tools there are `mcp__Gmail__*`) and 2026-11-25: the cloud tool set equals the gmail contract's short names exactly, every read and every listed write and deny tool.
 - **Microsoft 365:** cloud 2026-11-25 offers only read tools (no `teams_send_*`, no `outlook_create_event`), whose short names match the ms-teams contract.
-- **Atlassian:** cloud 2026-11-25 offers `getJiraIssue`, `searchJiraIssuesUsingJql`, `listJiraIssueComments`, `executeRead`, `getAccessibleAtlassianResources`, and also `executeWrite`, `executeDestructive`, `showConfluenceEditor` (these three not offered 2026-11-24).
+- **Atlassian:** cloud 2026-11-25 offers, among them, `getJiraIssue`, `searchJiraIssuesUsingJql`, `listJiraIssueComments`, `executeRead`, `getAccessibleAtlassianResources`, and also `executeWrite`, `executeDestructive`, `showConfluenceEditor` (these three not offered 2026-11-24).
 - **Not paired:** Google Drive (`mcp__claude_ai_Google_Drive__*` locally; its cloud name not seen yet: not attached in the 2026-11-25 cloud session). The Desktop app's `mcp__<uuid>__*` names differ per user and can't be paired.
 - **Still open:** the local side of the comparison (each connector's local short tool names against the cloud lists above).

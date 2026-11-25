@@ -196,7 +196,7 @@ def test_both_forms_refused(reader, deny, tmp_path):
     got = sourcelib.reader_errors(f, GMAIL, pairs())
     assert got == ["reader and reader_deny %s (mcp__claude_ai_Gmail__…) and its cloud name (mcp__Gmail__…); "
                    "bind the local names only: sources.sh settings adds the cloud names "
-                   "(plugins/wiki/sources/connectors.md)" % BOTH], got
+                   "(the plugin's sources/connectors.md)" % BOTH], got
     assert sourcelib.reader_errors(f, GMAIL) == []  # without the table: not checked
 
 
@@ -215,7 +215,7 @@ def test_install_refuses_both_forms(tmp_path, run):
 def _mix_msg(who):
     return ("%s one connector under both its local name (mcp__claude_ai_Atlassian_MCP__…) and its cloud name "
             "(mcp__Atlassian_MCP__…); bind every instance with the local names: sources.sh settings adds the cloud "
-            "names (plugins/wiki/sources/connectors.md)" % who)
+            "names (the plugin's sources/connectors.md)" % who)
 
 
 @pytest.mark.parametrize("case", ["across", "one-instance"])
@@ -307,8 +307,12 @@ def test_broken_table(tmp_path, broken):
     assert r.rc == 0 and "- gmail: invalid (sources.sh show gmail)" in o(r), o(r)
     r = prun("wiki-check", cwd=w, env=env)
     assert ("- FAIL source permission rules can't be checked: %s" % bad) in o(r), o(r)
-    assert "Fix: update or reinstall the wiki plugin (plugins/wiki/sources/connectors.md)" in o(r), o(r)
+    assert "Fix: update or reinstall the wiki plugin (its sources/connectors.md)" in o(r), o(r)
     assert "source `scans` (type local-folder) is valid" in o(r), o(r)
+    # The instance's own line points at the plugin too, not only at the file.
+    assert ("can't check its connector names: %s" % bad) in o(r), o(r)
+    assert ("Fix: update or reinstall the wiki plugin (its sources/connectors.md); for any other error listed, "
+            "correct `.claude/sources/instances/gmail.md` (you, not Claude)") in o(r), o(r)
     # A wiki whose only binding is a shell reader never reads the table.
     pw = tmp_path / "pw"
     git(tmp_path, "init", "-q", "pw")
@@ -352,22 +356,95 @@ def test_show_cloud_names(tmp_path, cli):
     write(inst / "proton.md", "---\nkey: proton\ntype: proton-files\nroots:\n  - /my-files/Projects/alpha\nstate:\n"
           "  - last_checked\nreader:\n" + "".join("  - %s: %s\n" % (op, SHELL) for op in (
               "changed since", "list folder", "info", "size", "download")) + "---\n")
-    head = "Reader tools and their cloud names (this session: %s; plugins/wiki/sources/connectors.md):"
+    head = "Reader tools and their cloud names (the plugin's sources/connectors.md):"
+    surface = "Reader surface (this session: %s): "
 
     def show(k, remote):
         r = cli("sources", "show", k, cwd=w, env={"CLAUDE_CODE_REMOTE": "true"} if remote else None)
         assert r.rc == 0, r
         return r.out.decode("utf-8", "surrogateescape")
     o = show("gmail", True)
-    assert head % "cloud" in o and "- search threads: %ssearch_threads; cloud: %ssearch_threads\n" % (GMAIL_T, GC) in o
-    assert o.index(head % "cloud") < o.index("===== Instance file"), o
-    assert head % "local" in show("gmail", False)
+    assert surface % "cloud" in o and head in o, o
+    assert "- search threads: %ssearch_threads; cloud: %ssearch_threads\n" % (GMAIL_T, GC) in o, o
+    assert o.index(surface % "cloud") < o.index(head) < o.index("===== Instance file"), o
+    assert surface % "local" in show("gmail", False)
     o = show("tracker", False)
     assert ("- find project: %sexecuteRead name=listJiraProjects; cloud: denied (%sexecuteRead; the limit holds only "
             "under the bound name)\n" % (AT, AC)) in o, o
     assert "- read issue: %sgetJiraIssue; cloud: %sgetJiraIssue\n" % (AT, AC) in o, o
     o = show("drive", False)
-    assert "- get item: %sget_file_metadata; cloud: unknown (no pair in connectors.md)\n" % g in o, o
+    assert "- get item: %sget_file_metadata; cloud: unknown (no pair in the plugin's sources/connectors.md)\n" % g in o, o
     o = show("proton", False)
     assert "- list folder: %s; cloud: the same\n" % SHELL in o, o
-    assert "Reader tools" not in show("scans", False)
+    o = show("scans", True)
+    assert "Reader tools" not in o and "this session:" not in o, o
+
+
+def test_show_unbound_cloud(tmp_path, cli):
+    """The session line comes for an unbound instance too, and in a cloud
+    session the hint is to bind locally, not /wiki:bind-reader."""
+    w = gw(tmp_path)
+    for remote, surface, hint in ((True, "cloud", "this instance has no reader binding yet; bind it in a local "
+                                                  "session.\n"),
+                                  (False, "local", "this instance has no reader binding yet; /wiki:bind-reader proton "
+                                                   "drafts it.\n")):
+        r = cli("sources", "show", "proton", cwd=w, env={"CLAUDE_CODE_REMOTE": "true"} if remote else None)
+        o = r.out.decode("utf-8", "surrogateescape")
+        assert r.rc == 0 and "Reader surface (this session: %s): " % surface in o and hint in o, o
+        assert o.index("this session:") < o.index("Check needed: proton-files names no tools"), o
+        assert ("/wiki:bind-reader" in o.split("=====")[0]) != remote, o
+
+
+# --- the cloud rules must be in the wiki's settings before a cloud ingest -------
+
+MISSING = "Check needed: cloud rules missing from .claude/settings.json:"
+
+
+@pytest.fixture
+def gated(tmp_path, cli):
+    """A committed test wiki with gmail last checked 2026-10-01, and the
+    settings `sources.sh settings` prints (not committed: no matter here)."""
+    w = gw(tmp_path)
+    write(w / "raw/sync-log.md", "last_checked_gmail: 2026-10-01\n")
+    git(w, "add", "-A")
+    git(w, "commit", "-qm", "init")
+    o = cli("sources", "settings", cwd=w).out.decode()
+    return w, o[o.index("{"):o.index("\n}\n") + 3]
+
+
+def _show_due(cli, w, remote=True):
+    env = {"CLAUDE_CODE_REMOTE": "true"} if remote else None
+    r1, r2 = cli("sources", "show", "gmail", cwd=w, env=env), cli("sources", "due", cwd=w, env=env)
+    assert r1.rc == 0 and r2.rc == 0, (r1, r2)
+    # show's status lines, before the instance file and the contract (which quotes them).
+    return r1.out.decode("utf-8", "surrogateescape").split("=====")[0], r2.out.decode("utf-8", "surrogateescape")
+
+
+def test_cloud_rules_present(gated, cli):
+    w, sjson = gated
+    write(w / ".claude/settings.json", sjson)
+    show, due = _show_due(cli, w)
+    assert "cloud rules missing" not in show and "Check needed" not in show, show
+    assert "- gmail: last checked 2026-10-01\n" in due, due
+
+
+@pytest.mark.parametrize("case", ["one-missing", "no-settings"])
+def test_cloud_rules_missing(case, gated, cli):
+    """In a cloud session a bound instance whose cloud-name rules the wiki's
+    settings lack is stopped (fail closed): show's Check needed line, which
+    the unattended ingest refuses and Check stops at, and due skips it.
+    Locally nothing changes: the local names are what the session has."""
+    w, sjson = gated
+    if case == "one-missing":
+        write(w / ".claude/settings.json", sjson.replace('      "%ssend_message",\n' % GC, ""))
+        rules = ' "%ssend_message"' % GC
+    else:
+        rules = ' "%ssearch_threads" "%sget_thread"' % (GC, GC)
+    show, due = _show_due(cli, w)
+    assert MISSING + rules in show, show
+    assert ("; run sources.sh settings in a local session, paste the lines and commit .claude/settings.json; this "
+            "source can't run in a cloud session until then.\n") in show, show
+    assert ("- gmail: Check needed: cloud rules missing from .claude/settings.json (sources.sh show gmail)\n"
+            in due), due
+    show, due = _show_due(cli, w, remote=False)
+    assert "cloud rules missing" not in show + due and "- gmail: last checked 2026-10-01\n" in due, due

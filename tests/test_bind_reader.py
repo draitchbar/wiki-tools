@@ -216,8 +216,9 @@ TOOL_NAMED = ["gmail", "jira", "ms-teams", "google-drive"]
 QUOTED = {
     "this session: cloud": TOOL_NAMED,
     "Reader tools and their cloud names": TOOL_NAMED,
-    "cloud: denied": ["jira"],
+    "cloud: denied": TOOL_NAMED,
     "cloud: unknown": TOOL_NAMED,
+    "cloud rules missing from .claude/settings.json": TOOL_NAMED,
 }
 
 
@@ -240,11 +241,15 @@ def test_contracts_quote_show_output(tmp_path, cli):
     """Each string the contracts and the skill quote from `sources.sh show`
     in a cloud session is in its real output, and in the contracts."""
     w = _show_cloud(tmp_path)
-    out = ""
-    for k in ("gmail", "tracker", "drive"):
+    out, heads = "", []
+    # proton is unbound: the session line comes for it too.
+    for k in ("gmail", "tracker", "drive", "proton"):
         r = cli("sources", "show", k, cwd=w, env={"CLAUDE_CODE_REMOTE": "true"})
         assert r.rc == 0, r
         out += r.out.decode("utf-8", "surrogateescape")
+        heads.append(r.out.decode("utf-8", "surrogateescape").split("=====")[0])
+    assert len(heads) == 4 and all("this session: cloud" in h for h in heads), heads
+    assert "bind it in a local session" in heads[3], heads
     skill = SKILL.read_text(encoding="utf-8")
     assert "this session: cloud" in skill
     for quoted, types in QUOTED.items():

@@ -129,7 +129,7 @@ def _code_rules(w, cli=None):
 SETTINGS = ".claude/settings.json"
 CLOUD_MISSING = ('FAIL source permission rules missing from .claude/settings.json: "mcp__Gmail__send_message". '
                  "Fix: add them as `sources.sh settings` prints (allow: read and bookkeeping tools, deny: "
-                 "forbidden tools); Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's "
+                 "forbidden tools); Cloud names (the plugin's sources/connectors.md) go in this wiki's "
                  ".claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session "
                  "reads no other settings file.\n")
 FAULTS = [  # name, change, text

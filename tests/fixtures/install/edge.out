@@ -121,7 +121,7 @@ Installed .claude/sources/instances/gmail.md.
       "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
       "mcp__claude_ai_Gmail__list_drafts",
       "mcp__claude_ai_Gmail__get_draft",
-  Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
+  Cloud names (the plugin's sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
 
 When all files are in, commit them yourself, e.g.
   git add -- .claude/sources/instances/gmail.md && git commit -m "Add source files"
@@ -207,7 +207,7 @@ Installed .claude/sources/instances/gmail.md.
       "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
       "mcp__claude_ai_Gmail__list_drafts",
       "mcp__claude_ai_Gmail__get_draft",
-  Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
+  Cloud names (the plugin's sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
 
 When all files are in, commit them yourself, e.g.
   git add -- .claude/sources/instances/gmail.md && git commit -m "Add source files"
@@ -379,7 +379,7 @@ Installed .claude/sources/instances/gmail.md.
       "mcp__Gmail__list_drafts",
       "mcp__claude_ai_Gmail__get_draft",
       "mcp__Gmail__get_draft",
-  Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
+  Cloud names (the plugin's sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
 
 When all files are in, commit them yourself, e.g.
   git add -- .claude/sources/instances/gmail.md && git commit -m "Add source files"
@@ -482,7 +482,7 @@ Installed .claude/sources/instances/code.md.
       "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
       "mcp__claude_ai_Gmail__list_drafts",
       "mcp__claude_ai_Gmail__get_draft",
-  Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
+  Cloud names (the plugin's sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
 
 When all files are in, commit them yourself, e.g.
   git add -- .claude/sources/instances/code.md && git commit -m "Add source files"
@@ -614,7 +614,7 @@ Installed .claude/sources/types/bookish/SOURCE.md.
       "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
       "mcp__claude_ai_Gmail__list_drafts",
       "mcp__claude_ai_Gmail__get_draft",
-  Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
+  Cloud names (the plugin's sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
 
 When all files are in, commit them yourself, e.g.
   git add -- .claude/sources/types/bookish/SOURCE.md && git commit -m "Add source files"

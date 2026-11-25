@@ -16,9 +16,11 @@ dual run's edge cases are kept in tests/fixtures/sources/edge.out):
 --plugin is the plugin folder as bash spells it (the launcher passes it):
 messages and filled-in contracts use that spelling, files are opened
 through its native form (sourcelib.native). Run it from inside a wiki.
-`show` also lists a reader binding's tools with their cloud names
-(sources/connectors.md; docs/adr.md, 25) and whether this session is
-local or cloud (CLAUDE_CODE_REMOTE). Writes nothing. Exit 1: a refusal
+`show` also says whether this session is local or cloud
+(CLAUDE_CODE_REMOTE) and lists a reader binding's tools with their cloud
+names (sources/connectors.md; docs/adr.md, 25); in a cloud session, an
+instance whose cloud-name rules the wiki's settings lack gets a Check
+needed line (`due` skips it), so it can't run with its writes undenied. Writes nothing. Exit 1: a refusal
 or a problem (as the bash version); exit 3: an internal error.
 
 Known differences from bash, accepted in the plan: names and types are
@@ -228,12 +230,36 @@ def check_needed(w: Wiki, k: str, f: str) -> str | None:
     return None
 
 
+def remote() -> bool:
+    """A Claude Code cloud session (docs/adr.md, 25)."""
+    return os.environ.get("CLAUDE_CODE_REMOTE", "").lower() == "true"
+
+
+CLOUD_MISSING = "cloud rules missing from .claude/settings.json"
+
+
+def cloud_blocked(w: Wiki, c: str, f: str) -> str | None:
+    """In a cloud session, a bound access: tools instance whose cloud-name
+    rules the wiki's own settings lack runs with its write tools undenied
+    there: the Check needed line that stops it, or None. Fails closed: a
+    wiki whose bindings mix the names is blocked too."""
+    if not remote() or contract.field(c, "access") != "tools" or not contract.list_(f, "reader"):
+        return None
+    try:
+        miss = sourcelib.cloud_missing(w.root, w.plugin, f)
+    except sourcelib.BindingMixError as e:
+        return "Check needed: %s (%s)." % (CLOUD_MISSING, e)
+    if not miss:
+        return None
+    return ("Check needed: %s:%s; run sources.sh settings in a local session, paste the lines and commit "
+            ".claude/settings.json; this source can't run in a cloud session until then."
+            % (CLOUD_MISSING, "".join(' "%s"' % r for _, r in miss)))
+
+
 def reader_names(w: Wiki, f: str) -> None:
-    """Each `reader` item with its tool's cloud name (docs/adr.md, 25), and
-    which surface this session is on: how Check picks the name to use."""
-    remote = os.environ.get("CLAUDE_CODE_REMOTE", "").lower() == "true"
-    out("Reader tools and their cloud names (this session: %s; plugins/wiki/sources/connectors.md):"
-        % ("cloud" if remote else "local"))
+    """Each `reader` item with its tool's cloud name (docs/adr.md, 25): how
+    Check picks the name to use."""
+    out("Reader tools and their cloud names (the plugin's sources/connectors.md):")
     has_mcp = any(r.startswith("mcp__") for r in sourcelib.binding_rules(f))
     pairs = sourcelib.connector_pairs(w.plugin) if has_mcp else {}
     free = sourcelib.free_cloud(w.root, w.plugin, pairs) if pairs else set()
@@ -245,7 +271,7 @@ def reader_names(w: Wiki, f: str) -> None:
         if not p[1].startswith("mcp__") or sourcelib.is_cloud(p[1], pairs):
             where = "the same"
         elif cn is None:
-            where = "unknown (no pair in connectors.md)"
+            where = "unknown (no pair in the plugin's sources/connectors.md)"
         elif p[2] and cn not in free:
             where = "denied (%s; the limit holds only under the bound name)" % cn
         else:
@@ -279,17 +305,27 @@ def op_show(w: Wiki, args: list[str]) -> int:
     msg = check_needed(w, k, f)
     if msg:
         out(msg)
+    if contract.field(c, "access") == "tools":
+        out("Reader surface (this session: %s): call each reader tool under its %s name."
+            % (("cloud", "cloud") if remote() else ("local", "bound")))
+    blocked = cloud_blocked(w, c, f)
+    if blocked:
+        out(blocked)
     if unbound(c, f):
         # Without a reader binding, Check (its step 1) must stop the ingest,
         # whatever the instance file's history. A `## Reader` section alone
         # is a binding in prose, from before the `reader` list (docs/adr.md, 13).
+        # Binding is done locally (docs/adr.md, 25).
         if sourcelib.has_body_section(f, "Reader"):
+            how = ("bind it again in a local session" if remote()
+                   else "run /wiki:bind-reader %s again" % k)
             out("Check needed: %s names no tools (access: tools) and this instance's reader binding "
-                "is in prose only (a '## Reader' section, no 'reader' list); run /wiki:bind-reader %s "
-                "again to make it machine-readable." % (t, k))
+                "is in prose only (a '## Reader' section, no 'reader' list); %s to make it "
+                "machine-readable." % (t, how))
         else:
+            how = "bind it in a local session" if remote() else "/wiki:bind-reader %s drafts it" % k
             out("Check needed: %s names no tools (access: tools) and this instance has no reader "
-                "binding yet; /wiki:bind-reader %s drafts it." % (t, k))
+                "binding yet; %s." % (t, how))
     elif contract.field(c, "access") == "tools":
         reader_names(w, f)
     out("")
@@ -356,6 +392,8 @@ def op_due(w: Wiki, args: list[str]) -> int:
             quiet.append((k, "nothing new in raw/ since %s" % v))
         elif k != "raw" and (check_needed(w, k, f) or unbound(w.contract(contract.field(f, "type")), f)):
             skipped.append((k, "Check needed (/wiki:ingest %s)" % k))
+        elif k != "raw" and cloud_blocked(w, w.contract(contract.field(f, "type")), f):
+            skipped.append((k, "Check needed: %s (sources.sh show %s)" % (CLOUD_MISSING, k)))
         else:
             due.append((d, k))
     skipped.extend((k, "manual key (enters via raw/ or user statements)")
@@ -569,7 +607,7 @@ def op_check_settings(w: Wiki, args: list[str]) -> int:
     if reader:
         out("reader rules (from the instances' reader bindings) count in your user settings too "
             "(~/.claude/settings.json, %d permission rules)%s" % (len(user), (
-                ", except their cloud names (plugins/wiki/sources/connectors.md), which count only here"
+                ", except their cloud names (the plugin's sources/connectors.md), which count only here"
                 if cloud else "")))
     missing, blocked = sourcelib.rules_check(need, reader, have, user)
     us = set(user)
