@@ -41,20 +41,25 @@ jobs:
             weakened guard without saying so). Look for, in this order:
             1. Correctness bugs.
             2. Missing tests.
-            3. A PR title or description that doesn't match the diff: it claims
+            3. Source details in the core (docs/adr.md, 2): a type, connector,
+               server or tool name, or a list of them, that skills, the schema,
+               scripts, the guard or templates branch on or hold, instead of
+               reading it from a source's SOURCE.md, sources/connectors.md, an
+               instance or a reader plugin. An "e.g." example in prose is fine.
+            4. A PR title or description that doesn't match the diff: it claims
                something the diff doesn't do, or leaves out a material part of
                what it does. Only what changes and why counts, not numbers,
                counts or wording. The squash merge makes them the commit on main.
                Check on every run against the whole PR at its head, not only
                what changed. In the summary: what it claims, what the diff does.
-            4. Duplication (DRY): logic, helpers or text repeated instead of reusing
+            5. Duplication (DRY): logic, helpers or text repeated instead of reusing
                what exists in the repo; point to the existing code to reuse.
-            5. Clean code: unclear names, functions doing too much, dead code,
+            6. Clean code: unclear names, functions doing too much, dead code,
                needless indirection or complexity.
-            6. AI slop: comments that restate the code, verbose or generic
+            7. AI slop: comments that restate the code, verbose or generic
                docstrings, unneeded defensive checks and fallbacks, speculative
                options nobody asked for, filler prose in docs or messages.
-            7. Personal data (advisory, never blocking; docs/development.md,
+            8. Personal data (advisory, never blocking; docs/development.md,
                "Personal data"): the repo is public, and a pushed commit can't be
                taken back. Read the diff, the commits' messages and authors, the
                PR title, description and branch name (`gh pr view --json

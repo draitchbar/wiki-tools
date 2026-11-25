@@ -31,6 +31,7 @@ An implementer knows nothing but its brief (subagents don't see the conversation
 - Only the change the task needs; a doc that the change makes false is updated with it.
 - A script, hook or wrapper change needs a test or fixture (`AGENTS.md`). For a bug: the test fails before the fix and passes after; report both runs.
 - Never weaken or skip a test. Report any change to an existing test or fixture explicitly, with why.
+- The core stays source- and reader-neutral (`docs/adr.md`, 2): no type, server or tool name in core code or a skill's logic; a source's or reader's details go in its `SOURCE.md`.
 - A guard change says in the commit message (and the pull request) whether any rule is weakened. A change of messages only says that too.
 - First, in a new worktree: `uv sync --locked` (it has no `.venv`). Green before the commit: `bash tests/run-tests.sh` and `bash scripts/dev-lint.sh`; with a `.sh` change also `bash tests/run-tests.sh --e2e`. A check that couldn't run (no uv, say) is reported as not run, never as passed.
 - Evidence, not claims: each check as the command and its result.
@@ -38,7 +39,7 @@ An implementer knows nothing but its brief (subagents don't see the conversation
 - A push, only where the skill says to push: `git push -u origin <branch>`, never `--no-verify`. If the hook, a guard or the push is blocked or fails: stop and report; no way around it.
 - The report back: what changed and why, each check's result, changes to existing tests or fixtures, anything not done or unsure.
 
-Before passing a report on, the coordinator reads the diff itself: it does what the report says, stays inside the task, and weakens no guard unsaid.
+Before passing a report on, the coordinator reads the diff itself: it does what the report says, stays inside the task, weakens no guard unsaid, and keeps the core source-neutral.
 
 ## The pull request text
 The repo squash-merges, with the pull request's title and description as the commit on `main`. So the description: no personal data, no session links, no model name, nothing that only means something during review; kept current after every fix; ends with the agent's attribution lines. How it was checked: the commands and their results as they came out, and what wasn't run. A change under `.github/workflows/` or `scripts/pii*` is flagged for the owner (`CONTRIBUTING.md`, "Trust").
