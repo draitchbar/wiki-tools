@@ -11,7 +11,8 @@ HEAD (never from the working tree, which must match it).
   save.sh --unattended          as save.sh; paths that need permission go to a
                                 holding branch (+ a draft pull request on GitHub)
   save.sh --update --unattended as --update; refused while a holding branch
-                                (refs/heads/claude/wiki-*) is on the remote
+                                (refs/heads/claude/wiki-<12 hex>) not yet in the
+                                remote's base is on the remote
   save.sh --allow <path>...     push with these paths, which need permission;
                                 the list must be exactly the paths that do
 
@@ -66,6 +67,18 @@ CONFIG = ".claude/settings.wiki-save.json"
 DEFAULT_CONTENT = ["wiki/", "raw/", "outputs/", "open-questions.md"]
 KEYS = ("enabled", "url", "base", "content_paths")
 HOLD_PREFIX = "claude/wiki-"
+# A holding branch: exactly the name save.sh gives one; other claude/wiki-*
+# branches are not its business.
+_HOLD_REF = re.compile(r"refs/heads/claude/wiki-[0-9a-f]{12}")
+# The guard's limits for an --allow call (guard.py's SAVE_MAX_PATHS and
+# SAVE_MAX_CHARS, which a hook can't share with this script; a test checks
+# they are equal): a longer call is refused there, so it is never printed.
+ALLOW_MAX_PATHS = 50
+ALLOW_MAX_CHARS = 2000
+# The guard's no_push reads a command with the word "git" and, after it,
+# the word "push" as a git push (guard.py's _PUSH, on the lowercased text).
+_GUARD_PUSH = re.compile(r"\bgit\b.*\bpush\b", re.ASCII | re.DOTALL)
+_WORD_PUSH = re.compile(r"\bpush\b", re.ASCII)  # on the guard's text (lowercased)
 _PAGE = 100  # rules asked for in one page; a full page refuses
 HOOKS_DIR = "git-hooks-off"
 SETUP = 'docs/setup.md, "Optional: the wiki on GitHub"'
@@ -620,19 +633,44 @@ def _key(p: str) -> bytes:
     return p.encode("utf-8", "surrogateescape")
 
 
+_WAY_OUT = "Rename it, or save with --unattended (a holding branch for you to merge)"
+_ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+_STASH_PUSH = re.compile(r"\bgit(\.exe)?\s+stash\s+push\b", re.ASCII)
+
+
+def _guard_text(s: str) -> str:
+    """The text the guard's no_push matches: ASCII lowercased, \\ as /,
+    `git stash push` taken out (guard.py's norm and _STASH_PUSH)."""
+    return _STASH_PUSH.sub("git stash", s.replace("\\", "/").translate(_ASCII_LOWER))
+
+
 def call(script: str, paths: list[str]) -> str:
     """The detail line with the exact --allow call (or the plain one, with
-    no paths) as the guard asks for it; when a path can't be passed or the
-    script's own path can't be written, the way out instead."""
+    no paths) as the guard asks for it; when the guard would refuse that
+    call (a path it can't pass, more than its limits, the words git and
+    push) or the script's own path can't be written, the way out instead."""
     bad = [p for p in paths if not allow_path_ok(p)]
     if bad:
-        return ("can't be allowed by --allow: %s. Rename it, or save with --unattended (a holding "
-                "branch for you to merge)" % " ".join(shlex.quote(p) for p in bad))
+        return "can't be allowed by --allow: %s. %s" % (" ".join(shlex.quote(p) for p in bad), _WAY_OUT)
+    if len(paths) > ALLOW_MAX_PATHS or len(" ".join(["--allow"] + paths)) > ALLOW_MAX_CHARS:
+        return ("can't be allowed by --allow: %d paths, more than one call carries (at most %d paths "
+                "and %d characters). Save with --unattended (a holding branch for you to merge)"
+                % (len(paths), ALLOW_MAX_PATHS, ALLOW_MAX_CHARS))
     if not script.isprintable() or _SCRIPT_DEAD.search(script):
         return ("the plugin's path %s holds a character the call can't carry (\", $, ` or \\); run "
                 "save from a plugin path without them" % script)
     s = "bash " + ('"%s"' % script if _SCRIPT_BAD.search(script) else script)
-    return "run: " + s + (" --allow " + " ".join(paths) if paths else "")
+    line = s + (" --allow " + " ".join(paths) if paths else "")
+    if _GUARD_PUSH.search(_guard_text(line)):
+        # The guard's no_push would refuse the call: name the paths with the
+        # word push; with none, it and git are both in the plugin's path.
+        culprits = [p for p in paths if _WORD_PUSH.search(_guard_text(p))]
+        if culprits:
+            return ("can't be allowed by --allow: %s (the guard refuses a call that holds the words "
+                    "git and push, as a git push). %s" % (" ".join(culprits), _WAY_OUT))
+        return ("the plugin's path %s holds the words git and push, which the guard refuses as a git "
+                "push; run save from a plugin path without them" % script)
+    return "run: " + line
 
 
 def push(g: Git, turl: str, url: str, sha: str, branch: str, held: bool = False) -> None:
@@ -642,8 +680,8 @@ def push(g: Git, turl: str, url: str, sha: str, branch: str, held: bool = False)
         err = _lines(r.stderr)
         if any("[rejected]" in ln or "non-fast-forward" in ln or "fetch first" in ln for ln in err):
             if held:
-                raise Refused("%s already exists on the wiki's remote: merge or delete it first" % branch,
-                              *err)
+                raise Refused("%s already exists on the wiki's remote: merge it, then delete the branch"
+                              % branch, *err)
             raise Refused("%s on the wiki's remote moved meanwhile; run save again" % branch, *err)
         raise Refused("the push to %s failed" % url, *err)
     _pushed.append("%s is on %s" % (sha[:12], branch))
@@ -654,11 +692,12 @@ def open_pr(g: Git, url: str, branch: str, base: str, perm: list[str]) -> None:
     gr = github_repo(url)
     if gr is None:
         _later.append("note: open a merge request for %s into %s on the wiki's host; merging it is the "
-              "permission" % (branch, base))
+                      "permission: merge it, then delete the branch" % (branch, base))
         return
     gh = shutil.which("gh")
     body = ("An unattended wiki run changed paths that need your permission:\n\n%s\n\n"
-            "Look at the diff; merging this pull request is the permission."
+            "Look at the diff; merging this pull request is the permission. Merge it, then delete "
+            "the branch: unattended runs stop while it is there (after a squash merge too)."
             % "\n".join("- `%s`" % p for p in perm))
     try:
         if not gh:
@@ -704,13 +743,17 @@ def run(form: str, allow: list[str], script: str) -> int:
     if "refs/heads/" + base not in heads:
         raise Refused("the wiki's remote has no %s yet: create %s on the remote first (you, not Claude)"
                       % (base, base))
-    if form in ("unattended", "update-unattended"):
-        held = sorted(r[len("refs/heads/"):] for r in heads if r.startswith("refs/heads/" + HOLD_PREFIX))
-        if held:
-            raise Refused("merge or delete %s first" % " ".join(held),
-                          "An unattended save waits there for your permission; runs don't build on it.")
     rsha = fetch_base(g, turl, base)
     cps = check_pin(g, rsha, url, cps)
+    if form in ("unattended", "update-unattended"):
+        # A holding branch whose tip the base already has was merged; one
+        # merged by squash (or not there locally) still counts.
+        held = sorted(r[len("refs/heads/"):] for r, sha in heads.items()
+                      if _HOLD_REF.fullmatch(r) and not ancestor(g, sha, rsha))
+        if held:
+            raise Refused("a holding branch is on the wiki's remote (%s): merge it, then delete the branch"
+                          % " ".join(held),
+                          "An unattended save waits there for your permission; runs don't build on it.")
 
     if update:
         _say("updated %s: %s" % (base, integrate(g, rsha, base)))
@@ -737,16 +780,15 @@ def run(form: str, allow: list[str], script: str) -> int:
                       "Remove them from the commits (you decide how), then save again.")
     nothing = ancestor(g, sha, rsha)
 
+    look = "look: git diff %s %s -- %s" % (g.short(frm), g.short(sha),
+                                           " ".join(shlex.quote(p) for p in perm))
     if form == "allow" and set(allow) != set(perm):
         if not perm:
             raise Refused("no path needs permission", call(script, []))
         raise Refused("the --allow list isn't the set of paths that need permission",
-                      "need permission: %s" % " ".join(perm), call(script, perm))
+                      "need permission: %s" % " ".join(perm), look, call(script, perm))
     if perm and form in ("save", "check"):
-        raise Refused("these changes need your permission: %s" % " ".join(perm),
-                      "look: git diff %s %s -- %s" % (g.short(frm), g.short(sha),
-                                                      " ".join(shlex.quote(p) for p in perm)),
-                      call(script, perm))
+        raise Refused("these changes need your permission: %s" % " ".join(perm), look, call(script, perm))
 
     dirty_warning(g)
     if note:

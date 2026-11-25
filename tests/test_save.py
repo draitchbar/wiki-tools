@@ -16,6 +16,8 @@ import shutil
 import subprocess
 import sys
 
+import guard
+import hookjson
 import pytest
 import save
 
@@ -435,7 +437,12 @@ def test_allow_wrong_set(allow, wk):
     wk.commit("rules", "CLAUDE.md", ".gitattributes", "wiki/page.md")
     r = wk.save("--allow", *allow)
     refused(r, "the --allow list isn't the set of paths that need permission")
-    assert "need permission: .gitattributes CLAUDE.md\nrun: %s --allow .gitattributes CLAUDE.md\n" % CALL in se(r)
+    # A fresh look: line, as the plain refusal prints it, for the diff to show again.
+    assert se(r) == (
+        "save: refused: the --allow list isn't the set of paths that need permission\n"
+        "need permission: .gitattributes CLAUDE.md\n"
+        "look: git diff %s %s -- .gitattributes CLAUDE.md\n"
+        "run: %s --allow .gitattributes CLAUDE.md\n" % (wk.short(before), wk.short(), CALL))
     assert wk.remote() == before
 
 
@@ -509,6 +516,87 @@ def test_call_script_path(plugin, want, wk):
     assert want in r.err.decode()
     if "$" in plugin:
         assert "run:" not in r.err.decode()
+
+
+@pytest.mark.checks("save/allow-limits-as-guard")
+def test_allow_limits_match_guard():
+    """save.py can't import the guard's limits (a hook module): equal by test."""
+    assert (save.ALLOW_MAX_PATHS, save.ALLOW_MAX_CHARS) == (guard.SAVE_MAX_PATHS, guard.SAVE_MAX_CHARS)
+
+
+def _long_paths(total):
+    """Paths whose --allow words are exactly `total` characters long."""
+    paths, n = [], len("--allow")
+    while n < total:
+        p = "t/%02d" % len(paths) + "a" * min(150, total - n - 5)
+        paths.append(p)
+        n += 1 + len(p)
+    assert n == total
+    return paths
+
+
+@pytest.mark.checks("save/allow-limits")
+@pytest.mark.parametrize("paths,ok", [
+    pytest.param(["t/%02d.md" % i for i in range(50)], True, id="save/allow-50-paths"),
+    pytest.param(["t/%02d.md" % i for i in range(51)], False, id="save/allow-51-paths"),
+    pytest.param(_long_paths(2000), True, id="save/allow-2000-chars"),
+    pytest.param(_long_paths(2001), False, id="save/allow-2001-chars"),
+])
+def test_allow_limits(paths, ok):
+    """A run: line only where the guard lets the call through; past its
+    limits, the way out instead of a call it would refuse."""
+    line = save.call("/opt/plugins/wiki/scripts/save.sh", paths)
+    assert (guard.allow_problem(["--allow"] + paths) == "") == ok
+    if ok:
+        assert line == "run: bash /opt/plugins/wiki/scripts/save.sh --allow " + " ".join(paths)
+    else:
+        assert line == ("can't be allowed by --allow: %d paths, more than one call carries (at most 50 "
+                        "paths and 2000 characters). Save with --unattended (a holding branch for you "
+                        "to merge)" % len(paths))
+
+
+@pytest.mark.checks("save/refuse-too-many-to-allow")
+def test_too_many_to_allow(wk):
+    wk.commit("many", *["templates/%02d.md" % i for i in range(51)])
+    r = wk.save()
+    refused(r, "these changes need your permission: templates/00.md")
+    assert "run:" not in se(r)
+    assert "can't be allowed by --allow: 51 paths, more than one call carries" in se(r)
+
+
+@pytest.mark.parametrize("plugin,paths,want", [
+    pytest.param("/opt/git/wiki", ["CLAUDE.md", "templates/Push-plan.md"],
+                 "can't be allowed by --allow: templates/Push-plan.md (the guard refuses a call that holds "
+                 "the words git and push, as a git push). Rename it, or save with --unattended",
+                 id="save/unallowable-push-word"),
+    pytest.param("/opt/plugins/wiki", ["CLAUDE.md", "git/a.md", "templates/push.md"],
+                 "can't be allowed by --allow: templates/push.md (the guard", id="save/unallowable-git-in-path"),
+    pytest.param("/opt/push/wiki", ["CLAUDE.md", "templates/git/a.md"],
+                 "run: bash /opt/push/wiki/scripts/save.sh --allow CLAUDE.md templates/git/a.md",
+                 id="save/allow-git-after-push"),
+    pytest.param("/opt/git/push/wiki", ["CLAUDE.md"],
+                 "the plugin's path /opt/git/push/wiki/scripts/save.sh holds the words git and push",
+                 id="save/call-path-push-word"),
+    pytest.param("/opt/plugins/wiki", ["CLAUDE.md", "templates/push-plan.md"],
+                 "run: bash /opt/plugins/wiki/scripts/save.sh --allow CLAUDE.md templates/push-plan.md",
+                 id="save/allow-push-word-without-git"),
+    pytest.param("/opt/git/wiki", ["CLAUDE.md", "templates/pushes.md"],
+                 "run: bash /opt/git/wiki/scripts/save.sh --allow CLAUDE.md templates/pushes.md",
+                 id="save/allow-push-in-longer-word"),
+])
+def test_push_word(plugin, paths, want, wk):
+    """The guard's no_push refuses a command holding the words git and push:
+    such an --allow call is a dead end, so save prints the way out instead."""
+    wk.commit("rules", *paths)
+    r = call_main(save.main, ["--plugin", plugin], cwd=wk.w, env=wk.env)
+    assert r.rc == 1
+    err = r.err.decode()
+    assert want in err
+    # Agreement with the guard's own match on the call save would print.
+    cmd = "bash %s/scripts/save.sh --allow %s" % (plugin, " ".join(sorted(paths, key=save._key)))
+    refused_by_guard = bool(guard._PUSH.search(guard._STASH_PUSH.sub("git stash", hookjson.norm(cmd))))
+    assert refused_by_guard == (not want.startswith("run: "))
+    assert ("run:" in err) == want.startswith("run: ")
 
 
 def _index_entry(wk, mode, sha, path):
@@ -833,7 +921,7 @@ def test_unattended_hold(ghw):
     assert post[-2:] == ["-F", "draft=true"]
     # Clean start of the next unattended run: refused while it waits.
     r = ghw.save("--update", "--unattended")
-    refused(r, "merge or delete %s first" % branch)
+    refused(r, "a holding branch is on the wiki's remote (%s): merge it, then delete the branch" % branch)
     # An attended update isn't held up.
     assert ghw.save("--update").rc == 0
 
@@ -845,7 +933,47 @@ def test_unattended_while_held(ghw):
     assert ghw.save("--unattended").rc == 0
     branch = "claude/wiki-" + ghw.head()[:12]
     ghw.commit("page", "wiki/page.md")
-    refused(ghw.save("--unattended"), "merge or delete %s first" % branch)
+    refused(ghw.save("--unattended"), "a holding branch is on the wiki's remote (%s): merge it" % branch)
+
+
+@pytest.mark.parametrize("how,blocks", [
+    pytest.param("merge", False, id="save/held-merged-ignored"),
+    pytest.param("squash", True, id="save/held-squash-merged-blocks"),
+])
+def test_held_merged(how, blocks, wk):
+    """A holding branch the base already has (a real merge) no longer
+    holds runs up; after a squash merge it does, until it is deleted."""
+    wk.commit("rules", "CLAUDE.md")
+    assert wk.save("--unattended").rc == 0
+    branch = "claude/wiki-" + wk.head()[:12]
+    git(wk.other, "fetch", "-q", "origin", branch)
+    if how == "merge":
+        git(wk.other, "merge", "-q", "--no-ff", "--no-edit", "FETCH_HEAD")
+    else:
+        git(wk.other, "merge", "-q", "--squash", "FETCH_HEAD")
+        git(wk.other, "commit", "-qm", "squashed")
+    git(wk.other, "push", "-q", "origin", "HEAD:main")
+    r = wk.save("--update", "--unattended")
+    if blocks:
+        refused(r, "a holding branch is on the wiki's remote (%s): merge it, then delete the branch" % branch)
+        git(wk.other, "push", "-q", "origin", ":refs/heads/" + branch)
+        r = wk.save("--update", "--unattended")
+    assert r.rc == 0, r
+    assert so(r).startswith("updated main: ")
+
+
+@pytest.mark.checks("save/hold-name-exact")
+def test_hold_name_exact(wk):
+    """Only claude/wiki-<12 hex> is a holding branch."""
+    wk.commit("side", "wiki/side.md", d=wk.other)  # a tip main doesn't have
+    for name in ("claude/wiki-notes", "claude/wiki-0123456789AB", "claude/wiki-0123456789abc",
+                 "claude/wiki-0123456789a", "x/claude/wiki-0123456789ab"):
+        git(wk.other, "push", "-q", "origin", "HEAD:refs/heads/" + name)
+    r = wk.save("--update", "--unattended")
+    assert so(r) == "updated main: up to date\n", r
+    git(wk.other, "push", "-q", "origin", "HEAD:refs/heads/claude/wiki-0123456789ab")
+    refused(wk.save("--update", "--unattended"), "a holding branch is on the wiki's remote "
+            "(claude/wiki-0123456789ab)")
 
 
 @pytest.mark.checks("save/holding-branch-exists")
@@ -860,7 +988,7 @@ def test_holding_branch_exists(ghw, monkeypatch):
     monkeypatch.setattr(save, "remote_heads", lambda g, u: {k: v for k, v in real(g, u).items()
                                                             if "claude/wiki-" not in k})
     r = ghw.save("--unattended")
-    refused(r, "%s already exists on the wiki's remote: merge or delete it first" % branch)
+    refused(r, "%s already exists on the wiki's remote: merge it, then delete the branch" % branch)
 
 
 @pytest.mark.checks("save/error-after-push")
