@@ -12,6 +12,7 @@ A **tool-neutral** source type (`access: tools`) lists the operations it needs a
 
 **Hard rules**
 - `$ARGUMENTS` must be one instance key. If it is empty, or the instance's type isn't `access: tools`, say so and stop.
+- **Local sessions only.** If `sources.sh show` says `this session: cloud`, stop and say that the instance must be bound in a local session: binding is done locally, with the local names.
 - `.claude/sources/` and `.claude/settings.json` are protected. Never write them; hand them over as wiki-conventions **Protected files** says.
 - **Read-only.** Call only the contract's operations, with the smallest limits, on the item the user names as safe to read. Never call a tool that could write, a discovery or help tool, or a dispatcher with an operation name not in the contract's `## Bind` section, unless the user says yes to that one call.
 - **No people.** Never use a detailed or "full" view, and never call a user-info tool. Ask only for the fields the `## Bind` section names. Never copy a person's email address, even if a response holds one.

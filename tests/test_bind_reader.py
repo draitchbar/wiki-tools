@@ -9,7 +9,7 @@ import pytest
 
 import contract
 import sourcelib
-from conftest import GMAIL_DENY, PLUGIN, posix
+from conftest import GMAIL_DENY, PLUGIN, TESTS, copytree, git, posix, write
 
 SOURCES = PLUGIN / "sources"
 SKILL = PLUGIN / "skills" / "bind-reader" / "SKILL.md"
@@ -211,38 +211,62 @@ def _check(t):
     return _section((SOURCES / t / "SOURCE.md").read_text(encoding="utf-8"), "Check")
 
 
-@pytest.mark.parametrize("t", ["gmail", "jira", "ms-teams", "google-drive"])
-def test_check_cloud_fallback(t):
-    """Check step 1 falls back to the cloud name `show` prints, and in a
-    cloud session with neither name stops with "attach the connector"
-    (binding is local), not with /wiki:bind-reader (docs/adr.md, 25)."""
-    first = _check(t).strip().split("\n")[0]
-    assert "this session: cloud" in first
-    assert "attach the connector" in first
-    assert "sources.sh show <key>" in first
+TOOL_NAMED = ["gmail", "jira", "ms-teams", "google-drive"]
+# What a contract or the skill quotes from `sources.sh show`, with the contracts that quote it.
+QUOTED = {
+    "this session: cloud": TOOL_NAMED,
+    "Reader tools and their cloud names": TOOL_NAMED,
+    "cloud: denied": ["jira"],
+    "cloud: unknown": TOOL_NAMED,
+}
 
 
-@pytest.mark.parametrize("t", _tool_neutral())
-def test_bind_local_names(t):
-    """Binding is done with the local names; no contract tells the binder to
-    take the names this session has."""
-    bind = _section((SOURCES / t / "SOURCE.md").read_text(encoding="utf-8"), "Bind")
-    assert "bind the names this session has" not in bind
+def _show_cloud(tmp_path):
+    """`sources.sh show` of a gmail, a jira and a google-drive instance in a cloud session."""
+    w = copytree(TESTS / "guard-wiki", tmp_path / "gw")
+    git(w, "init", "-q")
+    g = "mcp__claude_ai_Google_Drive__"
+    write(w / ".claude/sources/instances/drive.md",
+          "---\nkey: drive\ntype: google-drive\nfolders:\n  - Receipts (1AbCdEf)\nstate:\n  - last_checked\nreader:\n"
+          + "".join("  - %s\n" % r for r in ("get item: %sget_file_metadata" % g, "list folder: %ssearch_files" % g,
+                                             "search by name: %ssearch_files" % g,
+                                             "read file: %sread_file_content" % g,
+                                             "download file: %sdownload_file_content" % g))
+          + "reader_deny:\n  - %strash_file\n---\n" % g)
+    return w
 
 
-def test_jira_cloud_dispatcher():
-    check = _check("jira")
-    assert "cloud: denied" in check
-    assert "**find project**" in check and "**list remote links**" in check
+def test_contracts_quote_show_output(tmp_path, cli):
+    """Each string the contracts and the skill quote from `sources.sh show`
+    in a cloud session is in its real output, and in the contracts."""
+    w = _show_cloud(tmp_path)
+    out = ""
+    for k in ("gmail", "tracker", "drive"):
+        r = cli("sources", "show", k, cwd=w, env={"CLAUDE_CODE_REMOTE": "true"})
+        assert r.rc == 0, r
+        out += r.out.decode("utf-8", "surrogateescape")
+    skill = SKILL.read_text(encoding="utf-8")
+    assert "this session: cloud" in skill
+    for quoted, types in QUOTED.items():
+        assert quoted in out, quoted
+        for t in types:
+            assert quoted in (SOURCES / t / "SOURCE.md").read_text(encoding="utf-8"), (t, quoted)
 
 
-def test_skill_cloud_handover():
-    text = SKILL.read_text(encoding="utf-8")
-    hand = text[text.index("## 6. Hand over"):]
-    assert "Bind with this machine's local names only" in hand
-    assert "install-source-file.sh" in hand and "cloud-name lines" in hand
-    assert "wiki's `.claude/settings.json`, committed with the instance file" in hand
-    assert not re.search(r"teams|outlook|Microsoft", text.split("\n---\n", 1)[1], re.I)
+@pytest.mark.parametrize("t", TOOL_NAMED)
+def test_name_rule_outside_check(t):
+    """The cloud-name rule is in the contract's intro, which every ingest
+    follows (Check runs only on a first ingest), and Check refers to it."""
+    text = (SOURCES / t / "SOURCE.md").read_text(encoding="utf-8")
+    outside = text.replace(_section(text, "Check"), "")
+    assert "call each bound tool under its bound name" in outside
+    assert "this session: cloud" in outside and "cloud: unknown" in outside
+    assert "this session: cloud" in _section(text, "Check")
+
+
+def test_jira_denied_in_fetch():
+    text = (SOURCES / "jira" / "SOURCE.md").read_text(encoding="utf-8")
+    assert "cloud: denied" in _section(text, "Fetch") and "cloud: denied" in _section(text, "Check")
 
 
 # Google Drive's cloud name hasn't been seen, so it is not in connectors.md.
@@ -271,9 +295,3 @@ def test_bind_servers_paired():
     for t, bind in _bind_notes().items():
         for srv in _SERVER.findall(bind.replace("mcp__<server>__", "")):
             assert srv in known | UNPAIRED, (t, srv)
-
-
-def test_setup_page_no_cloud_rebind():
-    text = (PLUGIN / "cloud" / "SETUP.md").read_text(encoding="utf-8")
-    assert "binds again with `/wiki:bind-reader`" not in text
-    assert "doesn't know about the cloud yet" not in text
