@@ -90,7 +90,7 @@ With saving on, Claude saves the wiki's commits to its remote with `/wiki:save`,
      "base": "main"
    }
    ```
-   - `url`: the remote's full URL, `https://…`, `ssh://…` or `user@host:path`. A wiki that runs in a cloud session needs the `https://github.com/<owner>/<repo>` form: there it must equal the session's `origin`.
+   - `url`: the remote's full URL, `https://…`, `ssh://…` or the scp-like form (`git@github.com:<owner>/<repo>.git`). A wiki that runs in a cloud session needs the `https://github.com/<owner>/<repo>` form: there it must equal the session's `origin`.
    - `base`: the default branch.
    - `content_paths` (optional): the paths a save pushes freely, default `["wiki/", "raw/", "outputs/", "open-questions.md"]`; a trailing `/` is a folder. A save takes them from the remote branch's config when it has one, so a local change to them takes effect only once you have pushed it.
    - `enabled: false`, or no file, turns saving off.

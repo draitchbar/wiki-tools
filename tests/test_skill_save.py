@@ -2,11 +2,13 @@
 unattended ingest. What they may run is fixed in their allowed-tools, and
 the conflict rules live in one place, the save skill."""
 
+import json
 import re
 
 import pytest
 
-from conftest import TESTS
+from conftest import PLUGIN_BASH, TESTS
+from test_guard import gbash, gw  # noqa: F401
 
 PLUGIN = TESTS.parent / "plugins" / "wiki"
 SKILLS = PLUGIN / "skills"
@@ -81,3 +83,45 @@ def test_init_writes_save_lines():
     assert "!.claude/settings.wiki-save.json" in init
     assert "wiki/log.md merge=union" in init
     assert "## Turning saving on" in init
+
+
+def _guard(folder, guard_run, cmd):
+    wiki = str(folder)
+    return guard_run(gbash(cmd).replace("/home/u/wikis/mywiki", wiki), wiki)
+
+
+@pytest.mark.checks("save-skill/forms-pass-guard")
+@pytest.mark.parametrize("skill", ["save", "ingest"])
+def test_allowed_forms_pass_guard(skill, gw, guard_run):  # noqa: F811
+    """Each save.sh form a skill may run, with the plugin root filled in as
+    Claude Code does, passes the guard plainly (no refusal, no "ask")."""
+    forms = [t[len("Bash("):-1].replace("${CLAUDE_PLUGIN_ROOT}", PLUGIN_BASH)
+             for t in _save_tools(SKILLS / skill / "SKILL.md")]
+    assert forms
+    for cmd in forms:
+        r = _guard(gw, guard_run, cmd)
+        assert (r.rc, r.out, r.err) == (0, b"", b""), (cmd, r)
+
+
+@pytest.mark.checks("save-skill/allow-asks")
+def test_allow_call_asks(gw, guard_run):  # noqa: F811
+    cmd = "bash %s/scripts/save.sh --allow .claude/settings.wiki-save.json .mcp.json CLAUDE.md" % PLUGIN_BASH
+    r = _guard(gw, guard_run, cmd)
+    assert r.rc == 0 and r.err == b""
+    assert json.loads(r.out)["hookSpecificOutput"]["permissionDecision"] == "ask"
+
+
+# The diff forms the save skill's Permission step prescribes pass; the
+# file forms they replace are refused (protected path, or "push").
+@pytest.mark.checks("save-skill/look-forms")
+@pytest.mark.parametrize("cmd,rc", [
+    ("git diff 1a2b3c4 5d6e7f8 -- .claude", 0),
+    ("git log --oneline 1a2b3c4..5d6e7f8 -- .claude", 0),
+    ("git diff 1a2b3c4 5d6e7f8 -- .", 0),
+    ("git diff 1a2b3c4 5d6e7f8 -- templates", 0),
+    ("git diff 1a2b3c4 5d6e7f8 -- .claude/settings.wiki-save.json", 2),
+    ("git diff 1a2b3c4 5d6e7f8 -- .mcp.json", 2),
+    ("git diff 1a2b3c4 5d6e7f8 -- templates/push-plan.md", 2),
+])
+def test_look_forms(cmd, rc, gw, guard_run):  # noqa: F811
+    assert _guard(gw, guard_run, cmd).rc == rc

@@ -170,6 +170,6 @@ Optional, per wiki, and the user's choice. With it, `/wiki:save` (and an unatten
      "base": "<the default branch, e.g. main>"
    }
    ```
-   `url` is `https://…`, `ssh://…` or `user@host:path`; a wiki that runs in a cloud session uses the `https://github.com/<owner>/<repo>` form, since that is the session's `origin`. An optional `content_paths` list replaces the default content folders (a trailing `/` is a folder).
+   `url` is `https://…`, `ssh://…` or the scp-like form (`git@github.com:<owner>/<repo>.git`); a wiki that runs in a cloud session uses the `https://github.com/<owner>/<repo>` form, since that is the session's `origin`. An optional `content_paths` list replaces the default content folders (a trailing `/` is a folder).
 5. **Commit and push it**, the user, from a terminal: `git add -- .claude/settings.wiki-save.json && git commit -m "Turn on saving" && git push`. Pushed by the user, the config is on the remote, so no save has to ask for it. A later change to it is a permission path, and a pin the remote doesn't share is refused.
 6. **Check**: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/wiki-check.sh` reports `saving is on`; then the user may try `/wiki:save --check`, which says what a save would push and pushes nothing.

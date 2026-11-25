@@ -1,6 +1,6 @@
 # Research: running a wiki in a Claude Code cloud session
 
-Status: research, 2026-11-20, reviewed the same day (one round, folded in); **spike run 2026-11-21: option 2's second variant works** (**Spike results**), written up as a guided setup in `plugins/wiki/cloud/SETUP.md`. Nothing here is built beyond that page, and saving to the remote (**Saving to the remote**, at the end). Facts marked **(docs)** come from the Claude Code documentation as fetched that day (`code.claude.com/docs/en/`: `claude-code-on-the-web`, `cloud-environments`, `routines`, `settings`, `plugins/install`, `plugins/org`, `plugins/loading`, `hooks`, `mcp`, `skills`, `remote-control`); nothing was tried in a real cloud session. Cloud scheduled tasks are a research preview, so the facts may change.
+Status: research, 2026-11-20, reviewed the same day (one round, folded in); **spike run 2026-11-21: option 2's second variant works** (**Spike results**), written up as a guided setup in `plugins/wiki/cloud/SETUP.md`. Of what it discusses, only that page and, since 2026-11, saving to the remote (**Saving to the remote**, at the end) are built. Facts marked **(docs)** come from the Claude Code documentation as fetched that day (`code.claude.com/docs/en/`: `claude-code-on-the-web`, `cloud-environments`, `routines`, `settings`, `plugins/install`, `plugins/org`, `plugins/loading`, `hooks`, `mcp`, `skills`, `remote-control`); nothing was tried in a real cloud session. Cloud scheduled tasks are a research preview, so the facts may change.
 
 ## The question
 
