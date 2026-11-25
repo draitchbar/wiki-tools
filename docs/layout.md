@@ -26,6 +26,7 @@ plugins/wiki/
     google-drive/SOURCE.md        Google Drive folders through whatever Drive reader the machine supplies (tool-neutral; seen working: the claude.ai connector)
     ms-teams/SOURCE.md            Teams channels, chats and SharePoint folders through whatever Microsoft 365 reader the machine supplies (tool-neutral; seen working: the claude.ai connector)
     jira/SOURCE.md                Jira issues selected by named scopes (team, component, epic/initiative, project, JQL) through whatever Jira reader the machine supplies (tool-neutral)
+    connectors.md                 local and cloud names of the claude.ai connectors (read by sourcelib.py; not a type)
     proton-files/SOURCE.md            Proton Drive through a reader (the proton plugin, aitchbar-ai-tools)
     local-folder/{SOURCE.md,read.sh}  folders outside the wiki, read-only
     codebase/{SOURCE.md,git.sh,gh.sh}  a git clone researched on demand by subagents (research type, agent_only); PR/issue context via gh

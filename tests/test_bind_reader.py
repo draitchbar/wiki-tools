@@ -8,6 +8,7 @@ import re
 import pytest
 
 import contract
+import sourcelib
 from conftest import GMAIL_DENY, PLUGIN, posix
 
 SOURCES = PLUGIN / "sources"
@@ -204,3 +205,75 @@ def test_skill_carries_bind_extras():
     assert "plus any settings lines the `## Bind` section names" in hand
     body = text.split("\n---\n", 1)[1]
     assert not re.search(r"teams|outlook|Microsoft", body, re.I)
+
+
+def _check(t):
+    return _section((SOURCES / t / "SOURCE.md").read_text(encoding="utf-8"), "Check")
+
+
+@pytest.mark.parametrize("t", ["gmail", "jira", "ms-teams", "google-drive"])
+def test_check_cloud_fallback(t):
+    """Check step 1 falls back to the cloud name `show` prints, and in a
+    cloud session with neither name stops with "attach the connector"
+    (binding is local), not with /wiki:bind-reader (docs/adr.md, 25)."""
+    first = _check(t).strip().split("\n")[0]
+    assert "this session: cloud" in first
+    assert "attach the connector" in first
+    assert "sources.sh show <key>" in first
+
+
+@pytest.mark.parametrize("t", _tool_neutral())
+def test_bind_local_names(t):
+    """Binding is done with the local names; no contract tells the binder to
+    take the names this session has."""
+    bind = _section((SOURCES / t / "SOURCE.md").read_text(encoding="utf-8"), "Bind")
+    assert "bind the names this session has" not in bind
+
+
+def test_jira_cloud_dispatcher():
+    check = _check("jira")
+    assert "cloud: denied" in check
+    assert "**find project**" in check and "**list remote links**" in check
+
+
+def test_skill_cloud_handover():
+    text = SKILL.read_text(encoding="utf-8")
+    hand = text[text.index("## 6. Hand over"):]
+    assert "Bind with this machine's local names only" in hand
+    assert "install-source-file.sh" in hand and "cloud-name lines" in hand
+    assert "wiki's `.claude/settings.json`, committed with the instance file" in hand
+    assert not re.search(r"teams|outlook|Microsoft", text.split("\n---\n", 1)[1], re.I)
+
+
+# Google Drive's cloud name hasn't been seen, so it is not in connectors.md.
+UNPAIRED = {"claude_ai_Google_Drive"}
+_SERVER = re.compile(r"mcp__([A-Za-z0-9-]+(?:_[A-Za-z0-9-]+)*)__")
+
+
+def _bind_notes():
+    return {t: _section((SOURCES / t / "SOURCE.md").read_text(encoding="utf-8"), "Bind")
+            for t in _tool_neutral()}
+
+
+def test_connector_pairs_in_bind_notes():
+    """Each pair's local and cloud server appear, backticked, in some
+    tool-neutral contract's ## Bind."""
+    notes = " ".join(_bind_notes().values())
+    for local, cloud in sourcelib.connector_pairs(posix(PLUGIN)).items():
+        assert "`mcp__%s__`" % local in notes, local
+        assert "`mcp__%s__`" % cloud in notes, cloud
+
+
+def test_bind_servers_paired():
+    pairs = sourcelib.connector_pairs(posix(PLUGIN))
+    known = set(pairs) | set(pairs.values())
+    assert not UNPAIRED & known, "a connector in connectors.md is no longer unpaired"
+    for t, bind in _bind_notes().items():
+        for srv in _SERVER.findall(bind.replace("mcp__<server>__", "")):
+            assert srv in known | UNPAIRED, (t, srv)
+
+
+def test_setup_page_no_cloud_rebind():
+    text = (PLUGIN / "cloud" / "SETUP.md").read_text(encoding="utf-8")
+    assert "binds again with `/wiki:bind-reader`" not in text
+    assert "doesn't know about the cloud yet" not in text
