@@ -12,7 +12,7 @@ import sources
 import sourcelib
 import wiki_check
 from conftest import (GMAIL_DENY, GMAIL_OPS, GMAIL_T, PLUGIN, SCRIPTS_P, TESTS, call_main, copytree, git, home_env,
-                      posix, reset_modules, write)
+                      msys, posix, reset_modules, write)
 
 P = posix(PLUGIN)
 GC = "mcp__Gmail__"
@@ -294,7 +294,9 @@ def test_broken_table(tmp_path, broken):
     bad = "%s/sources/connectors.md: servers item 'local=claude_ai_Gmail' must be" % posix(p)
 
     def o(r):
-        return r.merged.decode("utf-8", "surrogateescape")
+        # Through the launcher on Windows, the plugin path keeps Git Bash's
+        # spelling (/c/...), as messages give paths as they came in.
+        return r.merged.decode("utf-8", "surrogateescape").replace(msys(posix(p)), posix(p))
     for args in (["settings"], ["check-settings"]):
         r = prun("sources", *args, cwd=w, env=env)
         assert r.rc == 3 and "sources: internal error: ConnectorsError: " + bad in o(r), (args, o(r))
