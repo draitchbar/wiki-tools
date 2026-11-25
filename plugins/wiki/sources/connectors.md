@@ -16,11 +16,11 @@ How it is used (`docs/adr.md`, 25):
 - `sources.sh show <key>` prints each bound tool with its cloud name, and whether this session is local or cloud.
 - Read by `scripts/sourcelib.py` only; the guard doesn't use it. This file is not a source type.
 
-A pair is added by pull request to wiki-tools, only after the connector was seen live on both surfaces with the same short tool names, compared in both directions. A connector not listed keeps one name, as bound.
+A pair is added by pull request to wiki-tools, only after the connector was seen live on both surfaces with the same short tool names, compared in both directions. The first three pairs were added before the local side of that comparison (live check 2 in `docs/plans/cloud-wikis.md`), on the cloud side's match and the documented local names; a mismatch found there is fixed by pull request. A connector not listed keeps one name, as bound.
 
 ## Sightings
 
-- **Gmail:** local 2026-11-22 (Linux, Windows). Cloud 2026-11-24 (a wiki's `/wiki:ingest gmail` stopped at Check: the tools there are `mcp__Gmail__*`) and 2026-11-25: the cloud tool set equals the gmail contract's short names exactly, every read and every listed write and deny tool.
+- **Gmail:** local 2026-11-22 (Linux, Windows). Cloud 2026-11-22 (a wiki's `/wiki:ingest gmail` stopped at Check: the tools there are `mcp__Gmail__*`) and 2026-11-25: the cloud tool set equals the gmail contract's short names exactly, every read and every listed write and deny tool.
 - **Microsoft 365:** cloud 2026-11-25 offers only read tools (no `teams_send_*`, no `outlook_create_event`), whose short names match the ms-teams contract.
 - **Atlassian:** cloud 2026-11-25 offers `getJiraIssue`, `searchJiraIssuesUsingJql`, `listJiraIssueComments`, `executeRead`, `getAccessibleAtlassianResources`, and also `executeWrite`, `executeDestructive`, `showConfluenceEditor` (these three not offered 2026-11-24).
 - **Not paired:** Google Drive (`mcp__claude_ai_Google_Drive__*` locally; its cloud name not seen yet: not attached in the 2026-11-25 cloud session). The Desktop app's `mcp__<uuid>__*` names differ per user and can't be paired.
