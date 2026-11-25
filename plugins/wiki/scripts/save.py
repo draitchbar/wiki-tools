@@ -340,6 +340,21 @@ def check_url(g: Git, url: str) -> None:
                       "elsewhere", *pi.rstrip("\n").split("\n"),
                       "Remove it (you, not Claude): `git config --show-origin --get-regexp "
                       "pushinsteadof` shows where it is.")
+    # git takes a URL argument as a remote's name first: remote.<url>.pushurl
+    # (or .url, ...) would send the push elsewhere. Spellings git might
+    # match are refused too.
+    rc = g.out("config", "--name-only", "--get-regexp", r"^remote\.")
+    named = sorted({k for k in (rc or "").split("\n") if k.count(".") >= 2
+                    and normal(k[len("remote."):k.rindex(".")]) == normal(url)})
+    if named:
+        raise Refused("git config has a remote named like the wiki's URL, which could send the push "
+                      "elsewhere", *named,
+                      "Remove it (you, not Claude): `git config --show-origin --get-regexp '^remote\\.'` "
+                      "shows where it is.")
+    r = g.run("remote", "get-url", "--push", "--all", url)
+    if r.returncode == 0 and any(ln != url for ln in _lines(r.stdout)):
+        raise Refused("git has a remote named like the wiki's URL, which could send the push elsewhere",
+                      *_lines(r.stdout))
     got = (g.out("ls-remote", "--get-url", url) or "").rstrip("\r\n")
     if got != url:
         raise Refused("git rewrites the wiki's URL %s to %s (a url.*.insteadOf setting)" % (url, got),
@@ -444,19 +459,28 @@ def fetch_base(g: Git, turl: str, base: str) -> str:
     return rsha
 
 
-def check_pin(g: Git, rsha: str, url: str) -> None:
-    """A different pin on the remote: the change must come from the user."""
+def check_pin(g: Git, rsha: str, url: str, own: list[str]) -> list[str]:
+    """A different pin on the remote: the change must come from the user.
+    Returns the content_paths that sort the paths: the remote base's (a
+    commit can't widen them for itself), the defaults when its config
+    lacks them or is unreadable, this commit's (own) when it has none."""
     b = g.blob("%s:%s" % (rsha, CONFIG))
     if b is None:
-        return
+        return own
     try:
         rc = json.loads(b.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
-        return
-    if isinstance(rc, dict) and isinstance(rc.get("url"), str) and rc["url"] != url:
+        return list(DEFAULT_CONTENT)
+    if not isinstance(rc, dict):
+        return list(DEFAULT_CONTENT)
+    if isinstance(rc.get("url"), str) and rc["url"] != url:
         raise Refused("the wiki's remote pins %s, this commit %s" % (rc["url"], url),
                       "A change of the pin comes from you, through the remote: pull it by hand "
                       "(you, not Claude).")
+    cps = rc.get("content_paths", DEFAULT_CONTENT)
+    if not isinstance(cps, list) or any(content_path_error(p) for p in cps):
+        return list(DEFAULT_CONTENT)
+    return [str(p) for p in cps]
 
 
 def ancestor(g: Git, a: str, b: str) -> bool:
@@ -521,7 +545,8 @@ def tiers(ch: list[tuple[str, str, str, str]], cps: list[str]) -> tuple[list[str
     """(never, needs permission) paths, each sorted."""
     never = sorted({p for om, nm, _, p in ch if om in _NEVER_MODES or nm in _NEVER_MODES
                     or p == ".gitmodules"}, key=_key)
-    perm = sorted({p for _, _, _, p in ch if p not in never and not in_content(p, cps)}, key=_key)
+    perm = sorted({p for _, _, _, p in ch if p not in never
+                   and (p == CONFIG or not in_content(p, cps))}, key=_key)
     return never, perm
 
 
@@ -604,7 +629,7 @@ def run(form: str, allow: list[str], script: str) -> int:
             raise Refused("merge or delete %s first" % " ".join(held),
                           "An unattended save waits there for your permission; runs don't build on it.")
     rsha = fetch_base(g, turl, base)
-    check_pin(g, rsha, url)
+    cps = check_pin(g, rsha, url, cps)
 
     if update:
         _say("updated %s: %s" % (base, integrate(g, rsha, base)))

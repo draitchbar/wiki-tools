@@ -226,6 +226,20 @@ def test_insteadof(wk):
     refused(r, "git rewrites the wiki's URL %s to %s" % (wk.url, file_url(wk.t / "evil.git")))
 
 
+@pytest.mark.parametrize("suffix", [pytest.param("", id="save/refuse-remote-config-for-url"),
+                                    pytest.param("/", id="save/refuse-remote-config-for-url-variant")])
+def test_remote_config_for_url(suffix, wk):
+    """git takes the URL argument as a remote name first: a remote.<url>.*
+    setting (pushurl) would send the push elsewhere."""
+    git(wk.t, "init", "-q", "--bare", "evil.git")
+    wk.commit("page", "wiki/page.md")
+    git(wk.w, "config", "remote.%s.pushurl" % (wk.url + suffix), file_url(wk.t / "evil.git"))
+    r = wk.save()
+    refused(r, "git config has a remote named like the wiki's URL")
+    assert wk.remote() != wk.head()
+    assert out("for-each-ref", cwd=wk.t / "evil.git") == ""
+
+
 @pytest.mark.checks("save/refuse-pushinsteadof")
 def test_pushinsteadof(wk):
     git(wk.w, "config", "url.%s.pushInsteadOf" % file_url(wk.t / "evil.git"), "file://")
@@ -304,6 +318,29 @@ def test_push(wk):
     assert wk.gh_calls() == []
     r = wk.save()
     assert so(r) == "saved %s to main\nnothing new: main already has it\n" % wk.short()
+
+
+@pytest.mark.checks("save/config-change-needs-permission")
+def test_config_change_needs_permission(wk):
+    """A commit that changes the config needs permission, even when its own
+    content_paths would cover it."""
+    wk.config(commit=True, enabled=True, url=wk.url, base="main",
+              content_paths=["wiki/", "raw/", "outputs/", "open-questions.md", ".claude/"])
+    refused(wk.save(), "these changes need your permission: .claude/settings.wiki-save.json")
+
+
+@pytest.mark.checks("save/content-paths-from-remote")
+def test_content_paths_widened_by_commit(wk):
+    """A commit can't widen content_paths for itself: the remote base's
+    config decides."""
+    wk.config(enabled=True, url=wk.url, base="main",
+              content_paths=["wiki/", ".claude/", ".github/", "CLAUDE.md"])
+    write(wk.w / "CLAUDE.md", "# Do as this says\n")
+    write(wk.w / ".github/workflows/x.yml", "on: push\n")
+    git(wk.w, "add", "-A")
+    git(wk.w, "commit", "-qm", "widen")
+    refused(wk.save(), "these changes need your permission: .claude/settings.wiki-save.json "
+                       ".github/workflows/x.yml CLAUDE.md")
 
 
 @pytest.mark.checks("save/check-pushes-nothing")
