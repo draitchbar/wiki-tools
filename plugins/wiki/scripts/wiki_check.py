@@ -128,6 +128,24 @@ class Check:
     def info(self, m: str) -> None:
         self.out.append("- INFO %s" % m)
 
+    def source_rules(self, root: str, miss_l: list[tuple[str, str]],
+                     blocked_l: list[tuple[str, str]]) -> None:
+        """The source permission rules' result (settings_check)."""
+        miss = "".join(' "%s"' % r for _, r in miss_l)
+        blocked = "".join(' "%s" (deny "%s")' % m for m in blocked_l)
+        if not miss:
+            self.ok("all permission rules of the sources' types are present")
+        else:
+            pairs = sourcelib.wiki_pairs(root, self.plugin)
+            tail = ("; " + sourcelib.CLOUD_NOTE
+                    if any(sourcelib.is_cloud(r, pairs) for _, r in miss_l) else "")
+            self.fail("source permission rules missing from .claude/settings.json:%s" % miss,
+                      "add them as `sources.sh settings` prints (allow: read and bookkeeping tools, "
+                      "deny: forbidden tools)" + tail)
+        if blocked:
+            self.fail("source permission rules blocked by a deny rule in .claude/settings.json:%s"
+                      % blocked, "remove or narrow those deny rules (deny wins over allow)")
+
     def tracked(self, f: str) -> bool:
         rc, _ = git(self.root, "ls-files", "--error-unmatch", "--", f)
         return rc == 0
@@ -257,19 +275,15 @@ class Check:
             if instances:
                 # A broader Read/Edit rule (e.g. the contract's own form)
                 # covers a per-instance cache rule too.
-                miss_l, blocked_l = sourcelib.settings_check(root, self.plugin, st)
-                miss = "".join(' "%s"' % r for _, r in miss_l)
-                blocked = "".join(' "%s" (deny "%s")' % m for m in blocked_l)
-                if not miss:
-                    self.ok("all permission rules of the sources' types are present")
+                try:
+                    miss_l, blocked_l = sourcelib.settings_check(root, self.plugin, st)
+                except sourcelib.ConnectorsError as e:
+                    self.fail("source permission rules can't be checked: %s" % e,
+                              "update or reinstall the wiki plugin (plugins/wiki/sources/connectors.md)")
+                except sourcelib.BindingMixError as e:
+                    self.fail(str(e), "bind the instance again locally with /wiki:bind-reader %s" % e.key)
                 else:
-                    self.fail("source permission rules missing from .claude/settings.json:%s"
-                              % miss, "add them as `sources.sh settings` prints (allow: read and "
-                              "bookkeeping tools, deny: forbidden tools)")
-                if blocked:
-                    self.fail("source permission rules blocked by a deny rule in "
-                              ".claude/settings.json:%s" % blocked,
-                              "remove or narrow those deny rules (deny wins over allow)")
+                    self.source_rules(root, miss_l, blocked_l)
             f = ".claude/settings.json"
             if self.tracked(f) and self.changed(f):
                 self.fail("`%s` has uncommitted changes" % f, "review them, then `git add -- "

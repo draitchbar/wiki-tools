@@ -90,6 +90,13 @@ LIST_ETC = [
     ("catalog-onenote", "- onenote (standard, tools): OneNote", ["catalog"]),
     ("settings-tools-note", "onenote (access: tools) names no tools, so it adds no tool rules here",
      ["settings", "onenote"]),
+    # Each binding rule of a paired connector under its cloud name too
+    # (docs/adr.md, 25): allowed, denied, and the note on where they go.
+    ("settings-cloud-allow", '"mcp__Atlassian_MCP__getJiraIssue",', ["settings"]),
+    ("settings-cloud-deny", '"mcp__Gmail__send_message",', ["settings"]),
+    ("settings-cloud-note", "Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json",
+     ["settings"]),
+    ("settings-cloud-key", '"mcp__Gmail__download_gmail_attachment"', ["settings", "gmail", "--key", "gmail"]),
 ]
 COUNTS = [  # name, args, a regex no line may match
     ("settings-proton-no-allow", ["settings", "proton-files"], r"Bash\(bash|read\.sh|wiki-sources"),
@@ -104,9 +111,14 @@ COUNTS = [  # name, args, a regex no line may match
     ("settings-reader-no-note", ["settings"], r"^jira \(access: tools\)"),
     ("show-bound-no-check", ["show", "tracker"], r"^Check needed"),
     ("settings-reader-key-quiet", ["settings", "jira", "--key", "tracker"], r"access: tools"),
+    # A type alone has no binding, so no cloud names; the pair table isn't a type.
+    ("settings-jira-no-cloud", ["settings", "jira"], r"mcp__(Gmail|Microsoft_365|Atlassian_MCP)__|Cloud names"),
+    ("catalog-no-connectors", ["catalog"], r"connectors"),
 ]
 COUNT_ONE = [  # name, args, a regex exactly one line matches
     ("settings-reader-once", ["settings"], r'"mcp__claude_ai_Atlassian_MCP__executeRead"'),
+    # The dispatcher bound only with limits: its cloud name only under deny.
+    ("settings-cloud-execute-read-once", ["settings"], r'"mcp__Atlassian_MCP__executeRead"'),
 ]
 NOTES = [
     ("show-tools-instance", "Source notes: valid", ["show", "notes"]),
@@ -225,6 +237,8 @@ SCK = [  # name, exit, text, change to the settings `settings` prints
                '"WebFetch", "Skill(wiki:ingest)", "Read(~/.cache/wiki-sources/**)", "mcp__claude_ai_Gmail",'),
           _sub('"deny": [', '"deny": [ "mcp__example_reader__delete_note", '
                '"Bash(bash */sources/ms-teams/snapshot.sh *)",'))),
+    # A cloud name missing: reported as such (docs/adr.md, 25).
+    ("cloud-missing", 1, "  allow: mcp__Gmail__get_thread (cloud name)\n", _sub('      "mcp__Gmail__get_thread",\n', "")),
 ]
 CONTRACTS = sorted(p.parent.name for p in PLUGIN.glob("sources/*/SOURCE.md"))
 PLACEHOLDERS = ["FOLDER-ID-TBD", "<label>", "todo", "?", "..."]

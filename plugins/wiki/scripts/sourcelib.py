@@ -22,11 +22,22 @@ ref and gh_user. Values are printed as read, without the path mapping.
 missing-rules is the one coverage check for sources.sh
 check-settings, wiki-check.sh and install-source-file.sh: a needed rule is
 covered by its narrowed or contract form, or by a broader Read/Edit rule
-on a folder (<prefix>/**) that holds its path.
+on a folder (<prefix>/**) that holds its path. A reader binding's rules
+may be met in the user's settings too, except their cloud names.
+
+Connector names per surface (docs/adr.md, 25): the pair table
+sources/connectors.md maps a claude.ai connector's local server name
+(mcp__claude_ai_Gmail) to its cloud one (mcp__Gmail). The needed rules
+give each binding rule under its cloud name too (a tool bound only with
+limits: denied there), and those cloud-name rules count only from the
+wiki's own .claude/settings.json, which is all a cloud session reads. The
+table is read only when a binding has an mcp__ rule.
 
 --plugin stands in for lib-source.sh's SRC_PLUGIN (default: this script's
 plugin folder). Exit 3: an internal error (a bug, an unreadable settings
-file, or a Git Bash path on Windows), never "invalid".
+file, or a Git Bash path on Windows), never "invalid". Exit 1 from
+needed-rules and missing-rules: the wiki's bindings name one connector
+under its local and its cloud name (BindingMixError), message on stderr.
 
 Paths. Every path comes back in messages exactly as it was given. Python
 opens files through the native form: on Windows Git Bash's /c/x is c:/x;
@@ -78,6 +89,19 @@ SECTIONS = ("Check", "List new", "Fetch", "Mark ingested", "Cite", "Resolve cita
 
 class GitBashPath(Exception):
     pass
+
+
+class ConnectorsError(Exception):
+    """The pair table (sources/connectors.md) is missing or broken."""
+
+
+class BindingMixError(Exception):
+    """The wiki's bindings name one connector under its local name in one
+    instance and its cloud name in another; key is the latter instance."""
+
+    def __init__(self, message: str, key: str) -> None:
+        super().__init__(message)
+        self.key = key
 
 
 # Paths: given spelling <-> native form (identity off Windows).
@@ -284,6 +308,183 @@ def read_questions(root: str) -> tuple[list[Question], bool] | None:
     return open_questions(read_text(p))
 
 
+# Connector names per surface (docs/adr.md, 25): sources/connectors.md
+# pairs a claude.ai connector's local server name with its cloud one.
+
+CONNECTORS = "sources/connectors.md"
+_SERVER = r"[A-Za-z0-9-]+(?:_[A-Za-z0-9-]+)*"
+_PAIR = re.compile(r"local=(%s) cloud=(%s)" % (_SERVER, _SERVER), re.ASCII)
+_SERVERS_KEY = re.compile(r"servers:")
+_pairs: dict[str, dict[str, str]] = {}  # plugin -> {local server: cloud server}
+
+CLOUD_NOTE = ("Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json "
+              "even when the local names are in ~/.claude/settings.json: a cloud session reads no other "
+              "settings file.")
+SETTINGS_CLOUD = ("Each rule for a claude.ai connector listed in plugins/wiki/sources/connectors.md comes "
+                  "under its local name and its Claude Code cloud name (mcp__Gmail__… for "
+                  "mcp__claude_ai_Gmail__…); a tool bound with a limit is denied under its cloud name, "
+                  "where the limit can't hold.")
+
+
+def connector_pairs(plugin: str | None) -> dict[str, str]:
+    """The pair table as {local server: cloud server}, in its order; cached
+    per plugin. Raises ConnectorsError for a missing or broken table."""
+    plugin = contract.PLUGIN if plugin is None else plugin
+    got = _pairs.get(plugin)
+    if got is not None:
+        return got
+    path = "%s/%s" % (plugin, CONNECTORS)
+    if not contract.has_fm(path):
+        raise ConnectorsError("%s: missing or has no frontmatter" % path)
+    if not any(_SERVERS_KEY.match(ln) for ln in contract.fm(path)):
+        raise ConnectorsError("%s: no 'servers' list" % path)
+    items = contract.list_(path, "servers")
+    if not items:
+        raise ConnectorsError("%s: the 'servers' list is empty" % path)
+    res: dict[str, str] = {}
+    seen: set[str] = set()
+    for it in items:
+        m = _PAIR.fullmatch(it)
+        if not m:
+            raise ConnectorsError("%s: servers item '%s' must be 'local=<server> cloud=<server>'" % (path, it))
+        for s in m.groups():
+            if s in seen:
+                raise ConnectorsError("%s: server '%s' is listed twice" % (path, s))
+            seen.add(s)
+        res[m.group(1)] = m.group(2)
+    _pairs[plugin] = res
+    return res
+
+
+def server_of(rule: str) -> str | None:
+    """An MCP rule's server: the text after mcp__ up to the next __ (or the
+    whole rest, for a server rule); None for any other rule."""
+    if not rule.startswith("mcp__"):
+        return None
+    return rule[5:].split("__", 1)[0]
+
+
+def cloud_name(rule: str, pairs: dict[str, str]) -> str | None:
+    """The rule under its server's cloud name, when its server is exactly a
+    local server of the table; else None (never cloud to local)."""
+    s = server_of(rule)
+    if s is None or s not in pairs:
+        return None
+    return "mcp__" + pairs[s] + rule[5 + len(s):]
+
+
+def is_cloud(rule: str, pairs: dict[str, str]) -> bool:
+    """The rule's server is a cloud server of the table."""
+    s = server_of(rule)
+    return s is not None and s in pairs.values()
+
+
+def _unquoted(s: str) -> str:
+    return s[1:-1] if _quoted(s) else s
+
+
+def binding_rules(f: str, unquote: bool = False) -> list[str]:
+    """The rules an instance's binding names: each parsed `reader` item's
+    tool or rule, then each `reader_deny` rule; quoted items taken without
+    their quotes only with unquote (validation), as the settings and the
+    guard skip them."""
+    q = _unquoted if unquote else (lambda s: s)
+    res = [p[1] for p in (contract.reader_item(q(it)) for it in contract.list_(f, "reader")) if p]
+    res.extend(r for r in map(q, contract.list_(f, "reader_deny")) if contract.rule_ok(r))
+    return res
+
+
+def _has_mcp(f: str) -> bool:
+    return any(r.startswith("mcp__") for r in binding_rules(f, unquote=True))
+
+
+def _both_forms(rules: Iterable[str], pairs: dict[str, str]) -> list[tuple[str, str]]:
+    """The pairs (local, cloud) whose servers both appear in rules."""
+    servers = {server_of(r) for r in rules}
+    return [(lo, cl) for lo, cl in pairs.items() if lo in servers and cl in servers]
+
+
+def tools_instances(root: str, plugin: str | None) -> list[tuple[str, str]]:
+    """(key, instance file) of every instance whose type resolves to an
+    access: tools contract, valid or not (the guard's set), in key order."""
+    d = contract.instance_dir(root)
+    res: list[tuple[str, str]] = []
+    for k in words(contract.instances(root)):
+        f = "%s/%s.md" % (d, k)
+        try:
+            c = contract.contract(root, contract.field(f, "type"), plugin)
+        except contract.ContractError:
+            continue
+        if contract.field(c, "access") == "tools":
+            res.append((k, f))
+    return res
+
+
+def wiki_pairs(root: str, plugin: str | None) -> dict[str, str]:
+    """The pair table if some access: tools instance binds an mcp__ rule,
+    else {} (the table isn't read)."""
+    if any(_has_mcp(f) for _, f in tools_instances(root, plugin)):
+        return connector_pairs(plugin)
+    return {}
+
+
+def _free_of(f: str, pairs: dict[str, str]) -> set[str]:
+    """The cloud names instance f binds without a limit: a mapped local
+    tool or a tool written in a cloud name."""
+    res: set[str] = set()
+    for it in contract.list_(f, "reader"):
+        p = contract.reader_item(it)
+        if not p or p[2]:
+            continue
+        cn = cloud_name(p[1], pairs)
+        if cn:
+            res.add(cn)
+        elif is_cloud(p[1], pairs):
+            res.add(p[1])
+    return res
+
+
+def free_cloud(root: str, plugin: str | None, pairs: dict[str, str]) -> set[str]:
+    """The cloud names some instance of the wiki binds free. A tool free
+    anywhere is unlimited, as the guard treats it, so its cloud name is
+    allowed even where another instance binds it with a limit."""
+    res: set[str] = set()
+    for _, f in tools_instances(root, plugin):
+        res |= _free_of(f, pairs)
+    return res
+
+
+def wiki_binding_error(root: str, plugin: str | None, pairs: dict[str, str]) -> tuple[str, str] | None:
+    """(message, key) when the wiki's bindings name a paired connector under
+    its local name and its cloud name: in two instances, or in one (which
+    validation refuses too, but its rules would still be printed); key is
+    the instance with the cloud name. None otherwise."""
+    insts = [(k, {server_of(r) for r in binding_rules(f)}) for k, f in tools_instances(root, plugin)]
+    for lo, cl in pairs.items():
+        loc = [k for k, s in insts if lo in s]
+        for k2 in (k for k, s in insts if cl in s):
+            k1 = next((k for k in loc if k != k2), k2 if k2 in loc else None)
+            if k1 is None:
+                continue
+            who = "instance %s names" % k2 if k1 == k2 else "instances %s, %s name" % (k1, k2)
+            return ("%s one connector under both its local name (mcp__%s__…) and its cloud name "
+                    "(mcp__%s__…); bind every instance with the local names: sources.sh settings adds "
+                    "the cloud names (plugins/wiki/sources/connectors.md)" % (who, lo, cl), k2)
+    return None
+
+
+def cloud_setup(root: str, plugin: str | None) -> tuple[dict[str, str], set[str]]:
+    """(pairs, free_cloud) for the wiki's settings rules; ({}, set()) when no
+    binding has an mcp__ rule. Raises BindingMixError (wiki_binding_error)."""
+    pairs = wiki_pairs(root, plugin)
+    if not pairs:
+        return pairs, set()
+    mix = wiki_binding_error(root, plugin, pairs)
+    if mix:
+        raise BindingMixError(*mix)
+    return pairs, free_cloud(root, plugin, pairs)
+
+
 # The bridged functions.
 
 def validate_contract(f: str) -> bool:
@@ -413,7 +614,13 @@ def validate_instance(root: str, k: str, plugin: str | None) -> bool:
         hit = [v for v in contract.values(f, p) if PLACEHOLDER_RE.search(v)]
         if hit:
             ie("parameter '%s' holds a placeholder ('%s'); put in the real value" % (p, hit[0]))
-    for m in reader_errors(f, c):
+    pairs = None
+    if contract.field(c, "access") == "tools" and _has_mcp(f):
+        try:
+            pairs = connector_pairs(plugin)
+        except ConnectorsError as e:
+            ie("can't check its connector names: %s" % e)
+    for m in reader_errors(f, c, pairs):
         ie(m)
     for r in contract.values(f, "roots"):
         if not contract.is_abs(r):
@@ -429,9 +636,11 @@ def _quoted(s: str) -> bool:
     return len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'"
 
 
-def reader_errors(f: str, c: str) -> list[str]:
+def reader_errors(f: str, c: str, pairs: dict[str, str] | None = None) -> list[str]:
     """What is wrong with an instance's reader binding (`reader`,
-    `reader_deny`; docs/adr.md, 13), given its contract c."""
+    `reader_deny`; docs/adr.md, 13), given its contract c. With the pair
+    table (connector_pairs), also a connector named under both its local
+    and its cloud name (docs/adr.md, 25)."""
     items, deny = contract.list_(f, "reader"), contract.list_(f, "reader_deny")
     if contract.field(c, "access") != "tools":
         return (["only an access: tools instance has a reader binding ('reader', 'reader_deny')"]
@@ -474,6 +683,11 @@ def reader_errors(f: str, c: str) -> list[str]:
             res.append("reader_deny item '%s' must be an MCP tool or a Bash(...) or PowerShell(...) rule" % r)
         elif r in rules:
             res.append("reader_deny denies %s, which reader binds" % r)
+    if pairs:
+        res.extend("reader and reader_deny name one connector under both its local name (mcp__%s__…) and "
+                   "its cloud name (mcp__%s__…); bind the local names only: sources.sh settings adds the "
+                   "cloud names (plugins/wiki/sources/connectors.md)" % lc
+                   for lc in _both_forms(binding_rules(f, unquote=True), pairs))
     return res
 
 
@@ -493,16 +707,33 @@ def has_body_section(f: str, name: str) -> bool:
     return False
 
 
-def reader_rules(f: str) -> list[str]:
+def reader_rules(f: str, pairs: dict[str, str] | None = None, free: Container[str] | None = None) -> list[str]:
     """An instance's binding as needed_rules lines: allow each bound rule
-    (an MCP tool once, whatever its limits), deny each reader_deny rule."""
+    (an MCP tool once, whatever its limits), deny each reader_deny rule.
+    With the pair table, each line whose rule has a cloud name is followed
+    by the cloud name's line: denied for a reader_deny rule, and for a tool
+    bound with a limit unless its cloud name is in free (the cloud names
+    bound without a limit; default: this instance's own), since a limit
+    holds only under the bound name (docs/adr.md, 25)."""
+    if pairs and free is None:
+        free = _free_of(f, pairs)
     res: list[str] = []
     for it in contract.list_(f, "reader"):
         p = contract.reader_item(it)
-        if p:
-            res.append("allow\t%s\t%s" % (p[1], p[1]))
-    res.extend("deny\t%s\t%s" % (r, r)
-               for r in contract.list_(f, "reader_deny") if contract.rule_ok(r))
+        if not p:
+            continue
+        res.append("allow\t%s\t%s" % (p[1], p[1]))
+        cn = cloud_name(p[1], pairs) if pairs else None
+        if cn:
+            lst = "allow" if not p[2] or (free is not None and cn in free) else "deny"
+            res.append("%s\t%s\t%s" % (lst, cn, cn))
+    for r in contract.list_(f, "reader_deny"):
+        if not contract.rule_ok(r):
+            continue
+        res.append("deny\t%s\t%s" % (r, r))
+        cn = cloud_name(r, pairs) if pairs else None
+        if cn:
+            res.append("deny\t%s\t%s" % (cn, cn))
     return res
 
 
@@ -564,9 +795,12 @@ def needed_rules(root: str, plugin: str | None, reader: set[str] | None = None) 
     """src_needed_rules: the rules the wiki's instances need, no repeats:
     their contracts' rules, then the reader bindings of access: tools
     instances. A set passed as reader gets the lines that come from a
-    binding (they may live in the user's settings too)."""
+    binding (they may live in the user's settings too), except those in a
+    connector's cloud name, which count only from the wiki's settings.
+    Raises BindingMixError (wiki_binding_error)."""
     w = root.rstrip("/").rsplit("/", 1)[-1] or "/"
     d = contract.instance_dir(root)
+    pairs, free = cloud_setup(root, plugin)
     seen: set[str] = set()
     res: list[str] = []
     for k in words(contract.instances(root)):
@@ -575,13 +809,13 @@ def needed_rules(root: str, plugin: str | None, reader: set[str] | None = None) 
             c = contract.contract(root, contract.field(f, "type"), plugin)
         except contract.ContractError:
             continue
-        bound = reader_rules(f) if contract.field(c, "access") == "tools" else []
+        bound = reader_rules(f, pairs, free) if contract.field(c, "access") == "tools" else []
         for ln in narrow_rules(type_rules(c), w, k) + bound:
             if ln not in seen:
                 seen.add(ln)
                 res.append(ln)
         if reader is not None:
-            reader.update(bound)
+            reader.update(ln for ln in bound if not is_cloud(_fields(ln)[1], pairs))
     return res
 
 
@@ -946,6 +1180,9 @@ def _main(argv: list[str]) -> int:
 def main(argv: list[str]) -> int:
     try:
         rc = _main(argv)
+    except BindingMixError as e:  # the wiki's bindings, not a bug
+        err("sourcelib: %s" % e)
+        rc = 1
     except GitBashPath as e:
         err("sourcelib: %s" % e)
         rc = 3

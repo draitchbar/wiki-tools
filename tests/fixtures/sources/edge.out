@@ -293,22 +293,36 @@ rc=0
       "Read(~/.cache/wiki-sources/sw/code/**)",
       "Edit(~/.cache/wiki-sources/sw/code/**)",
       "mcp__claude_ai_Gmail__search_threads",
+      "mcp__Gmail__search_threads",
       "mcp__claude_ai_Gmail__get_thread",
+      "mcp__Gmail__get_thread",
       "mcp__claude_ai_Gmail__list_labels",
+      "mcp__Gmail__list_labels",
       "mcp__claude_ai_Gmail__get_message",
+      "mcp__Gmail__get_message",
       "mcp__claude_ai_Gmail__download_gmail_attachment",
+      "mcp__Gmail__download_gmail_attachment",
       "Bash(bash */sources/local-folder/read.sh *)",
       "Edit(~/.cache/wiki-sources/sw/teams/walk.tsv)",
       "mcp__claude_ai_Microsoft_365__get_granted_scopes",
+      "mcp__Microsoft_365__get_granted_scopes",
       "mcp__claude_ai_Microsoft_365__teams_list_channels",
+      "mcp__Microsoft_365__teams_list_channels",
       "mcp__claude_ai_Microsoft_365__teams_list_channel_messages",
+      "mcp__Microsoft_365__teams_list_channel_messages",
       "mcp__claude_ai_Microsoft_365__read_resource",
+      "mcp__Microsoft_365__read_resource",
       "mcp__claude_ai_Microsoft_365__sharepoint_search",
+      "mcp__Microsoft_365__sharepoint_search",
       "mcp__claude_ai_Atlassian_MCP__getAccessibleAtlassianResources",
+      "mcp__Atlassian_MCP__getAccessibleAtlassianResources",
       "mcp__claude_ai_Atlassian_MCP__executeRead",
       "mcp__claude_ai_Atlassian_MCP__searchJiraIssuesUsingJql",
+      "mcp__Atlassian_MCP__searchJiraIssuesUsingJql",
       "mcp__claude_ai_Atlassian_MCP__getJiraIssue",
-      "mcp__claude_ai_Atlassian_MCP__listJiraIssueComments"
+      "mcp__Atlassian_MCP__getJiraIssue",
+      "mcp__claude_ai_Atlassian_MCP__listJiraIssueComments",
+      "mcp__Atlassian_MCP__listJiraIssueComments"
     ],
     "deny": [
       "Bash(bookish-cli *)",
@@ -327,50 +341,92 @@ rc=0
       "Bash(gh api *)",
       "Bash(gh auth *)",
       "mcp__claude_ai_Gmail__send_message",
+      "mcp__Gmail__send_message",
       "mcp__claude_ai_Gmail__reply",
+      "mcp__Gmail__reply",
       "mcp__claude_ai_Gmail__forward",
+      "mcp__Gmail__forward",
       "mcp__claude_ai_Gmail__create_draft",
+      "mcp__Gmail__create_draft",
       "mcp__claude_ai_Gmail__update_draft",
+      "mcp__Gmail__update_draft",
       "mcp__claude_ai_Gmail__delete_draft",
+      "mcp__Gmail__delete_draft",
       "mcp__claude_ai_Gmail__trash_message",
+      "mcp__Gmail__trash_message",
       "mcp__claude_ai_Gmail__trash_thread",
+      "mcp__Gmail__trash_thread",
       "mcp__claude_ai_Gmail__untrash_message",
+      "mcp__Gmail__untrash_message",
       "mcp__claude_ai_Gmail__untrash_thread",
+      "mcp__Gmail__untrash_thread",
       "mcp__claude_ai_Gmail__mark_message_spam",
+      "mcp__Gmail__mark_message_spam",
       "mcp__claude_ai_Gmail__mark_thread_spam",
+      "mcp__Gmail__mark_thread_spam",
       "mcp__claude_ai_Gmail__unmark_message_spam",
+      "mcp__Gmail__unmark_message_spam",
       "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__Gmail__unmark_thread_spam",
       "mcp__claude_ai_Gmail__create_label",
+      "mcp__Gmail__create_label",
       "mcp__claude_ai_Gmail__delete_label",
+      "mcp__Gmail__delete_label",
       "mcp__claude_ai_Gmail__update_label",
+      "mcp__Gmail__update_label",
       "mcp__claude_ai_Gmail__label_message",
+      "mcp__Gmail__label_message",
       "mcp__claude_ai_Gmail__label_thread",
+      "mcp__Gmail__label_thread",
       "mcp__claude_ai_Gmail__unlabel_message",
+      "mcp__Gmail__unlabel_message",
       "mcp__claude_ai_Gmail__unlabel_thread",
+      "mcp__Gmail__unlabel_thread",
       "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__Gmail__update_message_labels",
       "mcp__claude_ai_Gmail__apply_sensitive_message_label",
+      "mcp__Gmail__apply_sensitive_message_label",
       "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
+      "mcp__Gmail__apply_sensitive_thread_label",
       "mcp__claude_ai_Gmail__list_drafts",
+      "mcp__Gmail__list_drafts",
       "mcp__claude_ai_Gmail__get_draft",
+      "mcp__Gmail__get_draft",
       "Bash(proton-drive *)",
       "mcp__claude_ai_Microsoft_365__teams_send_channel_message",
+      "mcp__Microsoft_365__teams_send_channel_message",
       "mcp__claude_ai_Microsoft_365__teams_reply_channel_message",
+      "mcp__Microsoft_365__teams_reply_channel_message",
       "mcp__claude_ai_Microsoft_365__teams_send_chat_message",
+      "mcp__Microsoft_365__teams_send_chat_message",
       "mcp__claude_ai_Microsoft_365__teams_create_chat",
+      "mcp__Microsoft_365__teams_create_chat",
       "mcp__claude_ai_Microsoft_365__outlook_create_event",
+      "mcp__Microsoft_365__outlook_create_event",
       "mcp__claude_ai_Microsoft_365__outlook_email_search",
+      "mcp__Microsoft_365__outlook_email_search",
       "mcp__claude_ai_Microsoft_365__outlook_calendar_search",
+      "mcp__Microsoft_365__outlook_calendar_search",
       "mcp__claude_ai_Microsoft_365__outlook_find_available_time",
+      "mcp__Microsoft_365__outlook_find_available_time",
       "mcp__claude_ai_Microsoft_365__find_meeting_availability",
+      "mcp__Microsoft_365__find_meeting_availability",
       "mcp__claude_ai_Microsoft_365__search_people",
+      "mcp__Microsoft_365__search_people",
       "mcp__claude_ai_Microsoft_365__get_me",
+      "mcp__Microsoft_365__get_me",
+      "mcp__Atlassian_MCP__executeRead",
       "mcp__claude_ai_Atlassian_MCP__executeWrite",
-      "mcp__claude_ai_Atlassian_MCP__executeDestructive"
+      "mcp__Atlassian_MCP__executeWrite",
+      "mcp__claude_ai_Atlassian_MCP__executeDestructive",
+      "mcp__Atlassian_MCP__executeDestructive"
     ]
   }
 }
 
 Cache rules are narrowed to this wiki and instance (~/.cache/wiki-sources/<wiki>/<key>/); a broader rule already in settings.json, e.g. Read(~/.cache/wiki-sources/**), covers them too.
+
+Each rule for a claude.ai connector listed in plugins/wiki/sources/connectors.md comes under its local name and its Claude Code cloud name (mcp__Gmail__… for mcp__claude_ai_Gmail__…); a tool bound with a limit is denied under its cloud name, where the limit can't hold. Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
 
 gmail (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). An instance's reader binding (its 'reader' list) adds the reader's rules; not bound yet: bad (/wiki:bind-reader <key> drafts it). How read-only is kept is in its Caveats, not in these settings.
 
@@ -386,22 +442,36 @@ proton-files (access: tools) names no tools, so it adds no tool rules here (only
       "Read(~/.cache/wiki-sources/sw/code/**)",
       "Edit(~/.cache/wiki-sources/sw/code/**)",
       "mcp__claude_ai_Gmail__search_threads",
+      "mcp__Gmail__search_threads",
       "mcp__claude_ai_Gmail__get_thread",
+      "mcp__Gmail__get_thread",
       "mcp__claude_ai_Gmail__list_labels",
+      "mcp__Gmail__list_labels",
       "mcp__claude_ai_Gmail__get_message",
+      "mcp__Gmail__get_message",
       "mcp__claude_ai_Gmail__download_gmail_attachment",
+      "mcp__Gmail__download_gmail_attachment",
       "Bash(bash */sources/local-folder/read.sh *)",
       "Edit(~/.cache/wiki-sources/sw/teams/walk.tsv)",
       "mcp__claude_ai_Microsoft_365__get_granted_scopes",
+      "mcp__Microsoft_365__get_granted_scopes",
       "mcp__claude_ai_Microsoft_365__teams_list_channels",
+      "mcp__Microsoft_365__teams_list_channels",
       "mcp__claude_ai_Microsoft_365__teams_list_channel_messages",
+      "mcp__Microsoft_365__teams_list_channel_messages",
       "mcp__claude_ai_Microsoft_365__read_resource",
+      "mcp__Microsoft_365__read_resource",
       "mcp__claude_ai_Microsoft_365__sharepoint_search",
+      "mcp__Microsoft_365__sharepoint_search",
       "mcp__claude_ai_Atlassian_MCP__getAccessibleAtlassianResources",
+      "mcp__Atlassian_MCP__getAccessibleAtlassianResources",
       "mcp__claude_ai_Atlassian_MCP__executeRead",
       "mcp__claude_ai_Atlassian_MCP__searchJiraIssuesUsingJql",
+      "mcp__Atlassian_MCP__searchJiraIssuesUsingJql",
       "mcp__claude_ai_Atlassian_MCP__getJiraIssue",
-      "mcp__claude_ai_Atlassian_MCP__listJiraIssueComments"
+      "mcp__Atlassian_MCP__getJiraIssue",
+      "mcp__claude_ai_Atlassian_MCP__listJiraIssueComments",
+      "mcp__Atlassian_MCP__listJiraIssueComments"
     ],
     "deny": [
       "Bash(bookish-cli *)",
@@ -420,50 +490,92 @@ proton-files (access: tools) names no tools, so it adds no tool rules here (only
       "Bash(gh api *)",
       "Bash(gh auth *)",
       "mcp__claude_ai_Gmail__send_message",
+      "mcp__Gmail__send_message",
       "mcp__claude_ai_Gmail__reply",
+      "mcp__Gmail__reply",
       "mcp__claude_ai_Gmail__forward",
+      "mcp__Gmail__forward",
       "mcp__claude_ai_Gmail__create_draft",
+      "mcp__Gmail__create_draft",
       "mcp__claude_ai_Gmail__update_draft",
+      "mcp__Gmail__update_draft",
       "mcp__claude_ai_Gmail__delete_draft",
+      "mcp__Gmail__delete_draft",
       "mcp__claude_ai_Gmail__trash_message",
+      "mcp__Gmail__trash_message",
       "mcp__claude_ai_Gmail__trash_thread",
+      "mcp__Gmail__trash_thread",
       "mcp__claude_ai_Gmail__untrash_message",
+      "mcp__Gmail__untrash_message",
       "mcp__claude_ai_Gmail__untrash_thread",
+      "mcp__Gmail__untrash_thread",
       "mcp__claude_ai_Gmail__mark_message_spam",
+      "mcp__Gmail__mark_message_spam",
       "mcp__claude_ai_Gmail__mark_thread_spam",
+      "mcp__Gmail__mark_thread_spam",
       "mcp__claude_ai_Gmail__unmark_message_spam",
+      "mcp__Gmail__unmark_message_spam",
       "mcp__claude_ai_Gmail__unmark_thread_spam",
+      "mcp__Gmail__unmark_thread_spam",
       "mcp__claude_ai_Gmail__create_label",
+      "mcp__Gmail__create_label",
       "mcp__claude_ai_Gmail__delete_label",
+      "mcp__Gmail__delete_label",
       "mcp__claude_ai_Gmail__update_label",
+      "mcp__Gmail__update_label",
       "mcp__claude_ai_Gmail__label_message",
+      "mcp__Gmail__label_message",
       "mcp__claude_ai_Gmail__label_thread",
+      "mcp__Gmail__label_thread",
       "mcp__claude_ai_Gmail__unlabel_message",
+      "mcp__Gmail__unlabel_message",
       "mcp__claude_ai_Gmail__unlabel_thread",
+      "mcp__Gmail__unlabel_thread",
       "mcp__claude_ai_Gmail__update_message_labels",
+      "mcp__Gmail__update_message_labels",
       "mcp__claude_ai_Gmail__apply_sensitive_message_label",
+      "mcp__Gmail__apply_sensitive_message_label",
       "mcp__claude_ai_Gmail__apply_sensitive_thread_label",
+      "mcp__Gmail__apply_sensitive_thread_label",
       "mcp__claude_ai_Gmail__list_drafts",
+      "mcp__Gmail__list_drafts",
       "mcp__claude_ai_Gmail__get_draft",
+      "mcp__Gmail__get_draft",
       "Bash(proton-drive *)",
       "mcp__claude_ai_Microsoft_365__teams_send_channel_message",
+      "mcp__Microsoft_365__teams_send_channel_message",
       "mcp__claude_ai_Microsoft_365__teams_reply_channel_message",
+      "mcp__Microsoft_365__teams_reply_channel_message",
       "mcp__claude_ai_Microsoft_365__teams_send_chat_message",
+      "mcp__Microsoft_365__teams_send_chat_message",
       "mcp__claude_ai_Microsoft_365__teams_create_chat",
+      "mcp__Microsoft_365__teams_create_chat",
       "mcp__claude_ai_Microsoft_365__outlook_create_event",
+      "mcp__Microsoft_365__outlook_create_event",
       "mcp__claude_ai_Microsoft_365__outlook_email_search",
+      "mcp__Microsoft_365__outlook_email_search",
       "mcp__claude_ai_Microsoft_365__outlook_calendar_search",
+      "mcp__Microsoft_365__outlook_calendar_search",
       "mcp__claude_ai_Microsoft_365__outlook_find_available_time",
+      "mcp__Microsoft_365__outlook_find_available_time",
       "mcp__claude_ai_Microsoft_365__find_meeting_availability",
+      "mcp__Microsoft_365__find_meeting_availability",
       "mcp__claude_ai_Microsoft_365__search_people",
+      "mcp__Microsoft_365__search_people",
       "mcp__claude_ai_Microsoft_365__get_me",
+      "mcp__Microsoft_365__get_me",
+      "mcp__Atlassian_MCP__executeRead",
       "mcp__claude_ai_Atlassian_MCP__executeWrite",
-      "mcp__claude_ai_Atlassian_MCP__executeDestructive"
+      "mcp__Atlassian_MCP__executeWrite",
+      "mcp__claude_ai_Atlassian_MCP__executeDestructive",
+      "mcp__Atlassian_MCP__executeDestructive"
     ]
   }
 }
 
 Cache rules are narrowed to this wiki and instance (~/.cache/wiki-sources/<wiki>/<key>/); a broader rule already in settings.json, e.g. Read(~/.cache/wiki-sources/**), covers them too.
+
+Each rule for a claude.ai connector listed in plugins/wiki/sources/connectors.md comes under its local name and its Claude Code cloud name (mcp__Gmail__… for mcp__claude_ai_Gmail__…); a tool bound with a limit is denied under its cloud name, where the limit can't hold. Cloud names (plugins/wiki/sources/connectors.md) go in this wiki's .claude/settings.json even when the local names are in ~/.claude/settings.json: a cloud session reads no other settings file.
 
 gmail (access: tools) names no tools, so it adds no tool rules here (only its cache rules, if any). An instance's reader binding (its 'reader' list) adds the reader's rules; not bound yet: bad (/wiki:bind-reader <key> drafts it). How read-only is kept is in its Caveats, not in these settings.
 
@@ -522,6 +634,13 @@ Sources of sw (platform: @HOST@):
 rc=0
 -- out
 Source gmail: valid, available on @HOST@, last checked: no sync-log
+Reader tools and their cloud names (this session: local; plugins/wiki/sources/connectors.md):
+- search threads: mcp__claude_ai_Gmail__search_threads; cloud: mcp__Gmail__search_threads
+- read thread: mcp__claude_ai_Gmail__get_thread; cloud: mcp__Gmail__get_thread
+- list labels: mcp__claude_ai_Gmail__list_labels; cloud: mcp__Gmail__list_labels
+- thread dates: mcp__claude_ai_Gmail__get_thread; cloud: mcp__Gmail__get_thread
+- read message: mcp__claude_ai_Gmail__get_message; cloud: mcp__Gmail__get_message
+- download attachment: mcp__claude_ai_Gmail__download_gmail_attachment; cloud: mcp__Gmail__download_gmail_attachment
 
 ===== Instance file .claude/sources/instances/gmail.md =====
 ---
@@ -699,6 +818,13 @@ Find the thread with **search threads** on the subject and date, then read it in
 -- err
 -- merged
 Source gmail: valid, available on @HOST@, last checked: no sync-log
+Reader tools and their cloud names (this session: local; plugins/wiki/sources/connectors.md):
+- search threads: mcp__claude_ai_Gmail__search_threads; cloud: mcp__Gmail__search_threads
+- read thread: mcp__claude_ai_Gmail__get_thread; cloud: mcp__Gmail__get_thread
+- list labels: mcp__claude_ai_Gmail__list_labels; cloud: mcp__Gmail__list_labels
+- thread dates: mcp__claude_ai_Gmail__get_thread; cloud: mcp__Gmail__get_thread
+- read message: mcp__claude_ai_Gmail__get_message; cloud: mcp__Gmail__get_message
+- download attachment: mcp__claude_ai_Gmail__download_gmail_attachment; cloud: mcp__Gmail__download_gmail_attachment
 
 ===== Instance file .claude/sources/instances/gmail.md =====
 ---
