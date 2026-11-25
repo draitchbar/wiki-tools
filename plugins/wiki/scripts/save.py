@@ -26,8 +26,9 @@ never; anything else, only with the user's permission (--allow, or the
 holding branch).
 
 Git runs in a cleaned environment: every inherited GIT_* variable is dropped
-except GIT_SSL_CAINFO and GIT_SSL_CAPATH, GIT_TERMINAL_PROMPT=0, and
-`-c core.hooksPath=<the plugin's git-hooks-off folder>`. Pushes go to the
+except GIT_SSL_CAINFO and GIT_SSL_CAPATH, GIT_TERMINAL_PROMPT=0,
+GIT_NO_REPLACE_OBJECTS=1, `-c core.hooksPath=<the plugin's git-hooks-off
+folder>` and `-c http.sslVerify=true`. Pushes go to the
 explicit URL, `<sha>:refs/heads/<branch>`, never forced, with
 --no-follow-tags. The URL must survive `git ls-remote --get-url` unchanged,
 no url.*.pushInsteadOf may exist, and in a cloud session
@@ -43,14 +44,11 @@ A refusal is one `save: refused: <reason>` line on stderr plus details,
 exit 1. A merge conflict is left in progress, its files listed on stdout as
 `conflict: <path>` lines, exit 3.
 
-Test seams (tests only; both inert unless WIKI_SAVE_TEST_FILE_URLS is
-exactly "1", which no wiki session sets):
-- WIKI_SAVE_TEST_FILE_URLS=1 accepts a file:// url in the config, so the
-  tests use a local bare repository as the remote;
-- with it, WIKI_SAVE_TEST_GITHUB_REMOTE=file://... sends the git traffic of
-  a github.com pin to that local repository instead, so the GitHub checks
-  (through a fake gh on PATH) run without the network. The URL checks still
-  run on the pinned github.com URL.
+Test seam (tests only): WIKI_SAVE_TEST_FILE_URLS=1 (exactly "1", which no
+wiki session sets) accepts a local file:///path url in the config, so the
+tests use a local bare repository as the remote (no host, no UNC path).
+The tests reach a github.com pin's checks in-process by patching
+transport(); nothing in the environment can redirect it.
 """
 
 from __future__ import annotations
@@ -68,6 +66,7 @@ CONFIG = ".claude/settings.wiki-save.json"
 DEFAULT_CONTENT = ["wiki/", "raw/", "outputs/", "open-questions.md"]
 KEYS = ("enabled", "url", "base", "content_paths")
 HOLD_PREFIX = "claude/wiki-"
+_PAGE = 100  # rules asked for in one page; a full page refuses
 HOOKS_DIR = "git-hooks-off"
 SETUP = 'docs/setup.md, "Optional: the wiki on GitHub"'
 MERGE_MSG = "Merge %s from the wiki's remote"
@@ -92,7 +91,9 @@ _USER = r"(?:[A-Za-z0-9._~-]+@)?"
 _URLS = (re.compile(r"https://" + _USER + _HOST + r"(?::[0-9]{1,5})?(/[!-~]*)"),
          re.compile(r"ssh://" + _USER + _HOST + r"(?::[0-9]{1,5})?(/[!-~]*)"),
          re.compile(r"[A-Za-z0-9][A-Za-z0-9._~-]*@" + _HOST + r":([!-~]+)"))
-_FILE_URL = re.compile(r"file://(/[!-~]*)")
+_FILE_URL = re.compile(r"file://(/(?!/)[!-~]*)")  # no host, no UNC (file:////)
+_GH_NAME = re.compile(r"[A-Za-z0-9._-]+")
+_GH_BRANCH = re.compile(r"[A-Za-z0-9._/-]+")
 _BAD_REF = re.compile(r"[\x00-\x20\x7f~^:?*\[\\]")
 
 
@@ -164,16 +165,20 @@ def normal(url: str) -> str:
 
 
 def github_repo(url: str) -> tuple[str, str] | None:
-    """(owner, repo) of a github.com URL, else None."""
+    """(owner, repo) of a URL on GitHub (github.com, or a host under it such
+    as ssh.github.com), else None. A GitHub URL whose owner or repo gh
+    would expand, or that breaks the API path, refuses: it must never fall
+    back to the unchecked other-host case."""
     p = url_parts(url)
-    if not p or p[0] != "github.com":
+    if not p or not (p[0] == "github.com" or p[0].endswith(".github.com")):
         return None
     path = p[1].strip("/")
     if path.endswith(".git"):
         path = path[:-4]
     parts = path.split("/")
-    if len(parts) != 2 or not all(parts):
-        return None
+    if len(parts) != 2 or not all(_GH_NAME.fullmatch(x) for x in parts):
+        raise Refused("can't check a GitHub repository named %s" % path,
+                      "Pin the URL as https://github.com/<owner>/<repo> (you, not Claude).")
     return parts[0], parts[1]
 
 
@@ -221,6 +226,7 @@ def clean_env() -> dict[str, str]:
     env = {k: v for k, v in os.environ.items()
            if not k.upper().startswith("GIT_") or k.upper() in _KEEP_GIT}
     env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
     return env
 
 
@@ -252,7 +258,7 @@ class Git:
         self.root = top.rstrip("\n")
 
     def argv(self, *args: str) -> list[str]:
-        return ["git", "-c", "core.hooksPath=" + self.hooks] + list(args)
+        return ["git", "-c", "core.hooksPath=" + self.hooks, "-c", "http.sslVerify=true"] + list(args)
 
     def run(self, *args: str, input: bytes = b"") -> subprocess.CompletedProcess[bytes]:
         try:
@@ -377,28 +383,28 @@ def check_url(g: Git, url: str) -> None:
 
 
 def transport(url: str) -> str:
-    """The URL git talks to: the pinned one, except under the GitHub test
-    seam (see the docstring)."""
-    if _file_urls_on() and github_repo(url):
-        m = os.environ.get("WIKI_SAVE_TEST_GITHUB_REMOTE", "")
-        if _FILE_URL.fullmatch(m):
-            return m
+    """The URL git talks to: the pinned one. (The tests patch this function
+    in-process to reach a local repository for a github.com pin.)"""
     return url
 
 
 def gh_json(gh: str, env: dict[str, str], *args: str) -> object:
+    """`gh api --hostname github.com ARGS` as JSON; GH_HOST is dropped, so
+    gh can't be pointed at another host."""
+    env = {k: v for k, v in env.items() if k.upper() != "GH_HOST"}
     try:
-        r = subprocess.run([gh] + list(args), env=env, stdin=subprocess.DEVNULL,
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+        r = subprocess.run([gh, "api", "--hostname", "github.com"] + list(args), env=env,
+                           stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                           timeout=120)
     except (OSError, subprocess.TimeoutExpired) as e:
-        raise _GhError("gh %s: %s" % (" ".join(args[:2]), e)) from None
+        raise _GhError("gh can't be run: %s" % e) from None
     if r.returncode != 0:
-        msg = _lines(r.stderr) or _lines(r.stdout) or ["exit %d" % r.returncode]
-        raise _GhError("gh %s: %s" % (" ".join(args[:2]), msg[-1]))
+        msg = _lines(r.stderr) or _lines(r.stdout) or ["gh exit %d" % r.returncode]
+        raise _GhError(msg[-1])
     try:
         return json.loads(r.stdout.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
-        raise _GhError("gh %s: not JSON" % " ".join(args[:2])) from None
+        raise _GhError("gh's reply is not JSON") from None
 
 
 class _GhError(Exception):
@@ -414,26 +420,40 @@ def protection(g: Git, url: str, base: str) -> str:
         return ("note: %s can't be checked from here; it must refuse force pushes and deletion "
                 "of %s (docs/setup.md)" % (host, base))
     o, r = gr
+    if not _GH_BRANCH.fullmatch(base):
+        raise Refused("can't check GitHub's protection of a branch named %s" % base)
     gh = shutil.which("gh")
     fix = "Set up the ruleset as %s shows." % SETUP
     if not gh:
         raise Refused("gh isn't installed, so %s/%s's protection of %s can't be checked" % (o, r, base),
                       fix)
     try:
-        rules = gh_json(gh, g.env, "api", "repos/%s/%s/rules/branches/%s" % (o, r, base))
+        rules = gh_json(gh, g.env, "repos/%s/%s/rules/branches/%s?per_page=%d" % (o, r, base, _PAGE))
         if not isinstance(rules, list):
-            raise _GhError("gh api rules: not a list")
+            raise _GhError("the rules reply is not a list")
+        if len(rules) >= _PAGE:
+            raise Refused("%s/%s has %d or more rules on %s; too many to check" % (o, r, _PAGE, base), fix)
         rules = [x for x in rules if isinstance(x, dict)]
         types = {x.get("type") for x in rules}
         missing = [t for t in ("non_fast_forward", "deletion") if t not in types]
         if missing:
             raise Refused("%s/%s doesn't protect %s: no %s rule" % (o, r, base, " or ".join(missing)),
                           fix)
-        ids = sorted({x["ruleset_id"] for x in rules if x.get("type") in ("non_fast_forward", "deletion")
-                      and isinstance(x.get("ruleset_id"), int)})
-        for i in ids:
-            rs = gh_json(gh, g.env, "api", "repos/%s/%s/rulesets/%d" % (o, r, i))
-            by = rs.get("current_user_can_bypass") if isinstance(rs, dict) else None
+        ids: set[int] = set()
+        for x in rules:
+            if x.get("type") not in ("non_fast_forward", "deletion"):
+                continue
+            i = x.get("ruleset_id")
+            if not isinstance(i, int) or isinstance(i, bool):
+                raise Refused("%s/%s's %s rule names no ruleset, so who can bypass it can't be checked"
+                              % (o, r, x.get("type")), fix)
+            ids.add(i)
+        for i in sorted(ids):
+            rs = gh_json(gh, g.env, "repos/%s/%s/rulesets/%d" % (o, r, i))
+            if not isinstance(rs, dict) or "current_user_can_bypass" not in rs:
+                raise Refused("%s/%s's ruleset %d doesn't say whether you can bypass it (no "
+                              "current_user_can_bypass)" % (o, r, i), fix)
+            by = rs["current_user_can_bypass"]
             if by != "never":
                 raise Refused("%s/%s's ruleset %d lets you bypass it (current_user_can_bypass: %s)"
                               % (o, r, i, by), fix)
@@ -615,7 +635,7 @@ def open_pr(g: Git, url: str, branch: str, base: str, perm: list[str]) -> None:
     try:
         if not gh:
             raise _GhError("gh isn't installed")
-        pr = gh_json(gh, g.env, "api", "-X", "POST", "repos/%s/%s/pulls" % gr,
+        pr = gh_json(gh, g.env, "-X", "POST", "repos/%s/%s/pulls" % gr,
                      "-f", "title=Wiki changes that need your permission", "-f", "head=" + branch,
                      "-f", "base=" + base, "-f", "body=" + body, "-F", "draft=true")
         u = pr.get("html_url") if isinstance(pr, dict) else None

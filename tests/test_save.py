@@ -3,14 +3,14 @@
 Each test builds a wiki whose remote is a local bare repository, reached
 through the file:// test seam (WIKI_SAVE_TEST_FILE_URLS=1); a second clone
 plays the other side (another session, the user). GitHub's checks run on a
-github.com pin whose git traffic the second seam
-(WIKI_SAVE_TEST_GITHUB_REMOTE) sends to the bare repository, with a fake gh
-first on PATH that logs its calls (tests/sources/save/fake_gh.py). Never
-the network.
+github.com pin in-process, with save.transport patched to send its git
+traffic to the bare repository, and a fake gh first on PATH that logs its
+calls (tests/sources/save/fake_gh.py). Never the network.
 """
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -18,7 +18,7 @@ import sys
 import pytest
 import save
 
-from conftest import IS_WIN, PLUGIN, PLUGIN_BASH, SCRIPTS_P, TESTS, git, norm, posix, write
+from conftest import IS_WIN, call_main, PLUGIN, PLUGIN_BASH, SCRIPTS_P, TESTS, git, norm, posix, write
 
 FAKE_GH = TESTS / "sources" / "save" / "fake_gh.py"
 GH_URL = "https://github.com/example/wiki"
@@ -69,8 +69,6 @@ class Wiki:
         git(t, "clone", "-q", posix(self.bare), "other")
         self.ident(self.other)
         self.env = {"WIKI_SAVE_TEST_FILE_URLS": "1", "PATH": fakebin, "FAKE_GH_LOG": posix(self.log)}
-        if url == GH_URL:
-            self.env["WIKI_SAVE_TEST_GITHUB_REMOTE"] = file_url(self.bare)
 
     @staticmethod
     def ident(d):
@@ -121,9 +119,24 @@ def wk(tmp_path, cli, fakebin):
     return Wiki(tmp_path, cli, fakebin)
 
 
+class GhWiki(Wiki):
+    """A wiki pinned to github.com: save.py runs in-process (also with
+    --e2e), its git traffic sent to the bare repository by patching
+    save.transport; gh is the fake."""
+
+    def __init__(self, t, cli, fakebin, monkeypatch):
+        super().__init__(t, cli, fakebin, url=GH_URL)
+        bare = file_url(self.bare)
+        monkeypatch.setattr(save, "transport", lambda u: bare if u == GH_URL else u)
+
+    def save(self, *args, env=None):
+        return call_main(save.main, ["--plugin", PLUGIN_BASH] + list(args), cwd=self.w,
+                         env=dict(self.env, **(env or {})))
+
+
 @pytest.fixture
-def ghw(tmp_path, cli, fakebin):
-    return Wiki(tmp_path, cli, fakebin, url=GH_URL)
+def ghw(tmp_path, cli, fakebin, monkeypatch):
+    return GhWiki(tmp_path, cli, fakebin, monkeypatch)
 
 
 def so(r):
@@ -662,8 +675,8 @@ def test_github_ok(ghw):
     assert r.rc == 0, r
     assert so(r) == "saved %s to main\n" % ghw.short()
     assert ghw.remote() == ghw.head()
-    assert ghw.gh_calls() == [["api", "repos/example/wiki/rules/branches/main"],
-                              ["api", "repos/example/wiki/rulesets/1"]]
+    assert ghw.gh_calls() == [["api", "--hostname", "github.com", "repos/example/wiki/rules/branches/main?per_page=100"],
+                              ["api", "--hostname", "github.com", "repos/example/wiki/rulesets/1"]]
     assert se(r) == ""
 
 
@@ -672,8 +685,16 @@ def test_github_ok(ghw):
                  id="save/refuse-github-no-deletion-rule"),
     pytest.param("bypass", "example/wiki's ruleset 1 lets you bypass it (current_user_can_bypass: always)",
                  id="save/refuse-github-bypass"),
-    pytest.param("error", "can't check example/wiki's protection of main: gh api repos/example/wiki/rules/branches/main: "
-                 "gh: Not Found (HTTP 404)", id="save/refuse-github-api-error"),
+    pytest.param("error", "can't check example/wiki's protection of main: gh: Not Found (HTTP 404)",
+                 id="save/refuse-github-api-error"),
+    pytest.param("pull-requests-only", "example/wiki's ruleset 1 lets you bypass it (current_user_can_bypass: "
+                 "pull_requests_only)", id="save/refuse-github-bypass-pull-requests"),
+    pytest.param("no-bypass-field", "example/wiki's ruleset 1 doesn't say whether you can bypass it "
+                 "(no current_user_can_bypass)", id="save/refuse-github-bypass-absent"),
+    pytest.param("no-ruleset-id", "example/wiki's non_fast_forward rule names no ruleset",
+                 id="save/refuse-github-no-ruleset-id"),
+    pytest.param("many-rules", "example/wiki has 100 or more rules on main; too many to check",
+                 id="save/refuse-github-too-many-rules"),
 ])
 def test_github_refused(mode, why, ghw):
     before = ghw.remote()
@@ -690,6 +711,55 @@ def test_github_no_gh(ghw, monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda _name: None)
     with pytest.raises(save.Refused, match="gh isn't installed"):
         save.protection(None, GH_URL, "main")
+
+
+@pytest.mark.checks("save/github-gh-host-pinned")
+def test_github_gh_host(ghw):
+    """GH_HOST can't point gh at another host."""
+    ghw.commit("page", "wiki/page.md")
+    assert ghw.save(env={"GH_HOST": "evil.example.com"}).rc == 0
+    assert all(c[1:3] == ["--hostname", "github.com"] for c in ghw.gh_calls())
+
+
+@pytest.mark.parametrize("url,base,why", [
+    pytest.param("https://github.com/example/wi{ki}", "main", "can't check a GitHub repository named example/wi{ki}",
+                 id="save/refuse-github-odd-repo"),
+    pytest.param("https://github.com/example/wiki/extra", "main", "can't check a GitHub repository named "
+                 "example/wiki/extra", id="save/refuse-github-deep-path"),
+    pytest.param("ssh://ssh.github.com:443/example/wiki.git", "main", "gh isn't installed",
+                 id="save/github-ssh-host-checked"),
+    pytest.param(GH_URL, "ma#in", "can't check GitHub's protection of a branch named ma#in",
+                 id="save/refuse-github-odd-base"),
+])
+def test_github_names(url, base, why, ghw, monkeypatch):
+    """A github.com pin is always checked: names gh would expand or that
+    break the API path refuse, never fall back to the other-host note."""
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    with pytest.raises(save.Refused, match=re.escape(why)):
+        save.protection(None, url, base)
+
+
+@pytest.mark.checks("save/no-github-seam")
+def test_no_github_seam(monkeypatch):
+    monkeypatch.setenv("WIKI_SAVE_TEST_FILE_URLS", "1")
+    monkeypatch.setenv("WIKI_SAVE_TEST_GITHUB_REMOTE", "file:///x/remote.git")
+    assert save.transport(GH_URL) == GH_URL
+
+
+@pytest.mark.parametrize("url", [pytest.param("file:////server/share/w.git", id="save/refuse-file-unc"),
+                                 pytest.param("file://host/w.git", id="save/refuse-file-host")])
+def test_file_url_forms(url, monkeypatch):
+    monkeypatch.setenv("WIKI_SAVE_TEST_FILE_URLS", "1")
+    assert save.url_parts(url) is None
+    assert save.url_parts("file:///x/w.git") == ("", "/x/w.git")
+
+
+@pytest.mark.checks("save/git-hardening")
+def test_git_hardening(wk, monkeypatch):
+    monkeypatch.setenv("GIT_NO_REPLACE_OBJECTS", "0")
+    assert save.clean_env()["GIT_NO_REPLACE_OBJECTS"] == "1"
+    g = call_in(wk, save.Git)
+    assert "http.sslVerify=true" in g.argv("status")
 
 
 @pytest.mark.checks("save/update-skips-protection")
@@ -714,8 +784,8 @@ def test_unattended_hold(ghw):
     assert ghw.remote() == before
     assert ghw.remote(branch) == ghw.head()
     post = ghw.gh_calls()[-1]
-    assert post[:4] == ["api", "-X", "POST", "repos/example/wiki/pulls"]
-    assert ["-f", "head=" + branch] == post[6:8] and ["-f", "base=main"] == post[8:10]
+    assert post[:6] == ["api", "--hostname", "github.com", "-X", "POST", "repos/example/wiki/pulls"]
+    assert ["-f", "head=" + branch] == post[8:10] and ["-f", "base=main"] == post[10:12]
     assert post[-2:] == ["-F", "draft=true"]
     # Clean start of the next unattended run: refused while it waits.
     r = ghw.save("--update", "--unattended")
@@ -784,7 +854,7 @@ def test_normal(a, b, same):
     pytest.param("ssh://git@github.com/o/r", ("o", "r"), id="save/gh-ssh"),
     pytest.param("git@GitHub.com:o/r.git", ("o", "r"), id="save/gh-scp"),
     pytest.param("https://gitlab.example.com/o/r", None, id="save/gh-other-host"),
-    pytest.param("https://github.com/o/r/x", None, id="save/gh-deep-path"),
+    pytest.param("ssh://ssh.github.com:443/o/r.git", ("o", "r"), id="save/gh-ssh-host"),
 ])
 def test_github_repo(url, repo):
     assert save.github_repo(url) == repo

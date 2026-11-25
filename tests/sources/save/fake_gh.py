@@ -3,13 +3,19 @@ GitHub. test_save.py puts a `gh` launcher for it first on PATH (a shell
 script, or gh.cmd on Windows) that runs it with the test's Python.
 
 Every call is appended to $FAKE_GH_LOG as one JSON line (the arguments).
-$FAKE_GH_MODE picks the canned replies:
-  ok          the base's rules include non_fast_forward and deletion (ruleset 1),
-              ruleset 1 can't be bypassed; POST .../pulls opens draft PR 7
-  no-deletion the rules lack deletion
-  bypass      ruleset 1 says current_user_can_bypass "always"
-  error       every call fails as an HTTP 404
-  pr-error    as ok, but POST .../pulls fails (422)
+A set GH_HOST fails the call (save.py must drop it). $FAKE_GH_MODE picks
+the canned replies:
+  ok                 the base's rules include non_fast_forward and deletion
+                     (ruleset 1), ruleset 1 can't be bypassed; POST .../pulls
+                     opens draft PR 7
+  no-deletion        the rules lack deletion
+  bypass             ruleset 1 says current_user_can_bypass "always"
+  pull-requests-only ruleset 1 says "pull_requests_only"
+  no-bypass-field    ruleset 1 has no current_user_can_bypass
+  no-ruleset-id      the non_fast_forward rule has no ruleset_id
+  many-rules         100 rules (a full page)
+  error              every call fails as an HTTP 404
+  pr-error           as ok, but POST .../pulls fails (422)
 """
 
 import json
@@ -29,12 +35,13 @@ def fail(msg):
     sys.exit(1)
 
 
+if os.environ.get("GH_HOST"):
+    fail("fake gh: GH_HOST is set")
 if mode == "error":
     fail("gh: Not Found (HTTP 404)")
 if args[:1] != ["api"]:
     fail("fake gh: only api calls")
-path = [a for a in args[1:] if not a.startswith("-") and "=" not in a and a not in ("POST",)]
-path = path[0] if path else ""
+path = next((a for a in args if a.startswith("repos/")), "")
 if "-X" in args:
     if path.endswith("/pulls") and mode != "pr-error":
         print(json.dumps({"number": 7, "draft": True, "html_url": "https://github.com/example/wiki/pull/7"}))
@@ -45,9 +52,19 @@ if "/rules/branches/" in path:
              {"type": "deletion", "ruleset_source_type": "Repository", "ruleset_id": 1}]
     if mode == "no-deletion":
         rules = rules[:1]
+    if mode == "no-ruleset-id":
+        del rules[0]["ruleset_id"]
+    if mode == "many-rules":
+        rules += [{"type": "creation", "ruleset_id": 2}] * 98
     print(json.dumps(rules))
 elif "/rulesets/" in path:
-    print(json.dumps({"id": 1, "name": "protect-default-branch",
-                      "current_user_can_bypass": "always" if mode == "bypass" else "never"}))
+    rs = {"id": 1, "name": "protect-default-branch", "current_user_can_bypass": "never"}
+    if mode == "bypass":
+        rs["current_user_can_bypass"] = "always"
+    if mode == "pull-requests-only":
+        rs["current_user_can_bypass"] = "pull_requests_only"
+    if mode == "no-bypass-field":
+        del rs["current_user_can_bypass"]
+    print(json.dumps(rs))
 else:
     fail("gh: Not Found (HTTP 404)")
