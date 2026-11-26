@@ -111,14 +111,14 @@ def story(tmp_path_factory, run):
     eq("codebase/refuse-no-instance", "1", cbx("nosuch", "status"))
     r = run(["bash", CBR, "code", "status"], cwd=t, merged=True)
     eq("codebase/refuse-outside-git", 1, r.rc)
-    # One bridge call reads the instance.
+    # One bridge call reads the instance (the fields git.sh asks for).
     def lines(key):
-        r = call_main(sourcelib.main, ["codebase-instance", posix(cbw), key])
+        r = call_main(sourcelib.main, ["instance-fields", posix(cbw), key, "type", "roots[]", "ref", "gh_user"])
         return r.out.decode().split("\n")[:-1]
-    eq("codebase/instance-lines", "codebase|1|1|%s/app|origin/main|" % C, "|".join(lines("sub")))
-    eq("codebase/instance-lines-other", "gmail|1|0|||", "|".join(lines("mail")))
+    eq("codebase/instance-lines", "1|codebase|1|%s/app|origin/main|" % C, "|".join(lines("sub")))
+    eq("codebase/instance-lines-other", "1|gmail|0|||", "|".join(lines("mail")))
     write(inst / "ph.md", "---\nkey: ph\ntype: codebase\nroots:\n  - %s\nref: TBD\n---\n" % C)
-    eq("codebase/instance-lines-invalid", "codebase|0", "|".join(lines("ph")[:2]))
+    eq("codebase/instance-lines-invalid", "0|codebase", "|".join(lines("ph")[:2]))
     has("codebase/refuse-invalid-instance", out("ph", "status"), "doesn't validate")
     (inst / "ph.md").unlink()
     has("codebase/refuse-newline-key", out("code\nx", "status"), "invalid instance key")

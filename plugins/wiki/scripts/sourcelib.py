@@ -10,14 +10,17 @@ contract.py, which stays the guard's lean import.
   sourcelib.py [--plugin DIR] validate-instance ROOT KEY errors on stderr, exit 0|1
   sourcelib.py [--plugin DIR] needed-rules ROOT          "<list>\t<rule>\t<as written>"
   sourcelib.py [--plugin DIR] settings-rules FILE        "<list>\t<rule>", or ERROR line, exit 1
-  sourcelib.py [--plugin DIR] codebase-instance ROOT KEY six lines, exit 0 (below)
+  sourcelib.py [--plugin DIR] instance-fields ROOT KEY FIELD...  lines, exit 0 (below)
   sourcelib.py [--plugin DIR] missing-rules ROOT FILE    "<list>\t<rule>" the settings lack
 
-codebase-instance is what codebase/git.sh and
-gh.sh need from an instance file, in one start instead of ~24: its type,
-1 if src_validate_instance passes (its messages dropped, as the wrappers'
-`2>/dev/null` did) else 0, the number of roots, the first root as written,
-ref and gh_user. Values are printed as read, without the path mapping.
+instance-fields is what a type's wrapper needs from an instance file, in
+one start instead of one per value: 1 if src_validate_instance passes (its
+messages dropped, as a wrapper's `2>/dev/null` would) else 0, then per
+FIELD a scalar's value as written (an empty line if absent), or, for a
+FIELD written NAME[], a list's: two lines, the number of items and the
+first one (empty if none), read as src_values reads it. Values are
+printed as read, without the path mapping. A FIELD that isn't [a-z_]+
+(with an optional []) is a usage error, exit 2.
 
 missing-rules is the one coverage check for sources.sh
 check-settings, wiki-check.sh and install-source-file.sh: a needed rule is
@@ -755,13 +758,23 @@ def reader_rules(f: str, pairs: dict[str, str] | None = None, free: Container[st
     return res
 
 
-def codebase_instance(root: str, k: str, plugin: str | None) -> list[str]:
-    """The six lines of codebase-instance (see the docstring)."""
+FIELD_ARG_RE = re.compile(r"([a-z_]+)(\[\])?", re.ASCII)
+
+
+def instance_fields(root: str, k: str, fields: list[str], plugin: str | None) -> list[str]:
+    """The lines of instance-fields (see the docstring); fields already
+    checked against FIELD_ARG_RE."""
     f = "%s/%s.md" % (contract.instance_dir(root), k)
     ok, _ = quietly(validate_instance, root, k, plugin)
-    roots = contract.values(f, "roots")
-    return [contract.field(f, "type"), "1" if ok else "0", str(len(roots)),
-            roots[0] if roots else "", contract.field(f, "ref"), contract.field(f, "gh_user")]
+    res = ["1" if ok else "0"]
+    for a in fields:
+        name = a.removesuffix("[]")
+        if name == a:
+            res.append(contract.field(f, name))
+            continue
+        vs = contract.values(f, name)
+        res.extend([str(len(vs)), vs[0] if vs else ""])
+    return res
 
 
 def manual_keys(root: str) -> list[str]:
@@ -1177,8 +1190,9 @@ def _main(argv: list[str]) -> int:
         for lst, r in settings_check(native(args[0]), plugin, native(args[1]))[0]:
             out("%s\t%s" % (lst, r))
         return 0
-    if op == "codebase-instance" and len(args) == 2:
-        for v in codebase_instance(native(args[0]), args[1], plugin):
+    if (op == "instance-fields" and len(args) >= 3
+            and all(FIELD_ARG_RE.fullmatch(a) for a in args[2:])):
+        for v in instance_fields(native(args[0]), args[1], args[2:], plugin):
             sys.stdout.buffer.write(v.encode("utf-8", errors="surrogateescape") + b"\n")
         return 0
     if op == "settings-rules" and len(args) == 1:

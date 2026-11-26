@@ -10,7 +10,7 @@ import pytest
 
 import contract
 import sourcelib
-from conftest import TESTS, copytree, git, posix, write
+from conftest import TESTS, call_main, copytree, git, posix, write
 
 
 @pytest.fixture
@@ -104,6 +104,28 @@ def test_crlf_instance(ls):
     data = open(inst + "good.md", "rb").read().replace(b"\n", b"\r\n").replace(b"key: good", b"key: crlf")
     write(inst + "crlf.md", data)
     assert vi(w, "crlf", plug) == ("", 0)
+
+
+def fields(w, plug, key, *names):
+    """sourcelib.py instance-fields: (exit code, stdout lines)."""
+    r = call_main(sourcelib.main, ["--plugin", plug, "instance-fields", w, key, *names])
+    return r.rc, r.out.decode().split("\n")[:-1]
+
+
+def test_instance_fields(ls):
+    w, plug = ls
+    # Valid: a scalar, a list (count, first item), an absent scalar.
+    assert fields(w, plug, "good", "type", "roots[]", "note", "key") == (
+        0, ["1", "std", "2", "/data/one", "", "good"])
+    # Invalid (messages dropped); an absent list is 0 and an empty line.
+    assert fields(w, plug, "missing-param", "roots[]", "note") == (0, ["0", "0", "", "no roots here"])
+    # A scalar read as a list is one item; a list read as a scalar is empty.
+    assert fields(w, plug, "missing-param", "note[]", "roots") == (0, ["0", "1", "no roots here", ""])
+    # No instance file: not valid, every field empty.
+    assert fields(w, plug, "nosuch", "type", "roots[]") == (0, ["0", "", "0", ""])
+    # A field that isn't [a-z_]+ with an optional [], or no field: usage.
+    for bad in (["Type"], ["roots[]x"], ["ro-ots"], ["type", ""], []):
+        assert fields(w, plug, "good", *bad)[0] == 2, bad
 
 
 # Contract keys for research types.
