@@ -18,6 +18,7 @@ A guided setup for opening a wiki at claude.ai/code (web or phone) or running it
 - The cloud **environment** brings the plugin instead: its setup script (run as root before Claude Code starts) clones the public wiki-tools repository and copies `plugins/wiki/` to `/opt/wiki-plugin`, and its environment variable `CLAUDE_CODE_PLUGIN_DIRS=/opt/wiki-plugin` loads it, as `--plugin-dir` would. The plugin then shows as `wiki@inline`.
 - From there it runs as locally: the guard on every tool call, the schema and the sync status at session start, the `/wiki:*` skills, with `${CLAUDE_PLUGIN_ROOT}` filled in as `/opt/wiki-plugin`.
 - The environment caches the setup script's result as a filesystem snapshot when it finishes within about five minutes, and rebuilds it when the script changes and after about seven days.
+- With `REF` a branch, the plugin updates itself at the start (and resume) of each session from the setup script's clone, so a snapshot's plugin is never a week old (**Keeping the plugin current**).
 - The wiki's own `.claude/settings.json` (permission rules) applies as long as the wiki is the session's **only** repository. With a second repository attached, the session starts in the folder above both and the wiki's settings and sync status are lost.
 
 ## Is this wiki a fit?
@@ -44,19 +45,20 @@ A guided setup for opening a wiki at claude.ai/code (web or phone) or running it
    - **Name:** e.g. `wikis`.
    - **Network access:** the default. It allows GitHub.
    - **Environment variables:** `CLAUDE_CODE_PLUGIN_DIRS=/opt/wiki-plugin`
-   - **Setup script:** the script below, with `REF` set. `main` takes whatever is current when the snapshot is built; a commit pins it (the user gets the current one with `git ls-remote https://github.com/draitchbar/wiki-tools refs/heads/main`). To update the plugin later, change `REF`: a changed script rebuilds the snapshot.
+   - **Setup script:** the script below, with `REF` set. A branch (`main`) is followed: each new session updates the plugin to the branch's latest commit (**Keeping the plugin current**). A commit pins it (the user gets the current one with `git ls-remote https://github.com/draitchbar/wiki-tools refs/heads/main`); to update a pinned plugin, change `REF`: a changed script rebuilds the snapshot.
 4. **user: a first session** at claude.ai/code, with this wiki as the only repository and the new environment. Ask Claude there to check, and stop if any check fails:
    - the session started with the wiki schema (`wiki-conventions`, `wiki-layout`) and the sync status;
    - `/wiki:sync-status` runs;
    - `eval "git push --dry-run origin HEAD"` is refused with "wiki guard: git push is not allowed in wiki sessions". **If not, the plugin didn't load and the session is unguarded: stop using it.**
    - `bash /opt/wiki-plugin/scripts/wiki-check.sh` passes, except for rules that name a reader by a path on the user's machine (expected: that reader isn't in the cloud);
-   - which plugin it runs: Read `/opt/wiki-plugin/.wiki-tools-ref` (the commit the setup script checked out). The script's own output isn't shown to the session.
+   - which plugin it runs: Read `/opt/wiki-plugin/.wiki-tools-ref` (the commit the setup script checked out, or the one the session updated to: with `REF=main` the current wiki-tools `main`). The script's own output isn't shown to the session; the update's is, as one line in the session start context.
    - GitHub's tools (`mcp__github__*`, among them `push_files`) are refused by the guard itself. A cloud session has every connector of the account, in auto mode, and nothing yet denies the write tools of connectors no source uses (Google Calendar, Meetings, Claude Docs, Claude Data): add deny rules for those you don't want, until the roadmap's "Connector tools opt-in" is built.
 5. **user, optional: a routine** at claude.ai/code/routines: this wiki as its repository, the environment, only the connectors the wiki's sources need (none for a `raw`-only wiki), the prompt `/wiki:ingest all --unattended`, a schedule of hourly or slower. A routine's prompt starts the manual-only `/wiki:ingest`. Each run is a session in the user's history; its results are saved only with step 6.
 6. **user, recommended: turn on saving**, locally, as `/wiki:init`'s **Turning saving on** says (`${CLAUDE_PLUGIN_ROOT}/skills/init/SKILL.md`; wiki-tools `docs/setup.md`, "Optional: saving from Claude"): the ruleset on the default branch (a private repository needs a paid GitHub plan for it to be enforced), the two lines in `.gitignore` and `.gitattributes`, and the committed and pushed `.claude/settings.wiki.json`. In the cloud:
    - `url` must be the plain `https://github.com/<owner>/<repo>` form: `save.sh` refuses unless the session's `origin` is the pinned URL (seen 2026-11-25: `origin` is that form, and the session's proxy supplies git's and `gh`'s credentials).
    - A session saves to the default branch, not to its own `claude/…` branch: `/wiki:save` merges the default branch in and pushes there. An unattended run updates at its start and saves at its end; changes that need the user's permission (anything outside `wiki/`, `raw/`, `outputs/`, `open-questions.md`, and control files such as `CLAUDE.md` anywhere) go to a `claude/wiki-<12 hex>` branch with a draft pull request: the user merges it, then deletes the branch; until then the next unattended run stops (after a squash merge, until the branch is deleted).
    - Commits made in the cloud carry `Claude <noreply@anthropic.com>` and a `Claude-Session:` trailer (**Still to test**, git identity).
+   - The cloud environment's own Stop hook asks, after a save, to push the session's branch ("There are N unpushed commit(s) on branch 'claude/…'. Please push…"). That is expected: decline it. Session branches are never pushed (the guard refuses `git push`); only `save.sh` pushes, to the default branch or a holding branch.
    - Check in a session: `bash /opt/wiki-plugin/scripts/wiki-check.sh` says `saving is on`, and `/wiki:save --check` names what a save would push.
 
 ### The setup script
@@ -77,8 +79,25 @@ cp -r "$SRC/plugins/wiki" "$DEST"
 test -f "$DEST/.claude-plugin/plugin.json"
 test -f "$DEST/hooks/hooks.json"
 git -C "$SRC" rev-parse HEAD > "$DEST/.wiki-tools-ref"
+# For the plugin's self-update: the clone, and whether REF is a branch
+# (followed) or a commit (pinned).
+KIND=commit
+if git -C "$SRC" symbolic-ref -q HEAD >/dev/null; then KIND=branch; fi
+printf 'clone=%s\nkind=%s\n' "$SRC" "$KIND" > "$DEST/.wiki-tools-setup"
 echo "wiki plugin at $DEST from wiki-tools $(git -C "$SRC" rev-parse --short HEAD)"
 ```
+
+### Keeping the plugin current
+
+The snapshot keeps the plugin of the day it was built, for up to about seven days. So the plugin updates itself: its first `SessionStart` hook, `${CLAUDE_PLUGIN_ROOT}/scripts/cloud-update.sh` (at startup and resume, since a resumed session in a fresh container starts from the snapshot too; not on `/clear` or compaction), acts only in a cloud session (`CLAUDE_CODE_REMOTE=true`), only in a plugin copy the setup script made (it has `.wiki-tools-ref`), and only when the setup script's clone is there (`clone=` in `/opt/wiki-plugin/.wiki-tools-setup`, else `/opt/wiki-tools`).
+
+- **A branch** (`kind=branch` in `.wiki-tools-setup`; an environment set up before that file existed: the clone is on a branch): it fetches the branch from GitHub, resets the clone to it, copies `plugins/wiki/` over `/opt/wiki-plugin` in place, writes the commit to `.wiki-tools-ref`, then removes what the commit no longer has (a removed source type, skill or script would otherwise stay live: the guard and `sources.sh` find types, and Claude Code skills and agents, by folder), keeping `.wiki-tools-*` and `__pycache__`. The session start then shows `wiki plugin updated <old> -> <new>` (short commits); nothing when the plugin is already current.
+- **A commit** (`kind=commit`, or a detached clone): pinned, nothing happens.
+- **Fails open, fast:** the fetch stops after 15 s; any failure, a clone git can't read included (e.g. dubious ownership), leaves the snapshot's plugin, says `wiki plugin: update check failed; this session runs the snapshot's <old>` and the session goes on. It never deletes the plugin folder (the guard runs on every tool call): it copies first and removes stale files after. Git runs in a cleaned environment, as `save.sh`'s.
+- **Limit:** every session starts with the snapshot's `hooks.json`, which Claude Code reads before the update, until the snapshot is rebuilt (up to about seven days); a change that needs `hooks.json` and its scripts to move together runs mismatched until then (wiki-tools keeps its `hooks.json` changes working with the previous launch lines for a week; the guard fails closed). In the session where the update happens, the other `SessionStart` hooks (the schema, the sync status) start alongside it and may run the old version. From the first tool call on, the guard and the scripts are the new version; the skills' and agents' descriptions are probably read at startup, so their lists may be the old ones (**Still to test**).
+- **Trust:** every cloud session runs the latest commit of the setup script's branch, the same trust as `REF=main` without the week's delay: a bad commit on that branch reaches the next cloud session at once. Pin a commit to rule that out, and update it by hand.
+
+Decision: `docs/adr.md`, 27, in wiki-tools.
 
 ## What was checked
 
@@ -93,6 +112,7 @@ A spike on 2026-11-21, Claude Code 2.1.330, in an environment with this setup (i
 
 ## Still to test
 
+- **The plugin's self-update** (built 2026-11-26, **Keeping the plugin current**): in a session of an environment with `REF=main`, `.wiki-tools-ref` shows the current wiki-tools `main`, not the snapshot's commit, and the session start shows the update line once; the hook may write `/opt/wiki-plugin` and fetch through the proxy. Also: whether skill and agent definitions (names, descriptions, frontmatter) are read at startup, so an update adds, removes or changes skills only from the next session, while a skill's body is read when it runs.
 - **A failing setup script.** The script exits non-zero on purpose. Untested: whether the session then fails to start, or starts without the plugin and so unguarded. A project hook in the wiki that refuses everything when `CLAUDE_CODE_REMOTE` is `true` and the plugin is missing would close the gap; not built.
 - **Saving results** (built 2026-11, `save.sh`, Setup step 6; decision: `docs/adr.md`, 26, in wiki-tools). Checked in a cloud session (2026-11-25): `origin`'s URL form, the proxy's git settings, the shallow clone and the session's own branch, which the script is built for. Still to check live: a save to the default branch through the proxy, and whether the ruleset stops a force push from the proxy's account; `gh api` through the proxy for the ruleset check and the draft pull request (and whether `curl` or Python reach GitHub's API too); whether the guard's permission prompt for `save.sh --allow` appears in auto mode and in the web UI (if not, interactive cloud sessions need the holding branch too); and whether a routine saves without a prompt that stalls it. The GitHub connector's tools (`push_files`, `create_pull_request`, `merge_pull_request`) stay refused by the guard, as do `gh api` and `gh pr`.
 - **Connector sources.** Gmail, Microsoft 365 (Teams) and Jira through claude.ai connectors in a cloud session or routine: built (2026-11): the committed settings carry both names from `${CLAUDE_PLUGIN_ROOT}/sources/connectors.md`, and Check falls back to the cloud name (decision and reasons: `docs/adr.md`, 25, in wiki-tools). The live checks are pending: a cloud-name deny holds in a session and in an auto-mode routine; each connector's short tool names match on both surfaces (the cloud side was compared on 2026-11-25); no settings warning for an allow rule naming a tool absent locally; a locally bound wiki ingests in a cloud routine. Atlassian connects since 2026-11-24. A plugin synced from the claude.ai account failed to reach its own MCP server through the session's network proxy.

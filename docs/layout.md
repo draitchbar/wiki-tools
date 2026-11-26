@@ -18,9 +18,9 @@ plugins/wiki/
   templates/pages/entity.md       shared page template for people and organisations
   skills/{init,add-source,bind-reader,ingest,clarify,research,sync-status,save,commit-themes,lint,audit}/SKILL.md
   agents/{source-researcher,critic}.md  subagents /wiki:research dispatches (read-only research; independent critic)
-  cloud/SETUP.md                  guided setup for a wiki in a Claude Code cloud session (environment setup script, CLAUDE_CODE_PLUGIN_DIRS); what was checked, what is untested
+  cloud/SETUP.md                  guided setup for a wiki in a Claude Code cloud session (environment setup script, CLAUDE_CODE_PLUGIN_DIRS, the plugin's self-update); what was checked, what is untested
   skills/ingest/reading-files.md  core rules for reading fetched files (pdftotext, LibreOffice, OCR)
-  hooks/hooks.json                PreToolUse guard + SessionStart schema and status
+  hooks/hooks.json                PreToolUse guard + SessionStart cloud update (first; startup and resume), schema and status
   git-hooks-off/                  an empty hooks folder (a README only): save.sh runs git with core.hooksPath set to it
   sources/                        standard source types
     gmail/SOURCE.md               Gmail threads by label, sender and recipient through whatever Gmail reader the machine supplies (tool-neutral, read-only; seen working: the claude.ai connector)
@@ -48,6 +48,7 @@ plugins/wiki/
     decode_download.py            finds the base64 (plain, or a saved tool result's "content") and decodes it
     file-snapshot.sh              folder-walk snapshot for readers without modified times (any access: tools type); work in file_snapshot.py
     schema.sh                     prints one schema file (SessionStart, every start, resume, /clear, compaction)
+    cloud-update.sh               SessionStart (startup, resume): in a cloud session, updates and prunes the setup script's plugin copy from its clone when it follows a branch (cloud/SETUP.md, "Keeping the plugin current")
     sync-status.sh                staleness report from raw/sync-log.md, and the open questions' count; a launcher for sync_status.py
     sync_status.py                the work of sync-status.sh
     ocr.sh                        ocrmypdf wrapper (Linux)
