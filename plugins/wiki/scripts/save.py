@@ -39,7 +39,10 @@ explicit URL, `<sha>:refs/heads/<branch>`, never forced, with
 --no-follow-tags. The URL must survive `git ls-remote --get-url` unchanged,
 no url.*.pushInsteadOf may exist, and in a cloud session
 (CLAUDE_CODE_REMOTE=true) origin must be the pinned URL. On github.com the
-base's ruleset is checked through `gh api` (not with --update).
+base's ruleset is checked through `gh api` (not with --update). When origin
+is the pinned URL, refs/remotes/origin/<base> follows the remote's base
+after a save to it or an --update (never for a holding branch or --check);
+a failure there is only a warning.
 
 Output: stdout's first line on success is one of
   saved <short sha> to <base>
@@ -729,6 +732,21 @@ def push(g: Git, turl: str, url: str, sha: str, branch: str, held: bool = False)
     _pushed.append("%s is on %s" % (sha[:12], branch))
 
 
+def track_origin(g: Git, url: str, base: str, sha: str) -> None:
+    """When the remote named origin is the pinned URL (a cloud session's
+    clone), move refs/remotes/origin/<base> to what the remote's base now
+    is: the push went to the URL, not to origin, so git's own view of
+    origin would lag. Only ever after the remote's base is known; a
+    failure is a warning, never a refusal (the push already happened)."""
+    origin = (g.out("ls-remote", "--get-url", "origin") or "").rstrip("\r\n")
+    if normal(origin) != normal(url):
+        return
+    r = g.run("update-ref", "refs/remotes/origin/" + base, sha)
+    if r.returncode != 0:
+        _later.append("warning: origin/%s not updated: %s"
+                      % (base, " ".join(_lines(r.stderr)) or "git update-ref failed"))
+
+
 def open_pr(g: Git, url: str, branch: str, base: str, perm: list[str]) -> None:
     """A draft pull request for the holding branch (GitHub, REST)."""
     gr = github_repo(url)
@@ -798,7 +816,9 @@ def run(form: str, allow: list[str], script: str) -> int:
                           "An unattended save waits there for your permission; runs don't build on it.")
 
     if update:
-        _say("updated %s: %s" % (base, integrate(g, rsha, base)))
+        how = integrate(g, rsha, base)
+        track_origin(g, url, base, rsha)
+        _say("updated %s: %s" % (base, how))
         return 0
 
     head = g.must("no commit at HEAD", "rev-parse", "HEAD").strip()
@@ -853,6 +873,8 @@ def run(form: str, allow: list[str], script: str) -> int:
         return 0
     if not nothing:
         push(g, turl, url, sha, base)
+    # The remote's base is now sha (pushed), or rsha (it had sha already).
+    track_origin(g, url, base, rsha if nothing else sha)
     _say("saved %s to %s" % (short, base))
     if how != "up to date":
         _say("merged %s from the wiki's remote first (%s)" % (base, how))
