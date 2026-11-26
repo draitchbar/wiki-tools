@@ -43,9 +43,9 @@ Shell tools (Bash, PowerShell, Monitor's command):
   (or "git.exe") directly followed by "stash push"; `git -C stash push`
   could be a real push. Known false positive: a command naming both "git"
   and the word "push", e.g. in a commit message. Rephrase it.
-  When saving is on for the wiki (its .claude/settings.wiki-save.json in
-  the working tree says "enabled": true), the message names /wiki:save;
-  only the wording changes.
+  When saving is on for the wiki (its .claude/settings.wiki.json in the
+  working tree has "save": {"enabled": true}), the message names
+  /wiki:save; only the wording changes.
 - gh api, pr, repo, release, workflow, secret, variable or gist, right after git
   push: they write to GitHub past git. "gh" counts only as a command word
   (options such as -R owner/repo may stand before the subcommand), never as
@@ -779,14 +779,15 @@ def no_push(call: HookCall, ctx: Context) -> str | None:
 
 def save_hint(ctx: Context) -> str:
     """" Or run /wiki:save." when saving is on for the wiki: its
-    .claude/settings.wiki-save.json in the working tree is a regular file
-    (not a FIFO, which open would wait on) that parses as a JSON object with
-    "enabled": true. Wording only (the push is refused either way), so the
-    working-tree copy is enough (save.sh reads HEAD's); any error gives ""."""
+    .claude/settings.wiki.json in the working tree is a regular file (not a
+    FIFO, which open would wait on) that parses as a JSON object whose
+    "save" object has "enabled": true. Wording only (the push is refused
+    either way), so the working-tree copy is enough (save.sh reads HEAD's);
+    any error gives ""."""
     root = ctx.wiki_root
     if not root:
         return ""
-    f_path = root + "/.claude/settings.wiki-save.json"
+    f_path = root + "/.claude/settings.wiki.json"
     try:
         if not os.path.isfile(f_path):
             return ""
@@ -794,7 +795,8 @@ def save_hint(ctx: Context) -> str:
             data: object = json.loads(f.read(65536))
     except (OSError, ValueError, RecursionError):
         return ""
-    if isinstance(data, dict) and data.get("enabled") is True:
+    sec = data.get("save") if isinstance(data, dict) else None
+    if isinstance(sec, dict) and sec.get("enabled") is True:
         return " Or run /wiki:save."
     return ""
 

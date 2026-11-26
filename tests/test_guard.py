@@ -97,11 +97,11 @@ def test_no_push_first():
     assert guard.CHECKS[0] is guard.no_push
 
 
-# Saving on (.claude/settings.wiki-save.json in the working tree, "enabled":
-# true): the push refusals name /wiki:save; only the wording changes. Any
+# Saving on (.claude/settings.wiki.json in the working tree, "save":
+# {"enabled": true}): the push refusals name /wiki:save; only the wording changes. Any
 # other content, or a file that can't be read, keeps the old message. The
 # gh refusal never changes.
-SAVE_ON = b'{"enabled": true, "url": "https://example.com/wiki.git", "base": "main"}'
+SAVE_ON = b'{"save": {"enabled": true, "url": "https://example.com/wiki.git", "base": "main"}}'
 SAVE_HINT = [
     ("git-push", "push/block-git-push", True),
     ("mcp-github", "push/block-mcp-github-push-files", True),
@@ -110,11 +110,15 @@ SAVE_HINT = [
 SAVE_CONFIGS = [
     ("on", SAVE_ON, True),
     ("absent", None, False),
-    ("off", b'{"enabled": false, "url": "https://example.com/wiki.git"}', False),
-    ("enabled-string", b'{"enabled": "true"}', False),
-    ("not-object", b'[{"enabled": true}]', False),
+    ("other-sections", b'{"later": {"x": 1}, "save": {"enabled": true}}', True),
+    ("off", b'{"save": {"enabled": false, "url": "https://example.com/wiki.git"}}', False),
+    ("enabled-string", b'{"save": {"enabled": "true"}}', False),
+    ("not-object", b'[{"save": {"enabled": true}}]', False),
+    ("save-not-object", b'{"save": [{"enabled": true}]}', False),
+    # The old, flat format: saving is off, so is the hint.
+    ("flat", b'{"enabled": true, "url": "https://example.com/wiki.git", "base": "main"}', False),
     ("truncated", SAVE_ON[:20], False),
-    ("not-utf8", b'{"enabled": true, "x": "\xff"}', False),
+    ("not-utf8", b'{"save": {"enabled": true}, "x": "\xff"}', False),
     ("deep", b"[" * 5000 + b"]" * 5000, False),
     ("folder", "folder", False),
     # A FIFO, which open() would wait on (the guard checks for a regular file).
@@ -127,7 +131,7 @@ SAVE_CONFIGS = [
     for case, f, named in SAVE_HINT for cname, config, on in SAVE_CONFIGS])
 def test_save_hint(fixture, named, config, gw, guard_run):
     wiki = str(gw).replace("\\", "/")
-    path = gw / ".claude" / "settings.wiki-save.json"
+    path = gw / ".claude" / "settings.wiki.json"
     if config == "folder":
         path.mkdir(parents=True)
     elif config == "fifo":

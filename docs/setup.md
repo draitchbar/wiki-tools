@@ -72,7 +72,7 @@ A private GitHub repository gives the wiki an offsite copy, and a ruleset stops 
 
 ### Optional: saving from Claude
 
-With saving on, Claude saves the wiki's commits to its remote with `/wiki:save`, and a scheduled `/wiki:ingest … --unattended` brings in the remote's changes at its start and saves at its end. Claude still never runs `git push`: the core script `save.sh` pushes, only to the default branch at the URL pinned in the wiki's committed `.claude/settings.wiki-save.json`, never forced (`docs/adr.md`, 26). In a cloud session it is what keeps a session's work: an idle VM is thrown away with every commit not pushed. In a wiki session, `/wiki:init` (check mode) walks you through these steps.
+With saving on, Claude saves the wiki's commits to its remote with `/wiki:save`, and a scheduled `/wiki:ingest … --unattended` brings in the remote's changes at its start and saves at its end. Claude still never runs `git push`: the core script `save.sh` pushes, only to the default branch at the URL pinned in the wiki's committed `.claude/settings.wiki.json`, never forced (`docs/adr.md`, 26). In a cloud session it is what keeps a session's work: an idle VM is thrown away with every commit not pushed. In a wiki session, `/wiki:init` (check mode) walks you through these steps.
 
 1. **The remote, with the default branch on it.** Create it and push once yourself (`save.sh` refuses a remote that has no such branch yet).
 2. **The host refuses force pushes and deletion of that branch.** `save.sh` relies on it: a save merges, so its pushes are fast-forwards, and the host is what stops anything else.
@@ -81,20 +81,22 @@ With saving on, Claude saves the wiki's commits to its remote with `/wiki:save`,
    - **Gitea, Forgejo:** a branch protection rule for the default branch (Settings → Branches), with force pushes off; a protected branch can't be deleted.
    - **A bare repository you host** (a server or a shared folder): `git -C <repo.git> config receive.denyNonFastForwards true` and `git -C <repo.git> config receive.denyDeletes true`.
    - On these other hosts `save.sh` can't check and prints a reminder with each save: confirm the setting once, when you turn saving on.
-3. **Two lines in the wiki.** `.gitignore`: `!.claude/settings.wiki-save.json` (without it the config can't be committed); `.gitattributes`: `wiki/log.md merge=union` (both sides of a merge prepend to the log; git's built-in union driver keeps both, with no setup on any machine). `/wiki:init` writes both into new wikis; in an older wiki Claude adds them and commits them.
-4. **The config,** which you write (it is protected; Claude shows the content): `.claude/settings.wiki-save.json`
+3. **Two lines in the wiki.** `.gitignore`: `!.claude/settings.wiki.json` (without it the config can't be committed); `.gitattributes`: `wiki/log.md merge=union` (both sides of a merge prepend to the log; git's built-in union driver keeps both, with no setup on any machine). `/wiki:init` writes both into new wikis; in an older wiki Claude adds them and commits them.
+4. **The config,** which you write (it is protected; Claude shows the content): the `save` section of `.claude/settings.wiki.json`, the wiki's settings file (one section per feature; other top-level keys are left for later features)
    ```json
    {
-     "enabled": true,
-     "url": "https://github.com/<owner>/<wiki>",
-     "base": "main"
+     "save": {
+       "enabled": true,
+       "url": "https://github.com/<owner>/<wiki>",
+       "base": "main"
+     }
    }
    ```
    - `url`: the remote's full URL, `https://…`, `ssh://…` or the scp-like form (`git@github.com:<owner>/<repo>.git`). A wiki that runs in a cloud session needs the `https://github.com/<owner>/<repo>` form: there it must equal the session's `origin`.
    - `base`: the default branch.
    - `content_paths` (optional): the paths a save pushes freely, default `["wiki/", "raw/", "outputs/", "open-questions.md"]`; a trailing `/` is a folder. A save takes them from the remote branch's config when it has one, so a local change to them takes effect only once you have pushed it.
-   - `enabled: false`, or no file, turns saving off.
-5. **Commit and push it yourself:** `git add -- .claude/settings.wiki-save.json && git commit -m "Turn on saving" && git push`. The script reads the config from the commit, never from the working tree, and refuses a working-tree copy that differs; a later change to the config is a path that needs your permission, and a pin the remote doesn't share is refused.
+   - `enabled: false`, no `save` section, or no file turns saving off. A file in the first, flat format (`enabled`, `url`, `base` at the top level) counts as no `save` section; wiki-check says to move them under `save`.
+5. **Commit and push it yourself:** `git add -- .claude/settings.wiki.json && git commit -m "Turn on saving" && git push`. The script reads the config from the commit, never from the working tree, and refuses a working-tree copy that differs; a later change to the file, to any of its sections, is a path that needs your permission, and a pin the remote doesn't share is refused.
 6. **Check:** `/wiki:init` (check mode, or Claude runs `wiki-check.sh`) reports `saving is on`; `/wiki:save --check` says what a save would push and pushes nothing.
 
 What a save does with each path, and how you give permission:

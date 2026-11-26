@@ -91,9 +91,12 @@ def test_permission_flow():
 @pytest.mark.checks("save-skill/init-lines")
 def test_init_writes_save_lines():
     init = (SKILLS / "init" / "SKILL.md").read_text(encoding="utf-8")
-    assert "!.claude/settings.wiki-save.json" in init
+    assert "!.claude/settings.wiki.json" in init
     assert "wiki/log.md merge=union" in init
     assert "## Turning saving on" in init
+    # The config example nests the fields in the file's `save` section.
+    on = init[init.index("## Turning saving on"):]
+    assert '"save": {\n       "enabled": true,' in on
 
 
 def _guard(folder, guard_run, cmd):
@@ -118,7 +121,7 @@ def test_allowed_forms_pass_guard(skill, gw, guard_run):  # noqa: F811
 
 @pytest.mark.checks("save-skill/allow-asks")
 def test_allow_call_asks(gw, guard_run):  # noqa: F811
-    cmd = "bash %s/scripts/save.sh --allow .claude/settings.wiki-save.json .mcp.json CLAUDE.md" % PLUGIN_BASH
+    cmd = "bash %s/scripts/save.sh --allow .claude/settings.wiki.json .mcp.json CLAUDE.md" % PLUGIN_BASH
     r = _guard(gw, guard_run, cmd)
     assert r.rc == 0 and r.err == b""
     assert json.loads(r.out)["hookSpecificOutput"]["permissionDecision"] == "ask"
@@ -132,7 +135,7 @@ def test_allow_call_asks(gw, guard_run):  # noqa: F811
     ("git log --oneline 1a2b3c4..5d6e7f8 -- .claude", 0),
     ("git diff 1a2b3c4 5d6e7f8 -- .", 0),
     ("git diff 1a2b3c4 5d6e7f8 -- templates", 0),
-    ("git diff 1a2b3c4 5d6e7f8 -- .claude/settings.wiki-save.json", 2),
+    ("git diff 1a2b3c4 5d6e7f8 -- .claude/settings.wiki.json", 2),
     ("git diff 1a2b3c4 5d6e7f8 -- .mcp.json", 2),
     ("git diff 1a2b3c4 5d6e7f8 -- templates/push-plan.md", 2),
 ])

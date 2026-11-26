@@ -16,7 +16,7 @@ allowed-tools:
 
 # Save: $ARGUMENTS
 
-Save this wiki's commits to its remote. **You never push yourself**: `git push` and GitHub's tools are refused by the guard, and only `save.sh` pushes, to the URL and branch the wiki's committed `.claude/settings.wiki-save.json` pins. Saving is opt-in per wiki; `/wiki:init` (check mode) says how to turn it on.
+Save this wiki's commits to its remote. **You never push yourself**: `git push` and GitHub's tools are refused by the guard, and only `save.sh` pushes, to the URL and branch the wiki's committed `.claude/settings.wiki.json` pins. Saving is opt-in per wiki; `/wiki:init` (check mode) says how to turn it on.
 
 **Hard rules**
 - Run `save.sh` exactly as written here or as it prints, one call per Bash call, nothing around it (no `;`, `&&`, pipes, variables, redirection).

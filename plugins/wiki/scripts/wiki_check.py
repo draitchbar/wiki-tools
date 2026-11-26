@@ -16,8 +16,9 @@ of the test suite on both), except:
 - two checks the bash version never had: Markdown files outside the
   layout (INFO), and, outside a git repo, a pointer to /wiki:init when
   the folder's settings enable the plugin;
-- the save config, .claude/settings.wiki-save.json (save.py's own
-  validation), and the .gitignore and .gitattributes lines saving needs.
+- the save config, the `save` section of .claude/settings.wiki.json
+  (save.py's own validation), and the .gitignore and .gitattributes
+  lines saving needs.
 
   wiki_check.py --plugin DIR
 
@@ -182,16 +183,27 @@ class Check:
         except ValueError as e:
             self.fail("`%s` is not valid JSON: %s" % (f, e), "correct it (you, not Claude)")
             cfg = None
-        if cfg is not None:
-            errs, unknown = save.validate(cfg)
+        if cfg is not None and not isinstance(cfg, dict):
+            self.fail("`%s` is invalid: not a JSON object" % f, "correct it (you, not Claude)")
+        elif cfg is not None and save.SECTION not in cfg:
+            self.info("saving to the wiki's remote is off (no `save` section in `%s`)" % f)
+            flat = save.flat_keys(cfg)
+            if flat:
+                self.fail("`%s` has %s at its top level, where saving ignores them"
+                          % (f, " ".join("`%s`" % k for k in flat)),
+                          "move them into a `save` object (you, not Claude): "
+                          "`{\"save\": {\"enabled\": true, \"url\": ..., \"base\": ...}}`")
+        elif cfg is not None:
+            sec = cfg[save.SECTION]
+            errs, unknown = save.validate(sec)
             if errs:
                 self.fail("`%s` is invalid: %s" % (f, "; ".join(errs)), "correct it (you, not Claude)")
             if unknown:
                 self.info("`%s` has unknown key(s) %s; saving ignores them"
                           % (f, " ".join("`%s`" % k for k in unknown)))
-            if not errs and isinstance(cfg, dict):
-                if cfg.get("enabled") is True:
-                    self.ok("saving is on: `%s` at %s" % (cfg["base"], cfg["url"]))
+            if not errs and isinstance(sec, dict):
+                if sec.get("enabled") is True:
+                    self.ok("saving is on: `%s` at %s" % (sec["base"], sec["url"]))
                     ga = root + "/.gitattributes"
                     have = {" ".join(ln.split()) for ln in _grep_lines(ga)} if os.path.isfile(ga) else set()
                     if "wiki/log.md merge=union" not in have:
@@ -199,7 +211,7 @@ class Check:
                                   "with the remote conflicts in `wiki/log.md`. Add the line (saving it "
                                   "needs your permission once)")
                 else:
-                    self.info("saving to the wiki's remote is off (`enabled` is false in `%s`)" % f)
+                    self.info("saving to the wiki's remote is off (`save.enabled` is false in `%s`)" % f)
         if self.tracked(f) and self.changed(f):
             self.fail("`%s` has uncommitted changes" % f, "review them, then `git add -- %s && git commit` "
                       "(you, not Claude); saving reads only the committed config" % f)

@@ -55,7 +55,7 @@ plugins/wiki/
     lint.py                       the work of lint.sh
     wiki-check.sh                 setup check for /wiki:init check mode (read-only); also lists Markdown outside the layout and checks the guard hook and the scripts find Python; a launcher for wiki_check.py
     wiki_check.py                 the work of wiki-check.sh, lint in-process
-    save.sh                       saves a wiki's commits to its own remote, at the URL and branch pinned in its committed .claude/settings.wiki-save.json (/wiki:save; the only push); a launcher for save.py
+    save.sh                       saves a wiki's commits to its own remote, at the URL and branch pinned in its committed .claude/settings.wiki.json (/wiki:save; the only push); a launcher for save.py
     save.py                       the work of save.sh: the pin and URL checks, the merge, the path tiers, the host's protection (gh api on GitHub), the push or the holding branch
 scripts/pii-check.sh, pii_check.py  repo tooling, not the plugin: the personal-data check (docs/development.md, "Personal data")
 scripts/dev-env.sh                repo tooling: finds uv and .venv, stops when .venv is out of date with uv.lock (sourced by run-tests.sh and dev-lint.sh)

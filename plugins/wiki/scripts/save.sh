@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # save.sh: save the wiki's commits to its own remote, pinned in the
-# committed .claude/settings.wiki-save.json.
+# committed .claude/settings.wiki.json.
 #
 #   bash <plugin>/scripts/save.sh                        integrate and push
 #   bash <plugin>/scripts/save.sh --check                a dry run

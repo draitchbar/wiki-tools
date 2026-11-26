@@ -2,8 +2,9 @@
 
 The body of save.sh, which is its launcher (docs/adr.md, 4). The model
 never gets a push: this script does it, to the URL and branch pinned in
-the wiki's committed config, `.claude/settings.wiki-save.json`, read from
-HEAD (never from the working tree, which must match it).
+the `save` section of the wiki's committed settings file,
+`.claude/settings.wiki.json`, read from HEAD (never from the working tree,
+which must match it).
 
   save.sh                       integrate the remote's base, then push HEAD to it
   save.sh --check               everything but the merge and the push (a dry run)
@@ -19,7 +20,10 @@ HEAD (never from the working tree, which must match it).
 Any other argument list is refused. The launcher puts `--plugin DIR` (the
 plugin folder as bash spells it, for the `--allow` call it prints) first.
 
-Config fields: enabled (true to save), url (https://, ssh:// or user@host:path),
+The settings file is a JSON object of per-feature sections; saving reads
+only its `save` object (other top-level keys are left to later features).
+Saving is off without the file, without a `save` object, or unless
+save.enabled is true. Fields of `save`: enabled (true to save), url (https://, ssh:// or user@host:path),
 base (the branch), content_paths (default wiki/ raw/ outputs/ open-questions.md;
 a trailing / is a folder). Paths changed between the remote's base and the
 commit: within content_paths, pushed; symlinks, submodules and .gitmodules,
@@ -64,9 +68,13 @@ import subprocess
 import sys
 from typing import Any, TextIO
 
-CONFIG = ".claude/settings.wiki-save.json"
+CONFIG = ".claude/settings.wiki.json"
+SECTION = "save"
 DEFAULT_CONTENT = ["wiki/", "raw/", "outputs/", "open-questions.md"]
 KEYS = ("enabled", "url", "base", "content_paths")
+# The fields of the first, flat format: at the top level they mean a file
+# written before the `save` section existed.
+FLAT_KEYS = ("enabled", "url", "base")
 HOLD_PREFIX = "claude/wiki-"
 # A holding branch: exactly the name save.sh gives one; other claude/wiki-*
 # branches are not its business.
@@ -213,25 +221,32 @@ def content_path_error(p: object) -> str | None:
     return None
 
 
-def validate(cfg: object) -> tuple[list[str], list[str]]:
-    """(errors, unknown keys) of a parsed config."""
-    if not isinstance(cfg, dict):
-        return ["not a JSON object"], []
+def flat_keys(cfg: object) -> list[str]:
+    """The save fields a settings file has at its top level (the old,
+    flat format), which saving ignores."""
+    return [k for k in FLAT_KEYS if isinstance(cfg, dict) and k in cfg]
+
+
+def validate(sec: object) -> tuple[list[str], list[str]]:
+    """(errors, unknown keys) of a parsed `save` section; messages and
+    keys are named save.<field>."""
+    if not isinstance(sec, dict):
+        return ["`save` must be a JSON object"], []
     errs: list[str] = []
-    if not isinstance(cfg.get("enabled"), bool):
-        errs.append("`enabled` must be true or false")
-    url = cfg.get("url")
+    if not isinstance(sec.get("enabled"), bool):
+        errs.append("`save.enabled` must be true or false")
+    url = sec.get("url")
     if not isinstance(url, str) or url_parts(url) is None:
-        errs.append("`url` must be an https://, ssh:// or user@host:path URL")
-    base = cfg.get("base")
+        errs.append("`save.url` must be an https://, ssh:// or user@host:path URL")
+    base = sec.get("base")
     if not isinstance(base, str) or not valid_branch(base):
-        errs.append("`base` must be a branch name")
-    cps = cfg.get("content_paths", DEFAULT_CONTENT)
+        errs.append("`save.base` must be a branch name")
+    cps = sec.get("content_paths", DEFAULT_CONTENT)
     if not isinstance(cps, list):
-        errs.append("`content_paths` must be a list of paths")
+        errs.append("`save.content_paths` must be a list of paths")
     else:
-        errs += ["`content_paths`: %s" % e for e in map(content_path_error, cps) if e]
-    return errs, sorted(k for k in cfg if k not in KEYS)
+        errs += ["`save.content_paths`: %s" % e for e in map(content_path_error, cps) if e]
+    return errs, sorted("save." + k for k in sec if k not in KEYS)
 
 
 def in_content(path: str, cps: list[str]) -> bool:
@@ -355,7 +370,8 @@ def parse_args(argv: list[str]) -> tuple[str, list[str]]:
 
 
 def load_config(g: Git) -> dict[str, Any]:
-    """HEAD's config, checked; the working tree's copy must match it."""
+    """HEAD's `save` section, checked; the working tree's copy of the
+    whole file must match HEAD's."""
     head = g.blob("HEAD:" + CONFIG)
     if head is None:
         raise Refused("saving is off for this wiki (no committed %s)" % CONFIG)
@@ -370,13 +386,21 @@ def load_config(g: Git) -> dict[str, Any]:
         cfg = json.loads(head.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as e:
         raise Refused("%s is not valid JSON: %s" % (CONFIG, e)) from None
-    if not isinstance(cfg, dict) or cfg.get("enabled") is not True:
-        raise Refused("saving is off for this wiki (`enabled` isn't true in %s)" % CONFIG)
-    errs, _ = validate(cfg)
+    if not isinstance(cfg, dict):
+        raise Refused("saving is off for this wiki (%s is not a JSON object)" % CONFIG)
+    sec = cfg.get(SECTION)
+    if not isinstance(sec, dict):
+        flat = flat_keys(cfg)
+        raise Refused("saving is off for this wiki (no `save` section in %s)" % CONFIG,
+                      *(["Move %s under `save` (you, not Claude): saving reads only that section."
+                         % ", ".join("`%s`" % k for k in flat)] if flat else []))
+    if sec.get("enabled") is not True:
+        raise Refused("saving is off for this wiki (`save.enabled` isn't true in %s)" % CONFIG)
+    errs, _ = validate(sec)
     if errs:
         raise Refused("%s is invalid: %s" % (CONFIG, "; ".join(errs)))
-    cfg.setdefault("content_paths", list(DEFAULT_CONTENT))
-    return cfg
+    sec.setdefault("content_paths", list(DEFAULT_CONTENT))
+    return sec
 
 
 def check_url(g: Git, url: str) -> None:
@@ -528,8 +552,9 @@ def fetch_base(g: Git, turl: str, base: str) -> str:
 def check_pin(g: Git, rsha: str, url: str, own: list[str]) -> list[str]:
     """A different pin on the remote: the change must come from the user.
     Returns the content_paths that sort the paths: the remote base's (a
-    commit can't widen them for itself), the defaults when its config
-    lacks them or is unreadable, this commit's (own) when it has none."""
+    commit can't widen them for itself), the defaults when its `save`
+    section lacks them or the file or section is unreadable, this
+    commit's (own) when it has no file or no `save` key."""
     b = g.blob("%s:%s" % (rsha, CONFIG))
     if b is None:
         return own
@@ -537,6 +562,11 @@ def check_pin(g: Git, rsha: str, url: str, own: list[str]) -> list[str]:
         rc = json.loads(b.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
         return list(DEFAULT_CONTENT)
+    if not isinstance(rc, dict):
+        return list(DEFAULT_CONTENT)
+    if SECTION not in rc:
+        return own
+    rc = rc[SECTION]
     if not isinstance(rc, dict):
         return list(DEFAULT_CONTENT)
     if isinstance(rc.get("url"), str) and rc["url"] != url:

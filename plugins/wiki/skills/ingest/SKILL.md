@@ -138,4 +138,4 @@ Make **one commit per ingested source** (e.g. one per Gmail thread batch, one pe
 ## Report back
 Summarise in a few lines: what was ingested, which pages changed, any conflicts or figures to double-check, anything skipped, and open questions closed (and, unattended, raised or added to).
 
-Attended, when saving is on for this wiki (its `.claude/settings.wiki-save.json` has `"enabled": true`; read it with the Read tool), end by offering to save the commits to the remote with `/wiki:save`. Don't save by yourself: start `/wiki:save` only on the user's yes.
+Attended, when saving is on for this wiki (its `.claude/settings.wiki.json` has `"save": {"enabled": true, ...}`; read it with the Read tool), end by offering to save the commits to the remote with `/wiki:save`. Don't save by yourself: start `/wiki:save` only on the user's yes.

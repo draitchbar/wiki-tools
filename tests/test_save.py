@@ -78,8 +78,13 @@ class Wiki:
         for k, v in (("user.name", "t"), ("user.email", "t@example.com"), ("core.autocrlf", "false")):
             git(d, "config", k, v)
 
-    def config(self, commit=False, **cfg):
-        write(self.w / save.CONFIG, json.dumps(cfg) + "\n")
+    def config(self, commit=False, top=None, **cfg):
+        """The settings file with cfg as its `save` section, beside the
+        other top-level keys in top; with top alone, no `save` key."""
+        data = dict(top or {})
+        if cfg:
+            data["save"] = cfg
+        write(self.w / save.CONFIG, json.dumps(data) + "\n")
         if commit:
             git(self.w, "add", "-A")
             git(self.w, "commit", "-q", "--allow-empty", "-m", "config")
@@ -191,44 +196,89 @@ def test_unknown_arguments(args, wk):
 def test_off_without_config(wk):
     git(wk.w, "rm", "-q", save.CONFIG)
     git(wk.w, "commit", "-qm", "off")
-    refused(wk.save(), "saving is off for this wiki (no committed .claude/settings.wiki-save.json)")
+    refused(wk.save(), "saving is off for this wiki (no committed .claude/settings.wiki.json)")
 
 
 @pytest.mark.checks("save/off-disabled")
 def test_off_when_disabled(wk):
     wk.config(commit=True, enabled=False, url=wk.url, base="main")
-    refused(wk.save(), "saving is off for this wiki (`enabled` isn't true")
+    refused(wk.save(), "saving is off for this wiki (`save.enabled` isn't true")
+
+
+@pytest.mark.checks("save/off-flat-format")
+def test_off_flat_format(wk):
+    """The first, flat format (save fields at the top level) is no `save`
+    section: off, with a pointer to the section."""
+    write(wk.w / save.CONFIG, json.dumps({"enabled": True, "url": wk.url, "base": "main"}) + "\n")
+    git(wk.w, "commit", "-qam", "flat")
+    r = wk.save()
+    refused(r, "saving is off for this wiki (no `save` section in .claude/settings.wiki.json)")
+    assert "Move `enabled`, `url`, `base` under `save` (you, not Claude)" in se(r)
+
+
+@pytest.mark.parametrize("data", [
+    pytest.param({"later": {"enabled": True}}, id="save/off-no-save-section"),
+    pytest.param({"save": [{"enabled": True}]}, id="save/off-save-not-object"),
+])
+def test_off_no_save_section(data, wk):
+    write(wk.w / save.CONFIG, json.dumps(data) + "\n")
+    git(wk.w, "commit", "-qam", "off")
+    r = wk.save()
+    refused(r, "saving is off for this wiki (no `save` section in .claude/settings.wiki.json)")
+    assert "Move" not in se(r)
+
+
+@pytest.mark.checks("save/off-not-object")
+def test_off_not_object(wk):
+    write(wk.w / save.CONFIG, json.dumps([{"save": {"enabled": True}}]) + "\n")
+    git(wk.w, "commit", "-qam", "off")
+    refused(wk.save(), "saving is off for this wiki (.claude/settings.wiki.json is not a JSON object)")
+
+
+@pytest.mark.checks("save/other-sections-ignored")
+def test_other_sections_ignored(wk):
+    """Other top-level keys are left to later features; the change that
+    adds them needs permission like any change to the file."""
+    wk.config(commit=True, top={"later": {"x": 1}}, enabled=True, url=wk.url, base="main")
+    refused(wk.save(), "these changes need your permission: .claude/settings.wiki.json")
+    assert wk.save("--allow", save.CONFIG).rc == 0
+    wk.commit("page", "wiki/page.md")
+    r = wk.save()
+    assert r.rc == 0, r
+    assert wk.remote() == wk.head()
 
 
 @pytest.mark.checks("save/refuse-config-changed-in-work-tree")
 def test_config_work_tree(wk):
     wk.config(enabled=True, url=file_url(wk.t / "elsewhere.git"), base="main")
     r = wk.save()
-    refused(r, ".claude/settings.wiki-save.json differs from the committed one")
+    refused(r, ".claude/settings.wiki.json differs from the committed one")
     (wk.w / save.CONFIG).unlink()
-    refused(wk.save(), ".claude/settings.wiki-save.json differs from the committed one")
+    refused(wk.save(), ".claude/settings.wiki.json differs from the committed one")
 
 
 @pytest.mark.parametrize("cfg,env,why", [
-    pytest.param({"url": "http://example.com/w.git"}, {}, "`url` must be", id="save/refuse-http-url"),
-    pytest.param({}, {"WIKI_SAVE_TEST_FILE_URLS": None}, "`url` must be", id="save/refuse-file-url-without-seam"),
-    pytest.param({"base": "a..b"}, {}, "`base` must be a branch name", id="save/refuse-bad-base"),
-    pytest.param({"content_paths": ["../x/"]}, {}, "`content_paths`: \"../x/\"", id="save/refuse-dotdot-path"),
-    pytest.param({"content_paths": ["/wiki/"]}, {}, "`content_paths`: \"/wiki/\" must be relative",
+    pytest.param({"url": "http://example.com/w.git"}, {}, "`save.url` must be", id="save/refuse-http-url"),
+    pytest.param({}, {"WIKI_SAVE_TEST_FILE_URLS": None}, "`save.url` must be",
+                 id="save/refuse-file-url-without-seam"),
+    pytest.param({"base": "a..b"}, {}, "`save.base` must be a branch name", id="save/refuse-bad-base"),
+    pytest.param({"content_paths": ["../x/"]}, {}, "`save.content_paths`: \"../x/\"",
+                 id="save/refuse-dotdot-path"),
+    pytest.param({"content_paths": ["/wiki/"]}, {}, "`save.content_paths`: \"/wiki/\" must be relative",
                  id="save/refuse-absolute-path"),
 ])
 def test_config_invalid(cfg, env, why, wk):
     wk.config(commit=True, **dict({"enabled": True, "url": wk.url, "base": "main"}, **cfg))
     r = wk.save(env=env)
-    refused(r, ".claude/settings.wiki-save.json is invalid: ")
+    refused(r, ".claude/settings.wiki.json is invalid: ")
     assert why in se(r)
 
 
 @pytest.mark.checks("save/refuse-remote-pin-differs")
 def test_remote_pin_differs(wk):
     """A pin changed only locally (or only remotely) is refused."""
-    write(wk.other / save.CONFIG, json.dumps({"enabled": True, "url": file_url(wk.t / "moved.git"),
-                                              "base": "main"}) + "\n")
+    write(wk.other / save.CONFIG, json.dumps({"save": {"enabled": True, "url": file_url(wk.t / "moved.git"),
+                                                       "base": "main"}}) + "\n")
     git(wk.other, "commit", "-qam", "move")
     git(wk.other, "push", "-q", "origin", "HEAD:main")
     r = wk.save()
@@ -345,7 +395,7 @@ def test_config_change_needs_permission(wk):
     content_paths would cover it."""
     wk.config(commit=True, enabled=True, url=wk.url, base="main",
               content_paths=["wiki/", "raw/", "outputs/", "open-questions.md", ".claude/"])
-    refused(wk.save(), "these changes need your permission: .claude/settings.wiki-save.json")
+    refused(wk.save(), "these changes need your permission: .claude/settings.wiki.json")
 
 
 @pytest.mark.checks("save/content-paths-from-remote")
@@ -358,8 +408,36 @@ def test_content_paths_widened_by_commit(wk):
     write(wk.w / ".github/workflows/x.yml", "on: push\n")
     git(wk.w, "add", "-A")
     git(wk.w, "commit", "-qm", "widen")
-    refused(wk.save(), "these changes need your permission: .claude/settings.wiki-save.json "
+    refused(wk.save(), "these changes need your permission: .claude/settings.wiki.json "
                        ".github/workflows/x.yml CLAUDE.md")
+
+
+@pytest.mark.checks("save/other-section-change-needs-permission")
+def test_other_section_change_needs_permission(wk):
+    """A change to another section of the settings file needs permission
+    too: the whole file is protected, not only `save`."""
+    wk.config(commit=True, top={"later": {"x": 2}}, enabled=True, url=wk.url, base="main")
+    refused(wk.save(), "these changes need your permission: .claude/settings.wiki.json")
+
+
+@pytest.mark.parametrize("remote,need", [
+    # No `save` key on the remote counts as no config there: this commit's
+    # content_paths sort the paths.
+    pytest.param({"later": {}}, "", id="save/remote-no-save-section-uses-own"),
+    # A `save` key that isn't an object is unreadable: the defaults.
+    pytest.param({"save": 5}, " notes/a.md", id="save/remote-bad-save-section-uses-defaults"),
+])
+def test_content_paths_remote_without_section(remote, need, wk):
+    write(wk.other / save.CONFIG, json.dumps(remote) + "\n")
+    git(wk.other, "commit", "-qam", "no save section")
+    git(wk.other, "push", "-q", "origin", "HEAD:main")
+    git(wk.w, "pull", "-q", "--no-rebase", wk.url, "main")
+    wk.config(enabled=True, url=wk.url, base="main", content_paths=["notes/"])
+    wk.commit("n", "notes/a.md")
+    r = wk.save()
+    refused(r, "these changes need your permission: .claude/settings.wiki.json" + need)
+    assert se(r).split("\n")[0] == ("save: refused: these changes need your permission: "
+                                     ".claude/settings.wiki.json" + need), se(r)
 
 
 @pytest.mark.checks("save/check-pushes-nothing")
@@ -683,7 +761,7 @@ def test_config_staged(wk):
     wk.config(enabled=True, url=file_url(wk.t / "elsewhere.git"), base="main")
     git(wk.w, "add", save.CONFIG)
     p.write_bytes(good)
-    refused(wk.save(), ".claude/settings.wiki-save.json differs from the committed one")
+    refused(wk.save(), ".claude/settings.wiki.json differs from the committed one")
 
 
 @pytest.mark.checks("save/setext-heading-not-a-marker")
