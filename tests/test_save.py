@@ -8,7 +8,7 @@ traffic to the bare repository, and a fake gh first on PATH that logs its
 calls (tests/sources/save/fake_gh.py). Never the network.
 
 Building a wiki takes about 14 git processes, slow on Windows (#115), so
-each kind is built once per module and copied for every test, always to
+each kind is built once per worker and copied for every test, always to
 the same folder (`cur`): the committed pin and the other clone's origin
 name that folder, so a copy needs no rewiring.
 """
@@ -43,7 +43,7 @@ def file_url(p):
     return "file://" + ("" if p.startswith("/") else "/") + p
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def fakebin(tmp_path_factory):
     d = tmp_path_factory.mktemp("fakegh")
     if IS_WIN:
@@ -72,8 +72,9 @@ class Wiki:
 
     def build(self):
         t = self.t
-        git(t, "init", "-q", "--bare", "remote.git")
-        git(t, "init", "-q", "wiki")
+        # No template (sample hooks): fewer files to copy for each test.
+        git(t, "init", "-q", "--template=", "--bare", "remote.git")
+        git(t, "init", "-q", "--template=", "wiki")
         self.ident(self.w)
         write(self.w / "CLAUDE.md", "# Test wiki\n")
         write(self.w / "wiki/index.md", "# Index\n\nline\n")
@@ -82,7 +83,7 @@ class Wiki:
         git(self.w, "add", "-A")
         git(self.w, "commit", "-qm", "init")
         git(self.w, "push", "-q", posix(self.bare), "HEAD:refs/heads/main")
-        git(t, "clone", "-q", posix(self.bare), "other")
+        git(t, "clone", "-q", "--template=", posix(self.bare), "other")
         self.ident(self.other)
 
     @staticmethod
@@ -148,11 +149,12 @@ def _rmtree(p):
         shutil.rmtree(str(p), onerror=unlock)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def built(tmp_path_factory, cli, fakebin):
     """fresh(url) -> the folder `cur`, holding a new copy of the wiki pinned
-    to url (None: its bare remote). Each kind is built once, in `cur`, then
-    moved aside as the template."""
+    to url (None: its bare remote). Each kind is built once per worker, in
+    `cur`, then moved aside as the template. Session-scoped, as this
+    module's tests are spread over the workers (conftest.py's SPREAD)."""
     base = tmp_path_factory.mktemp("save")
     cur, done = base / "cur", {}
 

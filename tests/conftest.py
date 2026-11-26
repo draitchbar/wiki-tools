@@ -118,15 +118,6 @@ def pytest_xdist_make_scheduler(config, log):
     return ByModule(config, log)
 
 
-# -n auto: two workers per CPU, as the tests mostly wait on the processes
-# they start (#115); PYTEST_XDIST_AUTO_NUM_WORKERS still wins.
-@pytest.hookimpl(optionalhook=True)
-def pytest_xdist_auto_num_workers(config):
-    if os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS"):
-        return None
-    return 2 * (os.cpu_count() or 1)
-
-
 def check_names(item):
     m = item.get_closest_marker("checks")
     if m:

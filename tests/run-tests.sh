@@ -10,9 +10,8 @@
 # and per worktree, and whenever this says .venv is out of date:
 #   uv sync --locked
 # The modules run in parallel, one module per worker (-n auto --dist
-# loadfile: a module's story fixture runs once), two workers per CPU; the
-# tests of the modules in conftest.py's SPREAD go to any worker. -n 0 runs
-# serially.
+# loadfile: a module's story fixture runs once); the tests of the modules
+# in conftest.py's SPREAD go to any worker. -n 0 runs serially.
 #
 # WIKI_TOOLS_DEV_VENV=off runs pytest from the Python the plugin's scripts
 # would find (py-run.sh), outside uv.lock; it then needs pytest installed
