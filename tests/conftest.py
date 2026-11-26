@@ -23,6 +23,7 @@ import re
 import shutil
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 
 import pytest
@@ -92,8 +93,9 @@ def pytest_configure(config):
 
 # Parallel runs (run-tests.sh: -n auto --dist loadfile, docs/adr.md, 15):
 # a module runs on one worker, so its module fixtures and its story run
-# once; except the modules in SPREAD, whose tests stand alone and so go to
-# any worker. They come last, to fill in around the long modules (#115).
+# once; except the modules in SPREAD, whose tests stand alone: each is
+# split into one part per worker, which go to any worker. They come last,
+# to fill in around the long modules (#115).
 SPREAD = {"test_guard.py", "test_save.py", "test_pii_check.py", "test_connectors.py",
           "test_dev_env.py", "test_sources_due.py"}
 
@@ -114,7 +116,10 @@ def pytest_xdist_make_scheduler(config, log):
 
     class ByModule(LoadScopeScheduling):
         def _split_scope(self, nodeid):
-            return nodeid if _spread(nodeid) else nodeid.split("::")[0]
+            mod = nodeid.split("::")[0]
+            if not _spread(nodeid):
+                return mod
+            return "%s#%d" % (mod, zlib.crc32(nodeid.encode()) % self.numnodes)
     return ByModule(config, log)
 
 
