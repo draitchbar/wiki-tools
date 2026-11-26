@@ -51,4 +51,9 @@ if "$py" -c 'import xdist' 2>/dev/null; then
   for a in "$@"; do [ "$a" = --check-names ] && par=(); done
 fi
 
-exec "$py" -X utf8 -m pytest "$here" "${par[@]}" "$@"
+# In CI, the 20 slowest tests after the summary: a module that grows slow
+# shows up in the log (#115). No time limit is checked.
+dur=()
+[ -n "${CI:-}" ] && dur=(--durations=20)
+
+exec "$py" -X utf8 -m pytest "$here" "${par[@]}" "${dur[@]}" "$@"
