@@ -209,7 +209,7 @@ def has_dots(p: str) -> bool:
     return "/./" in s or "/../" in s
 
 
-# Reader bindings (docs/adr.md, 13). A tool-neutral contract (access: tools)
+# Reader bindings (docs/adr.md, 11). A tool-neutral contract (access: tools)
 # lists its operations as `<name> (required|recommended|optional)`; an
 # instance binds them in `reader:` items `<operation>: <rule>`, where the
 # rule is an MCP tool name, optionally with one `<field>=<value>` limit on

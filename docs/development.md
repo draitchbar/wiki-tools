@@ -12,6 +12,10 @@ Edit this repo in an agent session opened in the clone, Claude Code or Copilot C
 3. Lint (below), commit, push the branch and open a pull request.
 4. After the merge, on each machine: `git pull`, then start a new wiki session or run `/reload-plugins`.
 
+### Recording a decision
+
+A change gets a new decision in `docs/adr.md` only when it sets a rule of its own that code, tests or contributors will follow and no existing decision covers: a new mechanism, guard check, dependency, layer or way of working. A change that applies, extends or narrows an existing decision edits that decision in place, keeping its number; the rule it changes goes in the decision, the history in the commit. A type's or reader's details go in its `SOURCE.md`, how-to in the `docs/` page, not in the ADR. Keep each decision to a 1–2 sentence **Decision**, short **Why** and **Consequences**, about 200 words, and add it to the index. Numbers are consecutive; other files cite them as `docs/adr.md, N` (`tests/test_adr_refs.py` checks each one).
+
 ## Running the plugin from a clone
 
 To try changes in your wikis, run the plugin from your clone instead of the GitHub install. Clone wherever you like; nothing depends on the path.
@@ -35,7 +39,7 @@ Claude Code then runs the plugin straight from `plugins/wiki/`, so **uncommitted
 
 `main` changes only through pull requests. CI (`.github/workflows/ci.yml`) runs lint and the tests, normally and with `--e2e`, on Linux and Windows; Claude reviews each pull request (`.github/workflows/claude-review.yml`).
 
-Once the review has no blocking finding open, its summary comment starts with a **reviewer guide** for the person who approves, in sections: the goal, a description of how the pull request reaches it, a table of the blast radius (`none`, `contributors`, `one source`, `all wikis`, `guard` or `irreversible`), the risk of a bug and the cost of maintenance, what to focus on, and a demo. A title or description that doesn't match the diff is a blocking finding, so the guide waits until it is fixed. It is written once and again only when a push changes it; until then the comment says the guide is unchanged or withheld. The guide is the review agent's reading of the diff, not a check: it says what it did not assess, and it never advises on merging. Why: `docs/adr.md`, 17.
+Once the review has no blocking finding open, its summary comment starts with a **reviewer guide** for the person who approves, in sections: the goal, a description of how the pull request reaches it, a table of the blast radius (`none`, `contributors`, `one source`, `all wikis`, `guard` or `irreversible`), the risk of a bug and the cost of maintenance, what to focus on, and a demo. A title or description that doesn't match the diff is a blocking finding, so the guide waits until it is fixed. It is written once and again only when a push changes it; until then the comment says the guide is unchanged or withheld. The guide is the review agent's reading of the diff, not a check: it says what it did not assess, and it never advises on merging. Why: `docs/adr.md`, 14.
 
 Lint must be clean before committing:
 
@@ -43,13 +47,13 @@ Lint must be clean before committing:
 bash scripts/dev-lint.sh
 ```
 
-It runs what CI's lint job runs, each step even after one fails, and names the failed ones at the end: `ruff check .` (Python, `ruff.toml`), `mypy` (Python types, `mypy.ini`), `shellcheck -S warning` on every tracked `*.sh` (`.shellcheckrc`), and no CRLF in any committed file (`git ls-files --eol`, so a Windows checkout's `core.autocrlf` doesn't count). The tools come from `.venv` ("Dev environment"). mypy runs from the repo root and checks the files `mypy.ini` lists, all strict; ruff's `ANN` rules keep every function annotated (`tests/` excepted). Why: `docs/adr.md`, 20. Like ruff and pytest it is a dev tool only; the plugin never imports it. Annotations in the plugin's Python follow `AGENTS.md`'s run-time rule: `from __future__ import annotations` everywhere; in the guard's modules `typing` only under `if TYPE_CHECKING:`, so a hook never pays for importing it (about 3 ms); elsewhere a plain `from typing import ...`.
+It runs what CI's lint job runs, each step even after one fails, and names the failed ones at the end: `ruff check .` (Python, `ruff.toml`), `mypy` (Python types, `mypy.ini`), `shellcheck -S warning` on every tracked `*.sh` (`.shellcheckrc`), and no CRLF in any committed file (`git ls-files --eol`, so a Windows checkout's `core.autocrlf` doesn't count). The tools come from `.venv` ("Dev environment"). mypy runs from the repo root and checks the files `mypy.ini` lists, all strict; ruff's `ANN` rules keep every function annotated (`tests/` excepted). Why: `docs/adr.md`, 15. Like ruff and pytest it is a dev tool only; the plugin never imports it. Annotations in the plugin's Python follow `AGENTS.md`'s run-time rule: `from __future__ import annotations` everywhere; in the guard's modules `typing` only under `if TYPE_CHECKING:`, so a hook never pays for importing it (about 3 ms); elsewhere a plain `from typing import ...`.
 
 Keep LF line endings everywhere (`.gitattributes`).
 
 ## Dev environment
 
-The dev tools (pytest, pytest-xdist, ruff, mypy, shellcheck-py) are the `dev` dependency group in `pyproject.toml`, locked with hashes in `uv.lock`, and installed into a `.venv` in the clone (gitignored) by uv. The plugin never uses them: it is standard library only. Why: `docs/adr.md`, 19.
+The dev tools (pytest, pytest-xdist, ruff, mypy, shellcheck-py) are the `dev` dependency group in `pyproject.toml`, locked with hashes in `uv.lock`, and installed into a `.venv` in the clone (gitignored) by uv. The plugin never uses them: it is standard library only. Why: `docs/adr.md`, 15.
 
 - **Prerequisites:** Python 3.11 or later and uv 0.13.7 or later, both installed by you ([uv's installation page](https://docs.astral.sh/uv/getting-started/installation/); a distribution's package may be older). Python: on Linux your distribution's `python3`; on Windows the python.org installer.
 - **Setup:** `uv sync --locked`, once per clone and per worktree (a worktree has no `.venv`; uv fills it from its cache). `uv sync --locked --python 3.11` makes it on a given Python. `--locked` fails when `uv.lock` doesn't match `pyproject.toml`, instead of quietly re-resolving.
@@ -61,7 +65,7 @@ The dev tools (pytest, pytest-xdist, ruff, mypy, shellcheck-py) are the `dev` de
 
 ## Agents
 
-The repo is developed with Claude Code and with GitHub Copilot CLI; every change must work in both (`CONTRIBUTING.md`). Their instructions and skills are written once: `CLAUDE.md` is the one line `@AGENTS.md`, `AGENTS.md` imports `CONTRIBUTING.md`, and both agents load skills from `.claude/skills/`. Copilot reads `AGENTS.md` and `CLAUDE.md` both, so it sees the rules twice; that is harmless. Why this layout: `docs/adr.md`, 10. The repo's skills: `/new-source-type`; `/fix-issues-ai` (issues to pull requests, `docs/adr.md`, 16) and `/implement-feature-ai` (a goal to one pull request, 21), which share `docs/agent-pr-flow.md`.
+The repo is developed with Claude Code and with GitHub Copilot CLI; every change must work in both (`CONTRIBUTING.md`). Their instructions and skills are written once: `CLAUDE.md` is the one line `@AGENTS.md`, `AGENTS.md` imports `CONTRIBUTING.md`, and both agents load skills from `.claude/skills/`. Copilot reads `AGENTS.md` and `CLAUDE.md` both, so it sees the rules twice; that is harmless. Why this layout: `docs/adr.md`, 9. The repo's skills: `/new-source-type`; `/fix-issues-ai` (issues to pull requests) and `/implement-feature-ai` (a goal to one pull request), which share `docs/agent-pr-flow.md` (`docs/adr.md`, 13).
 
 What both support, and so what agent files may use (Copilot CLI 1.0.112, tested 2026-11-15):
 
@@ -125,7 +129,7 @@ With Copilot CLI:
 
 ## Tests
 
-The tests are pytest modules (`tests/test_*.py`, helpers in `tests/conftest.py`, and `tests/codebase_story.py` for the three codebase modules). They never call a real source CLI or account; they use fakes in `tests/sources/<type>/`. Recorded outputs (`tests/fixtures/*/*.out`) are rewritten with `bash tests/run-tests.sh --record`; review the diff. How the tests are built, and why: `docs/adr.md`, 7.
+The tests are pytest modules (`tests/test_*.py`, helpers in `tests/conftest.py`, and `tests/codebase_story.py` for the three codebase modules). They never call a real source CLI or account; they use fakes in `tests/sources/<type>/`. Recorded outputs (`tests/fixtures/*/*.out`) are rewritten with `bash tests/run-tests.sh --record`; review the diff. How the tests are built, and why: `docs/adr.md`, 6.
 
 ## Personal data
 

@@ -31,7 +31,7 @@ def fs(tmp_path_factory, run):
     w = t / "fsw"
     inst = w / ".claude/sources/instances"
     write(inst / "teams.md", "---\nkey: teams\ntype: google-drive\nfolders:\n  - Files (1AbC)\n---\n")
-    # gmail is tool-neutral now (docs/adr.md 23); the MCP type refused is local.
+    # gmail is tool-neutral now (docs/adr.md 10); the MCP type refused is local.
     write(inst / "mail.md", "---\nkey: mail\ntype: notes-mcp\nsections:\n  - Book > Section\n---\n")
     write(inst / "gm.md", "---\nkey: gm\ntype: gmail\nlabels: X\n---\n")
     write(inst / "tickets.md", "---\nkey: tickets\ntype: jira\nsite: example.atlassian.net\n"

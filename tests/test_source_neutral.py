@@ -24,7 +24,7 @@ ALLOWED = {
     # codebase-instance: the codebase wrappers' instance reader in core
     # (a deviation; it belongs with the codebase type)
     # and, in its docstring, a connector's names as the example of a pair
-    # from sources/connectors.md (docs/adr.md, 2 and 25)
+    # from sources/connectors.md (docs/adr.md, 2 and 17)
     "sourcelib.py": {"codebase", "claude_ai_"},
     "lib-source.sh": {"codebase", "local-folder"},
 }

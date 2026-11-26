@@ -44,7 +44,7 @@ LIST_ETC = [
     ("settings-gdrive-note", "google-drive (access: tools) names no tools", ["settings", "google-drive"]),
     ("catalog-gdrive", "- google-drive (standard, tools): Google Drive", ["catalog"]),
     ("catalog-teams", "- ms-teams (standard, tools): Microsoft Teams", ["catalog"]),
-    # gmail (access: tools, docs/adr.md 23): no tool rules until an instance
+    # gmail (access: tools, docs/adr.md 10): no tool rules until an instance
     # is bound; guard-wiki's gmail binds the connector, label writes and
     # draft reads denied.
     ("catalog-gmail", "- gmail (standard, tools): Gmail", ["catalog"]),
@@ -91,7 +91,7 @@ LIST_ETC = [
     ("settings-tools-note", "onenote (access: tools) names no tools, so it adds no tool rules here",
      ["settings", "onenote"]),
     # Each binding rule of a paired connector under its cloud name too
-    # (docs/adr.md, 25): allowed, denied, and the note on where they go.
+    # (docs/adr.md, 17): allowed, denied, and the note on where they go.
     ("settings-cloud-allow", '"mcp__Atlassian_MCP__getJiraIssue",', ["settings"]),
     ("settings-cloud-deny", '"mcp__Gmail__send_message",', ["settings"]),
     ("settings-cloud-note", "Cloud names (the plugin's sources/connectors.md) go in this wiki's .claude/settings.json",
@@ -237,7 +237,7 @@ SCK = [  # name, exit, text, change to the settings `settings` prints
                '"WebFetch", "Skill(wiki:ingest)", "Read(~/.cache/wiki-sources/**)", "mcp__claude_ai_Gmail",'),
           _sub('"deny": [', '"deny": [ "mcp__example_reader__delete_note", '
                '"Bash(bash */sources/ms-teams/snapshot.sh *)",'))),
-    # A cloud name missing: reported as such (docs/adr.md, 25).
+    # A cloud name missing: reported as such (docs/adr.md, 17).
     ("cloud-missing", 1, "  allow: mcp__Gmail__get_thread (cloud name)\n", _sub('      "mcp__Gmail__get_thread",\n', "")),
 ]
 CONTRACTS = sorted(p.parent.name for p in PLUGIN.glob("sources/*/SOURCE.md"))

@@ -18,7 +18,7 @@ Every tool is classified (kind()):
   harmless  the built-in tools in HARMLESS, which neither run commands nor
             write or read files;
   mcp       any mcp__* tool (settings rules govern them; the guard checks
-            only the reader bindings' limits, docs/adr.md, 13);
+            only the reader bindings' limits, docs/adr.md, 11);
   unknown   anything else, which the guard refuses.
 
 A HookCall says what the call does, whatever the tool:

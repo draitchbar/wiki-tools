@@ -18,7 +18,7 @@ from conftest import (GMAIL_READER, PLUGIN, SCRIPTS_P, TESTS, Story, git, norm, 
 ISF = SCRIPTS_P + "/install-source-file.sh"
 DDS = SCRIPTS_P + "/decode-download.sh"
 LFS = posix(PLUGIN / "sources/local-folder/read.sh")
-# gmail is access: tools (docs/adr.md 23): its rules come from the
+# gmail is access: tools (docs/adr.md 10): its rules come from the
 # instance's reader binding, so the instance is bound.
 GM = "---\nkey: gmail\ntype: gmail\nlabels: Projects\n" + GMAIL_READER + "---\n\nNotes.\n"
 BK = (TESTS / "guard-wiki/.claude/sources/types/bookish/SOURCE.md").read_text(encoding="utf-8")
@@ -94,7 +94,7 @@ def story(tmp_path_factory, run):
     st.check("install/refused-in-claude", "outside Claude" in o and rc == 1, o)
     iexpect("gmail-new", "New file .claude/sources/instances/gmail.md", 0, "y", "instances/gmail.md", GM)
     o = iexpect("gmail-rules", '"mcp__claude_ai_Gmail__send_message",', 0, "y", "instances/gmail.md", GM + "More.\n")
-    # Its cloud name too (docs/adr.md, 25), and where those lines go.
+    # Its cloud name too (docs/adr.md, 17), and where those lines go.
     st.check("install/gmail-rules-cloud", '"mcp__Gmail__send_message",' in o and "\n  " + CLOUD_NOTE + "\n" in o, o)
     o, _ = inst("y", "instances/gmail.md", GM + "More.\n")
     st.check("install/present-rule-omitted", '"mcp__claude_ai_Gmail__search_threads"' not in o, o)

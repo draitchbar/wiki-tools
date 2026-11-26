@@ -4,7 +4,7 @@ Status: research, 2026-11-20, reviewed the same day (one round, folded in); **sp
 
 ## The question
 
-Can a wiki run where the user's machine is off: a session at claude.ai/code (web or phone), or a scheduled cloud task that runs `/wiki:ingest all --unattended` (`docs/adr.md`, 14)?
+Can a wiki run where the user's machine is off: a session at claude.ai/code (web or phone), or a scheduled cloud task that runs `/wiki:ingest all --unattended` (`docs/adr.md`, 12)?
 
 ## Finding: not as the wikis are set up today
 
@@ -39,17 +39,17 @@ Not documented: whether a setup script can install a plugin, or whether `claude`
 - **Reading files:** fetched PDFs and Office files are read with `pdftotext` and LibreOffice (`skills/ingest/reading-files.md`), which the VM lacks until the setup script installs them (`poppler-utils`, `libreoffice`).
 - **Manual-only skills** (`ingest`, `clarify`, `lint`, …): usable only if the user can type them in the cloud UI, and by a scheduled task only if its prompt can start one. The first is unknown, the second doubtful.
 - **Unknown tools:** the guard refuses any tool it hasn't classified, so the cloud-only tools above would be refused until added to `hookjson.py`.
-- **Auto mode:** runs start in it, where the wikis today rely on the user's answer to a permission prompt (e.g. the reader binding, `docs/adr.md`, 12).
+- **Auto mode:** runs start in it, where the wikis today rely on the user's answer to a permission prompt (e.g. the reader binding, `docs/adr.md`, 11).
 
 ### Sources
 
 | Source | In the cloud |
 |---|---|
 | `raw` | Only what is committed: Markdown and text, `raw/ocr/*.txt`. `/wiki:init`'s `.gitignore` keeps PDFs, Office files and images out of the repo, so those never reach the VM; ingesting and auditing them stays local. |
-| `gmail` | The connector loads, with its tools named `mcp__Gmail__*` (seen 2026-11-22). The contract is tool-neutral and Gmail read-only now (`docs/adr.md`, 23), and the local binding serves the cloud too once its settings carry both names (`docs/adr.md`, 25). |
-| `google-drive` | No, not yet: the claude.ai Google Drive connector's cloud name hasn't been seen (not attached on 2026-11-25), so it isn't in the pair table: it can't run in a cloud session until that name is seen and paired (`docs/adr.md`, 25). |
-| `ms-teams` | Should work with the claude.ai Microsoft 365 connector, if the instance is bound locally and its settings carry the cloud names too (`mcp__Microsoft_365__*`, `docs/adr.md`, 25); folders only in part (the cache, above). |
-| `jira` | The Atlassian connector connects (2026-11-24; it failed on 2026-11-22), with its tools named `mcp__Atlassian_MCP__*`: `getJiraIssue`, `searchJiraIssuesUsingJql`, `listJiraIssueComments`, `executeRead` and `getAccessibleAtlassianResources` among them; `executeWrite`, `executeDestructive` and `showConfluenceEditor` weren't offered on 2026-11-24; offered 2026-11-25. The pair table covers it, as for `gmail`; `executeRead`, bound with limits, stays denied under its cloud name (`docs/adr.md`, 25). |
+| `gmail` | The connector loads, with its tools named `mcp__Gmail__*` (seen 2026-11-22). The contract is tool-neutral and Gmail read-only now (`docs/adr.md`, 10), and the local binding serves the cloud too once its settings carry both names (`docs/adr.md`, 17). |
+| `google-drive` | No, not yet: the claude.ai Google Drive connector's cloud name hasn't been seen (not attached on 2026-11-25), so it isn't in the pair table: it can't run in a cloud session until that name is seen and paired (`docs/adr.md`, 17). |
+| `ms-teams` | Should work with the claude.ai Microsoft 365 connector, if the instance is bound locally and its settings carry the cloud names too (`mcp__Microsoft_365__*`, `docs/adr.md`, 17); folders only in part (the cache, above). |
+| `jira` | The Atlassian connector connects (2026-11-24; it failed on 2026-11-22), with its tools named `mcp__Atlassian_MCP__*`: `getJiraIssue`, `searchJiraIssuesUsingJql`, `listJiraIssueComments`, `executeRead` and `getAccessibleAtlassianResources` among them; `executeWrite`, `executeDestructive` and `showConfluenceEditor` weren't offered on 2026-11-24; offered 2026-11-25. The pair table covers it, as for `gmail`; `executeRead`, bound with limits, stays denied under its cloud name (`docs/adr.md`, 17). |
 | `codebase` | No, as built. The clone would be a second repository in the session, which turns off the wiki's hooks and rules; the root in the instance is a per-machine path; `gh.sh` first asks `gh auth token -u <gh_user>`, which has no login to answer (`git.sh`'s fetch likewise), and its `gh pr` and `gh issue` calls are refused by the proxy. |
 | `local-folder` | No: the folders are on the user's machine. |
 | `proton-files`, `onenote` | No: their readers need a local sign-in. |
@@ -104,12 +104,12 @@ Run through one-off routines created with the routines API, which the session's 
 
 - **Never unguarded.** A wiki opened in an environment without the script, or after a failed setup, has no guard but every connector. Something in the repo itself must notice (a project hook in the wiki's settings that refuses when `CLAUDE_CODE_REMOTE` is `true` and the plugin isn't there, say).
 - **Push.** An exception to the guard's first rule when `CLAUDE_CODE_REMOTE` is `true`. Text matching can't hold a push to a `claude/` branch (`git push origin HEAD:main` is one refspec away), so branch protection on the default branch that the owner can't bypass is a prerequisite, if pushes are to stay off it; whether a private repository on a free plan has it needs checking. The settings deny rule can't be conditional, so it would go altogether. This weakens a guard (irreversible harm is why it is guarded, `docs/adr.md`, 3) and must say so in its commit.
-- **State and branches.** Each run starts from the default branch, so a run whose branch isn't merged is repeated by the next, and two unmerged branches both change `raw/sync-log.md` and `open-questions.md`. Gmail is read-only (`docs/adr.md`, 23), so a discarded branch loses nothing at Gmail: the next run repeats the threads from `last_checked`.
+- **State and branches.** Each run starts from the default branch, so a run whose branch isn't merged is repeated by the next, and two unmerged branches both change `raw/sync-log.md` and `open-questions.md`. Gmail is read-only (`docs/adr.md`, 10), so a discarded branch loses nothing at Gmail: the next run repeats the threads from `last_checked`.
 - **Starting the skill.** How a scheduled run starts a manual-only skill, if its prompt can't.
 - **Setup script.** Where it lives (a file in wiki-tools the user pastes into the environment), what it installs (the plugin, `poppler-utils`, LibreOffice), and how a plugin update reaches a cached snapshot (it is rebuilt when the script changes and after about seven days).
 - **Platform.** A way for contracts and `sources.sh due` to say "not available in the cloud" (`platforms` today names operating systems).
 - **Cache-held state:** the `ms-teams` folder snapshot (`file-snapshot.sh`'s).
-- **Tools and connectors.** Classifying the cloud-only tools in `hookjson.py`; which connectors a task includes (all, by default); the connectors' cloud tool names (`docs/adr.md`, 25).
+- **Tools and connectors.** Classifying the cloud-only tools in `hookjson.py`; which connectors a task includes (all, by default); the connectors' cloud tool names (`docs/adr.md`, 17).
 - **Settings.** Reader rules in the wiki's settings rather than the user's; `attribution.sessionUrl` off if the trailer isn't wanted.
 - **Auto mode** in place of the user's answer to a prompt.
 - **Privacy.** A cloud wiki's content is on GitHub and in an Anthropic-hosted VM. A decision per wiki; a work wiki also needs its organisation to allow cloud sessions.
@@ -117,7 +117,7 @@ Run through one-off routines created with the routines API, which the session's 
 
 ### Connector names
 
-Built (2026-11-25): a wiki's committed `.claude/settings.json` carries each connector rule under both names, from the pair table `plugins/wiki/sources/connectors.md`. The decision, the reasons and the rejected alternatives are in `docs/adr.md`, 25; the live checks run from the pull request's test plan.
+Built (2026-11-25): a wiki's committed `.claude/settings.json` carries each connector rule under both names, from the pair table `plugins/wiki/sources/connectors.md`. The decision, the reasons and the rejected alternatives are in `docs/adr.md`, 17; the live checks run from the pull request's test plan.
 
 Sightings. Seen in a wiki's cloud session: `/wiki:ingest gmail` stopped at Check (2026-11-22) because the Gmail tools there are `mcp__Gmail__*`. Locally, on Linux and Windows alike, claude.ai connectors are `mcp__claude_ai_<Connector>__*`; Microsoft 365 (`mcp__Microsoft_365__*`) and Atlassian (`mcp__Atlassian_MCP__*`) are renamed the same way in the cloud, and Google Drive's cloud name isn't known. Community reports (anthropics/claude-code #42323, #77598, #92787) confirm the cloud names and add a third form, the Desktop app's `mcp__<connection-uuid>__*`, which differs per user and changes on its own. No Anthropic statement on unifying them. A one-repository cloud session reads only the committed `.claude/settings.json` (docs, `settings` and `permissions`, read 2026-11-25).
 
@@ -131,7 +131,7 @@ Live checks still open:
 
 ### Saving to the remote
 
-Built (2026-11): `save.sh`, `/wiki:save` and the unattended ingest's update and save; the decision and its residual risks are in `docs/adr.md`, 26, the setup in `docs/setup.md`, "Optional: saving from Claude", and in `plugins/wiki/cloud/SETUP.md`, step 6.
+Built (2026-11): `save.sh`, `/wiki:save` and the unattended ingest's update and save; the decision and its residual risks are in `docs/adr.md`, 18, the setup in `docs/setup.md`, "Optional: saving from Claude", and in `plugins/wiki/cloud/SETUP.md`, step 6.
 
 Live checks 1 and 4 of the design, observed in a Claude Code cloud session on 2026-11-25:
 - **The URL and the proxy.** `origin` is the plain `https://github.com/<owner>/<repo>` URL; there is no loopback form. Traffic goes through `HTTPS_PROXY=http://127.0.0.1:<port>`, and the proxy injects the credentials (`GH_TOKEN=proxy-injected`). Git's config arrives through `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`: `credential.interactive=false`, and `url.https://github.com/.insteadOf` for `git@github.com:` and `ssh://git@github.com/`; no `pushInsteadOf`. `GIT_SSL_CAINFO` (the proxy's CA bundle) is needed for TLS.

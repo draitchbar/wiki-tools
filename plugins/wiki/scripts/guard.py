@@ -21,7 +21,7 @@ this wiki (.claude/sources/types/*/SOURCE.md) and every instance
   roots        of filesystem instances: blocked in shell commands,
                read-only for the write tools.
   readers      the reader bindings of access: tools instances (their
-               reader lists, docs/adr.md, 13).
+               reader lists, docs/adr.md, 11).
 A source file that can't be used (no frontmatter, unknown type, a
 filesystem instance without roots, a reader binding that doesn't parse, a
 name that isn't a kebab-case key, a folder that can't be listed) blocks
@@ -32,7 +32,7 @@ names the first such file.
 MCP tools pass, except as the reader bindings say: a tool bound only with
 a limit (`<field>=<value>`, a dispatcher's operation name) runs only with
 one of its bindings' values in that input field, which no settings rule
-can express (docs/adr.md, 3 and 13). While a source file can't be used, an
+can express (docs/adr.md, 3 and 11). While a source file can't be used, an
 MCP tool named in any reader list is refused too, since its limits are
 unknown. Denying a reader's write tools (reader_deny) is left to the deny
 rules sources.sh settings gives, as for forbidden_tools.

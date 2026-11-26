@@ -111,7 +111,7 @@ With the guard on, every refusal came from the guard, and the session took as lo
 So Copilot 1.0.112 enforces `disable-model-invocation` at its `skill` tool, for plugin and project skills, in every approval mode. It doesn't stop a model from reading the skill file and following it by hand, which happened once in autopilot with allow-all.
 
 ## Reader binding, phase 1 (2026-11-19)
-The reader-binding plan, phase 1 (its decisions: `docs/adr.md`, 12 and 13): the tool-neutral `jira` contract bound by hand to the claude.ai "Atlassian MCP" connector in a work wiki, installed, then ingested. Claude Code 2.1.328, Windows 11 (Git Bash), auto mode throughout. Site, keys, project and component names left out.
+The reader-binding plan, phase 1 (its decisions: `docs/adr.md`, 11): the tool-neutral `jira` contract bound by hand to the claude.ai "Atlassian MCP" connector in a work wiki, installed, then ingested. Claude Code 2.1.328, Windows 11 (Git Bash), auto mode throughout. Site, keys, project and component names left out.
 
 | Operation | Tool and arguments | Output |
 |---|---|---|
@@ -156,7 +156,7 @@ The spike of `docs/plans/cloud-wikis.md`: one-off routines (created through the 
 | 6 | spike | the wiki + a second, private repository | diagnostics | Both cloned before the setup script. Session started in `/home/user`, not the wiki: schema yes, sync status no; the guard still refused `git push`. |
 
 ## Google Drive, tool-neutral (2026-11-22)
-The `google-drive` contract after its move to `access: tools` (`docs/adr.md`, 18), bound live with `/wiki:bind-reader` to the claude.ai Google Drive connector in a personal wiki (one folder, six draw.io files), then an ingest and an audit of the pages citing it. Claude Code on Linux. Folder and file names left out.
+The `google-drive` contract after its move to `access: tools` (`docs/adr.md`, 10), bound live with `/wiki:bind-reader` to the claude.ai Google Drive connector in a personal wiki (one folder, six draw.io files), then an ingest and an audit of the pages citing it. Claude Code on Linux. Folder and file names left out.
 
 - **Passed:** the catalog, `sources.sh show` ("Check needed … no reader binding yet"), `settings google-drive` (no tool rules), the deny step (denied tools gone from ToolSearch after a reload), Bind's get item, list folder, search by name and list revisions, the install, `check-settings`, and Check (the tool per operation, "read-only not verified"). The audit supported 8 of 8 claims.
 - **Download:** Claude Code saved `download_file_content`'s result as the raw file (`tool-results/*.bin`, the file's size, "file sent separately"), not base64, so `decode-download.sh` refused it. Now `decode-download.sh --raw` copies such a file into the cache.
