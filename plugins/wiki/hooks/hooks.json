@@ -15,6 +15,17 @@
     ],
     "SessionStart": [
       {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "timeout": 30,
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/cloud-update.sh\""
+          }
+        ]
+      },
+      {
         "hooks": [
           {
             "type": "command",
