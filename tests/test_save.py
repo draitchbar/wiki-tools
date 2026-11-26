@@ -6,6 +6,11 @@ plays the other side (another session, the user). GitHub's checks run on a
 github.com pin in-process, with save.transport patched to send its git
 traffic to the bare repository, and a fake gh first on PATH that logs its
 calls (tests/sources/save/fake_gh.py). Never the network.
+
+Building a wiki takes about 14 git processes, slow on Windows (#115), so
+each kind is built once per module and copied for every test, always to
+the same folder (`cur`): the committed pin and the other clone's origin
+name that folder, so a copy needs no rewiring.
 """
 
 import json
@@ -13,6 +18,7 @@ import os
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 
@@ -54,14 +60,21 @@ def fakebin(tmp_path_factory):
 class Wiki:
     """A wiki (w), its bare remote (bare) and another clone (other)."""
 
-    def __init__(self, t, cli, fakebin, url=None):
+    def __init__(self, t, cli, fakebin, url=None, build=True):
+        """build=False: t already holds a copy of a wiki built with this url."""
         self.t, self.cli = t, cli
         self.bare, self.w, self.other = t / "remote.git", t / "wiki", t / "other"
         self.log = t / "gh.log"
+        self.url = url or file_url(self.bare)
+        self.env = {"WIKI_SAVE_TEST_FILE_URLS": "1", "PATH": fakebin, "FAKE_GH_LOG": posix(self.log)}
+        if build:
+            self.build()
+
+    def build(self):
+        t = self.t
         git(t, "init", "-q", "--bare", "remote.git")
         git(t, "init", "-q", "wiki")
         self.ident(self.w)
-        self.url = url or file_url(self.bare)
         write(self.w / "CLAUDE.md", "# Test wiki\n")
         write(self.w / "wiki/index.md", "# Index\n\nline\n")
         write(self.w / "wiki/log.md", "# Log\n")
@@ -71,7 +84,6 @@ class Wiki:
         git(self.w, "push", "-q", posix(self.bare), "HEAD:refs/heads/main")
         git(t, "clone", "-q", posix(self.bare), "other")
         self.ident(self.other)
-        self.env = {"WIKI_SAVE_TEST_FILE_URLS": "1", "PATH": fakebin, "FAKE_GH_LOG": posix(self.log)}
 
     @staticmethod
     def ident(d):
@@ -125,9 +137,41 @@ class Wiki:
         return [c["args"] for c in self.gh_log()]
 
 
+def _rmtree(p):
+    """rmtree that also removes read-only files (git's objects on Windows)."""
+    def unlock(fn, path, _exc):
+        os.chmod(path, stat.S_IWRITE)
+        fn(path)
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(str(p), onexc=unlock)
+    else:
+        shutil.rmtree(str(p), onerror=unlock)
+
+
+@pytest.fixture(scope="module")
+def built(tmp_path_factory, cli, fakebin):
+    """fresh(url) -> the folder `cur`, holding a new copy of the wiki pinned
+    to url (None: its bare remote). Each kind is built once, in `cur`, then
+    moved aside as the template."""
+    base = tmp_path_factory.mktemp("save")
+    cur, done = base / "cur", {}
+
+    def fresh(url):
+        if cur.exists():
+            _rmtree(cur)
+        if url not in done:
+            cur.mkdir()
+            Wiki(cur, cli, fakebin, url=url)
+            done[url] = base / ("template%d" % len(done))
+            os.rename(str(cur), str(done[url]))
+        shutil.copytree(str(done[url]), str(cur), symlinks=True)
+        return cur
+    return fresh
+
+
 @pytest.fixture
-def wk(tmp_path, cli, fakebin):
-    return Wiki(tmp_path, cli, fakebin)
+def wk(built, cli, fakebin):
+    return Wiki(built(None), cli, fakebin, build=False)
 
 
 class GhWiki(Wiki):
@@ -135,8 +179,8 @@ class GhWiki(Wiki):
     --e2e), its git traffic sent to the bare repository by patching
     save.transport; gh is the fake."""
 
-    def __init__(self, t, cli, fakebin, monkeypatch):
-        super().__init__(t, cli, fakebin, url=GH_URL)
+    def __init__(self, t, cli, fakebin, monkeypatch, build=True):
+        super().__init__(t, cli, fakebin, url=GH_URL, build=build)
         bare = file_url(self.bare)
         monkeypatch.setattr(save, "transport", lambda u: bare if u == GH_URL else u)
 
@@ -146,8 +190,8 @@ class GhWiki(Wiki):
 
 
 @pytest.fixture
-def ghw(tmp_path, cli, fakebin, monkeypatch):
-    return GhWiki(tmp_path, cli, fakebin, monkeypatch)
+def ghw(built, cli, fakebin, monkeypatch):
+    return GhWiki(built(GH_URL), cli, fakebin, monkeypatch, build=False)
 
 
 def so(r):
@@ -367,8 +411,7 @@ def test_cloud_origin(wk):
 
 
 @pytest.mark.checks("save/refuse-empty-remote")
-def test_empty_remote(tmp_path, cli, fakebin):
-    wk = Wiki(tmp_path, cli, fakebin)
+def test_empty_remote(wk):
     git(wk.bare, "update-ref", "-d", "refs/heads/main")
     refused(wk.save(), "the wiki's remote has no main yet: create main on the remote first")
 
@@ -858,15 +901,14 @@ def test_update_conflict(wk):
 
 
 @pytest.mark.checks("save/shallow-unshallow")
-def test_shallow(tmp_path, cli, fakebin):
+def test_shallow(wk, cli):
     """A shallow clone whose merge base lies below its boundary is
     deepened once (the cloud's clones are shallow)."""
-    wk = Wiki(tmp_path, cli, fakebin)
     a = wk.head()
     wk.commit("b", "wiki/b.md")
     git(wk.w, "push", "-q", posix(wk.bare), "HEAD:refs/heads/main")
-    git(tmp_path, "clone", "-q", "--depth", "1", file_url(wk.bare), "shallow")
-    s = tmp_path / "shallow"
+    git(wk.t, "clone", "-q", "--depth", "1", file_url(wk.bare), "shallow")
+    s = wk.t / "shallow"
     Wiki.ident(s)
     # The remote's main moves to a sibling of b (set up by force here).
     git(wk.w, "checkout", "-q", a)
