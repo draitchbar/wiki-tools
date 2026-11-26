@@ -23,7 +23,6 @@ import re
 import shutil
 import subprocess
 import sys
-import zlib
 from pathlib import Path
 
 import pytest
@@ -91,38 +90,6 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "checks(*names): the bash runner's check names this test replaces")
 
 
-# Parallel runs (run-tests.sh: -n auto --dist loadfile, docs/adr.md, 15):
-# a module runs on one worker, so its module fixtures and its story run
-# once; except the modules in SPREAD, whose tests stand alone: each is
-# split into one part per worker, which go to any worker. They come last,
-# to fill in around the long modules (#115).
-SPREAD = {"test_guard.py", "test_save.py", "test_pii_check.py", "test_connectors.py",
-          "test_dev_env.py", "test_sources_due.py"}
-
-
-def _spread(nodeid):
-    return nodeid.split("::")[0].rsplit("/", 1)[-1] in SPREAD
-
-
-def pytest_collection_modifyitems(items):
-    items.sort(key=lambda i: _spread(i.nodeid))
-
-
-@pytest.hookimpl(optionalhook=True)  # xdist's hooks: unknown without it
-def pytest_xdist_make_scheduler(config, log):
-    if config.getvalue("dist") != "loadfile":
-        return None
-    from xdist.scheduler import LoadScopeScheduling
-
-    class ByModule(LoadScopeScheduling):
-        def _split_scope(self, nodeid):
-            mod = nodeid.split("::")[0]
-            if not _spread(nodeid):
-                return mod
-            return "%s#%d" % (mod, zlib.crc32(nodeid.encode()) % self.numnodes)
-    return ByModule(config, log)
-
-
 def check_names(item):
     m = item.get_closest_marker("checks")
     if m:
@@ -133,9 +100,9 @@ def check_names(item):
     return [item.name]
 
 
-# Each module's time, setup to teardown, summed over its tests: a module
-# that isn't `spread` runs on one worker, so the slowest one bounds the run
-# (docs/adr.md, 15). Shown with --durations, which CI sets (#115).
+# Each module's time, setup to teardown, summed over its tests: with xdist's
+# --dist loadfile a module runs on one worker, so the slowest module bounds
+# the run (docs/adr.md, 15). Shown with --durations, which CI sets (#115).
 _MODULE_TIME: dict = {}
 
 
