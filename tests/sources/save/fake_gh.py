@@ -1,7 +1,6 @@
-"""Stand-in for the gh CLI in the save tests (tests/test_save*.py), so
-tests never touch GitHub. tests/save_wiki.py puts a `gh` launcher for it
-first on PATH (a shell script, or gh.cmd on Windows) that runs it with
-the test's Python.
+"""Stand-in for the gh CLI in tests/test_save.py, so tests never touch
+GitHub. test_save.py puts a `gh` launcher for it first on PATH (a shell
+script, or gh.cmd on Windows) that runs it with the test's Python.
 
 Every call is appended to $FAKE_GH_LOG as one JSON line: {"args": the
 arguments, "input": the JSON read from stdin with `--input -`, else null}.
