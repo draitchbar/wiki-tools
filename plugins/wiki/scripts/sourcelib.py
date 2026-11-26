@@ -220,7 +220,7 @@ def toplevel(root: str | None) -> str:
 QUESTIONS = "open-questions.md"
 QID = re.compile(r"q-[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]{1,40}", re.ASCII)
 MARKER = re.compile(r"\^\[open: (q-[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]{1,40})\]", re.ASCII)
-KINDS = ("unclear", "conflict", "filing")
+KINDS = ("unclear", "conflict", "filing", "suspicious")
 _Q_HEAD = re.compile(r"### (.*)")
 _Q_END = re.compile(r"#{1,2}( |$)")
 _Q_FIELD = re.compile(r"- ([a-z]+): ?(.*)", re.ASCII)

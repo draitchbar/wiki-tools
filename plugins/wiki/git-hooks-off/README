@@ -1,0 +1,4 @@
+An empty hooks folder: save.sh runs git with core.hooksPath set here, so
+no hook (a wiki's .git/hooks, or a core.hooksPath of its own) runs during
+a save. Git only runs files named after a hook (pre-push, ...); this
+README is never one. save.sh refuses while anything else is in here.

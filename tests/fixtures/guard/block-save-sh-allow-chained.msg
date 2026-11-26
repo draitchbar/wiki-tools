@@ -1,0 +1,1 @@
+wiki guard: save.sh runs only as a plain call of the plugin's copy, one per Bash call: bash <plugin>/scripts/save.sh with --check, --update, --unattended or --allow <paths> (no ; & | < > $ or backtick, no variable). Any other command naming save.sh is refused, a commit message too: leave the name out.

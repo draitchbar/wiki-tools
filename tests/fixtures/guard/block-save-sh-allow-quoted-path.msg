@@ -1,0 +1,1 @@
+wiki guard: save.sh's arguments are --check, --update, --unattended or --allow followed by plain paths (no quotes, * ? [ ] { } ( ) ~ # \ = !, no '..', at most 50 paths); here path ''CLAUDE.md'' contains '''. Run the call exactly as save.sh printed it.

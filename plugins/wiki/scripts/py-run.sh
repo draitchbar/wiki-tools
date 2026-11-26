@@ -26,8 +26,11 @@
 # look like POSIX paths. The Python command alone runs with
 # MSYS2_ARG_CONV_EXCL='*' (a prefix, never exported: the caller's later
 # native calls still need conversion), so arguments arrive as written; the
-# .py path is handed over in native form. The scripts refuse Git Bash mount
-# paths (/tmp, /home, ...): callers pass those as `pwd -W` prints them.
+# .py path is handed over in native form. Python and what it starts inherit
+# the variable: a script whose programs run MSYS ones that need the
+# conversion drops it for them (save.py, for git). The scripts refuse Git
+# Bash mount paths (/tmp, /home, ...): callers pass those as `pwd -W`
+# prints them.
 #
 # Builtins only on the fast path: every process start costs ~25 ms in Git
 # Bash.

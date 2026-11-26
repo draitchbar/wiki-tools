@@ -1,4 +1,6 @@
-"""hookjson.py: read Claude Code hook input.
+"""hookjson.py: read Claude Code hook input, and write the one reply the
+guard gives besides allow (exit 0, no output) and block (exit 2, the reason
+on stderr): ask(reason), the PreToolUse "ask" reply.
 
 parse(raw) takes the hook JSON as bytes and returns a HookCall, or None when
 the input can't be used: not valid JSON, not an object, no tool_name, a
@@ -181,6 +183,15 @@ def parse(raw: bytes) -> HookCall | None:
         h.contents = (vals["content"],) + tuple(new_strings)
     h.pattern = vals["pattern"] + " " + vals["glob"]
     return h
+
+
+def ask(reason: str) -> bytes:
+    """The PreToolUse reply that sends the call to the user's permission
+    prompt, reason shown there: printed on stdout, exit 0 (Claude Code reads
+    JSON only then). ASCII, so any encoding passes it unchanged."""
+    return json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse", "permissionDecision": "ask",
+        "permissionDecisionReason": reason}}).encode("ascii")
 
 
 _ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")

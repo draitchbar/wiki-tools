@@ -520,7 +520,7 @@ def questions(root: str, all_: list[str], texts: dict[str, str], page_slugs: set
         d = q.raised_date
         if d is not None and (age := (today - d).days) > QUESTION_DAYS:
             old.append("- `%s` raised %s (%d days ago)" % (q.id, d.isoformat(), age))
-        if q.valid and q.id not in marked and q.id not in seen:
+        if q.valid and q.kind != "suspicious" and q.id not in marked and q.id not in seen:
             mark.append("- `%s`: no page carries its marker" % q.id)
         probs: list[str] = []
         if not q.valid:

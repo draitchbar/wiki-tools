@@ -8,7 +8,7 @@ For wikis that follow the raw/wiki pattern. Each wiki's CLAUDE.md names its fold
   - `raw/ocr/<file>.txt`: OCR text layers of scanned PDFs (created by the ingest skill).
 - `wiki/`: pages written and maintained by Claude.
   - `wiki/index.md`: master catalogue, a `## <Section>` heading per section with a table headed exactly `| Page | Summary | Updated |`: per page a row with the page's `[[link]]`, a one-line summary and the page's `updated:` date (`YYYY-MM-DD`). Lint warns when a row's Updated differs from the page's `updated:`; tables or rows in any other format are not checked.
-  - `wiki/log.md`: append-only operations log, newest entry first, headed `## YYYY-MM-DD | <op> | <title>`, where `<op>` is `init`, `ingest`, `research`, `schema`, `lint`, `lint-fix`, `audit`, `audit-fix` or `clarify`. Entries are never edited; a later change gets its own entry. A merge conflict in `wiki/log.md` (two machines prepending entries) is resolved by keeping both entries, newest first. Lint flags removed or changed lines (uncommitted, or in the last 30 days of commits).
+  - `wiki/log.md`: append-only operations log, newest entry first, headed `## YYYY-MM-DD | <op> | <title>`, where `<op>` is `init`, `ingest`, `research`, `schema`, `lint`, `lint-fix`, `audit`, `audit-fix`, `clarify` or `merge` (a merge with the wiki's remote, `/wiki:save`). Entries are never edited; a later change gets its own entry. A merge conflict in `wiki/log.md` (two machines prepending entries) is resolved by keeping both entries, newest first. Lint flags removed or changed lines (uncommitted, or in the last 30 days of commits).
 - `open-questions.md`: questions unattended ingests left for the user (**Open questions** below).
 - `outputs/`: reports: `lint-YYYY-MM-DD[-N].md`, `audit-<slug>-YYYY-MM-DD.md`, `init-research-YYYY-MM-DD.md`.
 - `work/` (optional): work in progress that is neither a source nor a page (decks being edited, diagram generators, handoff notes). Never cited as a source, not linted; CLAUDE.md says what goes there and which parts are gitignored.
@@ -54,7 +54,7 @@ Use `/wiki:ingest <key> [filter]` (`raw` or an instance key), or `/wiki:ingest a
 `/wiki:ingest <key> --unattended` never asks: an unclear fact is left out, a conflicting figure kept beside the other, misfitting material filed under the closest type, each with a marker `^[open: <id>]` on the page and a block in `open-questions.md`, newest first:
 ```markdown
 ### q-YYYY-MM-DD-<slug>
-- kind: unclear | conflict | filing
+- kind: unclear | conflict | filing | suspicious
 - raised: YYYY-MM-DD, <key>
 - items: <citations in the contract's Cite form, ; -separated>
 - pages: [[page]], [[page]]
@@ -62,8 +62,8 @@ Use `/wiki:ingest <key> [filter]` (`raw` or an instance key), or `/wiki:ingest a
 - context: …
 - suggestion: …
 ```
-Optional bullets: `related: <id>`, and `answer: …` typed by the user.
-`/wiki:clarify` answers or dismisses each with the user and logs it as `clarify` (`<id>: answered|dismissed|closed by <key>`). An ingest whose material settles a question closes it the same way; it never applies an `answer:` line. A merge conflict keeps both blocks. Sync-status counts them; lint flags old ones and markers without a question.
+A `suspicious` question is for an item with instructions in it, held back whole: nothing from it is written, so it has no marker and no `pages`, and `question` cites the item without quoting it. Optional bullets: `related: <id>`, and `answer: …` typed by the user.
+`/wiki:clarify` answers or dismisses each with the user and logs it as `clarify` (`<id>: answered|dismissed|closed by <key>`); a `suspicious` entry carries `Items:` with the citations (with `Pages:` when answered), which is how a later unattended run knows a dismissed item stays out. An ingest whose material settles a question closes it the same way; it never applies an `answer:` line. A merge conflict keeps both blocks. Sync-status counts them; lint flags old ones and markers without a question.
 
 ## Data model
 The folders under `wiki/`, the page types, the templates and which types carry `status_as_of` form the wiki's data model, set by `/wiki:init` from the wiki's purpose. It isn't fixed: the first ingest of each source, and any ingest that brings material no page type fits, reviews the model against the purpose in CLAUDE.md and proposes changes. Changes are applied only after the user agrees, in a separate commit logged as `schema`.

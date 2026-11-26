@@ -315,3 +315,123 @@ def test_outside_git_not_initialised(cli, tmp_path):
                        "plugin: this wiki isn't initialised yet. Run (or finish) `/wiki:init`.\n")
     write(w / SETTINGS, '{"enabledPlugins": {"wiki@wiki-tools": false}}\n')
     assert text(wc(cli, w, env)) == "wiki-check: not inside a git repo; run from a wiki.\n"
+
+
+# --- the save config (save.sh) ------------------------------------------------
+
+SAVE = ".claude/settings.wiki.json"
+SAVE_GOOD = '{"save": {"enabled": true, "url": "https://example.com/wiki.git", "base": "main"}}\n'
+
+
+@pytest.mark.checks("wiki-check/save-off", "wiki-check/save-gitignore-line")
+def test_save_off(good, cli):
+    out = text(wc(cli, good[1]))
+    assert "- INFO saving to the wiki's remote is off (no `.claude/settings.wiki.json`)" in out
+    assert ("- INFO `.gitignore` lacks `!.claude/settings.wiki.json`, so the save config can't be "
+            "committed; add the line before turning saving on") in out
+    assert "Failures: 0." in out
+
+
+def _saving(w, cfg=SAVE_GOOD, attrs=True, commit=True):
+    write(w / ".gitignore", (w / ".gitignore").read_text() + "!" + SAVE + "\n")
+    write(w / SAVE, cfg)
+    if attrs:
+        write(w / ".gitattributes", "wiki/log.md  merge=union\n")
+    if commit:
+        git(w, "add", "-A")
+        git(w, "commit", "-qm", "save")
+
+
+@pytest.mark.checks("wiki-check/save-on", "wiki-check/save-committed")
+def test_save_on(mk, cli):
+    w = mk("s1")
+    _saving(w)
+    r = wc(cli, w)
+    out = text(r)
+    assert r.rc == 0, out
+    assert "- PASS saving is on: `main` at https://example.com/wiki.git" in out
+    assert "- PASS `.claude/settings.wiki.json` is committed" in out
+    assert "settings.wiki.json`, so" not in out and "merge=union" not in out
+    assert "INFO saving to the wiki's remote is off" not in out
+
+
+@pytest.mark.checks("wiki-check/save-gitattributes-line")
+def test_save_no_union(mk, cli):
+    w = mk("s2")
+    _saving(w, attrs=False)
+    r = wc(cli, w)
+    assert r.rc == 0
+    assert "- INFO `.gitattributes` lacks `wiki/log.md merge=union`" in text(r)
+
+
+@pytest.mark.parametrize("cfg,want", [
+    pytest.param('{"save": {"enabled": true, "url": "http://example.com/w", "base": "main"}}\n',
+                 "- FAIL `.claude/settings.wiki.json` is invalid: `save.url` must be an https://, ssh:// or "
+                 "user@host:path URL. Fix: correct it (you, not Claude)", id="wiki-check/save-bad-url"),
+    pytest.param('{"save": {"enabled": "yes", "url": "git@example.com:w.git", "base": "-x", '
+                 '"content_paths": "wiki/"}}\n',
+                 "is invalid: `save.enabled` must be true or false; `save.base` must be a branch name; "
+                 "`save.content_paths` must be a list of paths", id="wiki-check/save-bad-fields"),
+    pytest.param('{"save": {"enabled": true, "url": "file:///x/w.git", "base": "main"}}\n',
+                 "is invalid: `save.url` must be", id="wiki-check/save-file-url"),
+    pytest.param("{enabled}\n", "- FAIL `.claude/settings.wiki.json` is not valid JSON: ",
+                 id="wiki-check/save-not-json"),
+    pytest.param('[{"save": {"enabled": true}}]\n',
+                 "- FAIL `.claude/settings.wiki.json` is invalid: not a JSON object", id="wiki-check/save-not-object"),
+    pytest.param('{"save": true}\n',
+                 "- FAIL `.claude/settings.wiki.json` is invalid: `save` must be a JSON object",
+                 id="wiki-check/save-section-not-object"),
+    pytest.param('{"save": {"enabled": false, "url": "ssh://git@example.com/w.git", "base": "main", "push": 1}}\n',
+                 "- INFO `.claude/settings.wiki.json` has unknown key(s) `save.push`; saving ignores them",
+                 id="wiki-check/save-unknown-key"),
+    pytest.param('{"save": {"enabled": false, "url": "ssh://git@example.com/w.git", "base": "main"}}\n',
+                 "- INFO saving to the wiki's remote is off (`save.enabled` is false",
+                 id="wiki-check/save-disabled"),
+    pytest.param('{"later": {"x": 1}}\n',
+                 "- INFO saving to the wiki's remote is off (no `save` section in `.claude/settings.wiki.json`)",
+                 id="wiki-check/save-no-section"),
+])
+def test_save_config(cfg, want, mk, cli):
+    w = mk("s3")
+    _saving(w, cfg)
+    assert want in text(wc(cli, w))
+
+
+@pytest.mark.checks("wiki-check/save-other-sections-ignored")
+def test_save_other_sections(mk, cli):
+    """Other top-level keys are reserved for later features: no message."""
+    w = mk("s5")
+    _saving(w, '{"later": {"x": 1}, "save": {"enabled": true, "url": "https://example.com/wiki.git", '
+               '"base": "main"}}\n')
+    r = wc(cli, w)
+    out = text(r)
+    assert r.rc == 0, out
+    assert "- PASS saving is on: `main` at https://example.com/wiki.git" in out
+    assert "later" not in out and "unknown" not in out
+
+
+@pytest.mark.checks("wiki-check/save-flat-format")
+def test_save_flat_format(mk, cli):
+    """The first, flat format: saving is off, and a FAIL says to move the
+    fields under `save`."""
+    w = mk("s6")
+    _saving(w, SAVE_GOOD.replace('{"save": ', "")[:-2] + "\n")
+    r = wc(cli, w)
+    out = text(r)
+    assert r.rc == 1, out
+    assert "- INFO saving to the wiki's remote is off (no `save` section in `.claude/settings.wiki.json`)" in out
+    assert ("- FAIL `.claude/settings.wiki.json` has `enabled` `url` `base` at its top level, where saving "
+            "ignores them. Fix: move them into a `save` object (you, not Claude)") in out
+    assert "saving is on" not in out
+
+
+@pytest.mark.checks("wiki-check/save-uncommitted", "wiki-check/save-dirty")
+def test_save_uncommitted(mk, cli):
+    w = mk("s4")
+    _saving(w, commit=False)
+    out = text(wc(cli, w))
+    assert "- FAIL `.claude/settings.wiki.json` isn't committed" in out
+    git(w, "add", "-A")
+    git(w, "commit", "-qm", "save")
+    write(w / SAVE, SAVE_GOOD.replace("main", "trunk"))
+    assert "- FAIL `.claude/settings.wiki.json` has uncommitted changes" in text(wc(cli, w))

@@ -1,0 +1,1 @@
+wiki guard: save.sh's arguments are --check, --update, --unattended or --allow followed by plain paths (no quotes, * ? [ ] { } ( ) ~ # \ = !, no '..', at most 50 paths); here longer than 2000 characters. Run the call exactly as save.sh printed it.

@@ -16,11 +16,12 @@ plugins/wiki/
   templates/project-settings.json core of a wiki's .claude/settings.json (source rules come from the types)
   templates/source-type/SOURCE.md the source contract template
   templates/pages/entity.md       shared page template for people and organisations
-  skills/{init,add-source,bind-reader,ingest,clarify,research,sync-status,commit-themes,lint,audit}/SKILL.md
+  skills/{init,add-source,bind-reader,ingest,clarify,research,sync-status,save,commit-themes,lint,audit}/SKILL.md
   agents/{source-researcher,critic}.md  subagents /wiki:research dispatches (read-only research; independent critic)
   cloud/SETUP.md                  guided setup for a wiki in a Claude Code cloud session (environment setup script, CLAUDE_CODE_PLUGIN_DIRS); what was checked, what is untested
   skills/ingest/reading-files.md  core rules for reading fetched files (pdftotext, LibreOffice, OCR)
   hooks/hooks.json                PreToolUse guard + SessionStart schema and status
+  git-hooks-off/                  an empty hooks folder (a README only): save.sh runs git with core.hooksPath set to it
   sources/                        standard source types
     gmail/SOURCE.md               Gmail threads by label, sender and recipient through whatever Gmail reader the machine supplies (tool-neutral, read-only; seen working: the claude.ai connector)
     google-drive/SOURCE.md        Google Drive folders through whatever Drive reader the machine supplies (tool-neutral; seen working: the claude.ai connector)
@@ -54,6 +55,8 @@ plugins/wiki/
     lint.py                       the work of lint.sh
     wiki-check.sh                 setup check for /wiki:init check mode (read-only); also lists Markdown outside the layout and checks the guard hook and the scripts find Python; a launcher for wiki_check.py
     wiki_check.py                 the work of wiki-check.sh, lint in-process
+    save.sh                       saves a wiki's commits to its own remote, at the URL and branch pinned in its committed .claude/settings.wiki.json (/wiki:save; the only push); a launcher for save.py
+    save.py                       the work of save.sh: the pin and URL checks, the merge, the path tiers, the host's protection (gh api on GitHub), the push or the holding branch
 scripts/pii-check.sh, pii_check.py  repo tooling, not the plugin: the personal-data check (docs/development.md, "Personal data")
 scripts/dev-env.sh                repo tooling: finds uv and .venv, stops when .venv is out of date with uv.lock (sourced by run-tests.sh and dev-lint.sh)
 scripts/dev-lint.sh               repo tooling: the lint CI runs (ruff, mypy, shellcheck, LF line endings), from .venv
