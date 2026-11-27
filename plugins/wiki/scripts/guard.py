@@ -331,16 +331,26 @@ class Context:
         self.plugin = C.PLUGIN
         p = norm(self.plugin)
         forms = [p, drive_form(p) or "", slash_form(p) or ""]
+        # A plugin that runs from plugins/wiki of a git clone (the cloud
+        # setup script's, a local checkout): the clone is protected as the
+        # plugin is, so a session can't check out another commit or edit
+        # .git/ to change its own guard.
+        top = p[: -len("/plugins/wiki")]
+        clone: list[str] = []
+        if p.endswith("/plugins/wiki") and top and os.path.exists(
+                native(self.plugin[: len(top)]) + "/.git"):
+            clone = [top, drive_form(top) or "", slash_form(top) or ""]
         home = norm(C._home())
         homes: list[str] = []
         if home:
             homes = [home, drive_form(home) or "", slash_form(home) or ""]
-            tilde: list[str] = []
-            for f in forms:
-                for hf in homes:
-                    if f and hf and f.startswith(hf + "/"):
-                        tilde.append("~/" + f[len(hf) + 1:])
-            forms += tilde
+            for fs in (forms, clone):
+                tilde: list[str] = []
+                for f in fs:
+                    for hf in homes:
+                        if f and hf and f.startswith(hf + "/"):
+                            tilde.append("~/" + f[len(hf) + 1:])
+                fs += tilde
         self.plugin_forms = forms
         self.home_prefixes = [h + "/" for h in homes if h] + [
             "~/", "$home/", "${home}/", "$env:userprofile/", "${env:userprofile}/"]
@@ -354,6 +364,7 @@ class Context:
                                  # servers, skills and agents (their frontmatter hooks).
                                  # .claude/skills: the wiki's own only, see wiki_skills.
                                  ".git/hooks", ".git/config", ".mcp.json", ".claude/agents"]
+        self.protected_paths += [f for f in clone if f]
         self._wiki_root = None
         self._sources = None
         self._scripts = {}

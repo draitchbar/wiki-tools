@@ -24,7 +24,7 @@ import hookjson
 import pytest
 
 from conftest import (BASH, IS_WIN, PLUGIN, PLUGIN_BASH, PLUGIN_P, SCRIPTS, TESTS, call_main,
-                      copytree, hooks_guard_command, norm, write)
+                      copytree, home_env, hooks_guard_command, norm, posix, write)
 
 FIXTURES = TESTS / "fixtures"
 GUARD_WIKI = TESTS / "guard-wiki"
@@ -392,6 +392,52 @@ def test_crash_blocks(run, gw, tmp_path):
                  "CLAUDE_PLUGIN_DATA": str(tmp_path / "pdata"), "CLAUDE_PROJECT_DIR": str(gw)})
     assert r.rc == 2
     assert b"guard.py failed (RuntimeError); refusing (fail closed)." in r.merged
+
+
+# --- a plugin that runs from a git clone (the cloud setup script's) --------
+
+def _clone_cases():
+    """(id, git clone?, tool, input with @TOP@ the clone, want). Reads of the
+    clone follow the plugin root's rules: refused in a shell command (its
+    text names a protected path), allowed through Read."""
+    top, plug = "@TOP@", "@TOP@/plugins/wiki"
+    return [
+        ("checkout", True, "Bash", {"command": "git -C %s checkout x" % top}, 2),
+        ("git-dir", True, "Bash", {"command": "git --git-dir=%s/.git reset --hard x" % top}, 2),
+        ("rev-parse", True, "Bash", {"command": "git -C %s rev-parse --short HEAD" % top}, 2),
+        ("tilde", True, "Bash", {"command": "git -C ~/clone checkout x"}, 2),
+        ("write-git", True, "Write", {"file_path": top + "/.git/HEAD", "content": "x"}, 2),
+        ("write-top", True, "Edit", {"file_path": top + "/README.md", "old_string": "a",
+                                     "new_string": "b"}, 2),
+        ("read-git-head", True, "Read", {"file_path": top + "/.git/HEAD"}, 0),
+        ("ordinary", True, "Bash", {"command": "git status"}, 0),
+        ("core-script", True, "Bash", {"command": "bash %s/scripts/sources.sh list" % plug}, 0),
+        ("no-git", False, "Bash", {"command": "git -C %s checkout x" % top}, 0),
+    ]
+
+
+@pytest.mark.parametrize("git_clone,tool,ti,want", [
+    pytest.param(*c[1:], marks=pytest.mark.checks("guard/clone-" + c[0]), id=c[0])
+    for c in _clone_cases()])
+def test_plugin_clone(git_clone, tool, ti, want, run, gw, tmp_path):
+    """The guard of a plugin at <top>/plugins/wiki, <top> a git clone (it
+    has .git): <top> is protected as the plugin folder is, so a session
+    can't check out another commit or edit .git/ to change its own guard.
+    Run through hooks.json's command from a copy of the plugin."""
+    top = tmp_path / "clone"
+    plug = copytree(PLUGIN, top / "plugins" / "wiki")
+    if git_clone:
+        (top / ".git").mkdir()
+    data = json.dumps({"session_id": "t", "cwd": posix(gw), "hook_event_name": "PreToolUse",
+                       "tool_name": tool, "tool_use_id": "x",
+                       "tool_input": json.loads(json.dumps(ti).replace("@TOP@", posix(top)))})
+    env = dict(home_env(posix(tmp_path)), CLAUDE_PLUGIN_ROOT=posix(plug),
+               CLAUDE_PLUGIN_DATA=str(tmp_path / "pdata"), CLAUDE_PROJECT_DIR=posix(gw))
+    cmd = ("unset HOME; " if IS_WIN else "") + hooks_guard_command()
+    r = run(["bash", "-c", cmd], env=env, input=data.encode("utf-8"))
+    assert r.rc == want, r
+    if want:
+        assert b"protected" in r.err
 
 
 @pytest.mark.checks("guard/no-typing-at-run-time")
