@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from conftest import PLUGIN, SCRIPTS, git, posix, write
+from conftest import PLUGIN, SCRIPTS, copytree, git, posix, write
 
 REMOTE = {"CLAUDE_CODE_REMOTE": "true"}
 SCRIPT = (SCRIPTS / "cloud-update.sh").read_bytes()
@@ -33,13 +33,14 @@ def commit(work, files, msg, push=True):
     return head(work)
 
 
-@pytest.fixture
-def cu(tmp_path):
+@pytest.fixture(scope="module")
+def cu_template(tmp_path_factory):
     """upstream work tree, its bare origin, and the setup script's clone of
-    it (on main); root is the clone's plugins/wiki."""
-    bare, work, clone = (tmp_path / n for n in ("origin.git", "work", "clone"))
-    git(tmp_path, "init", "-q", "--bare", "-b", "main", posix(bare))
-    git(tmp_path, "clone", "-q", posix(bare), posix(work))
+    it (on main), built once per module; `cu` copies it for each test."""
+    t = tmp_path_factory.mktemp("cu")
+    bare, work, clone = (t / n for n in ("origin.git", "work", "clone"))
+    git(t, "init", "-q", "--bare", "-b", "main", posix(bare))
+    git(t, "clone", "-q", posix(bare), posix(work))
     # No line-ending conversion in the clone, whatever git config the
     # machine has (the hook drops the tests' core.autocrlf=false).
     first = commit(work, {".gitattributes": "* -text\n",
@@ -49,9 +50,24 @@ def cu(tmp_path):
                           "plugins/wiki/schema/a.md": "old a\n",
                           "plugins/wiki/sources/old/SOURCE.md": "a type removed upstream later\n",
                           "README.md": "not the plugin\n"}, "first")
-    git(tmp_path, "clone", "-q", posix(bare), posix(clone))
-    return {"bare": bare, "work": work, "clone": clone, "root": clone / "plugins" / "wiki",
-            "first": first}
+    git(t, "clone", "-q", posix(bare), posix(clone))
+    return t, first
+
+
+@pytest.fixture
+def cu(cu_template, tmp_path):
+    """A fresh copy of the template in tmp_path/cu; root is the clone's
+    plugins/wiki. The clones' origin is an absolute path, so their config
+    is pointed at the copy's origin.git."""
+    t, first = cu_template
+    d = copytree(t, tmp_path / "cu")
+    for repo in ("work", "clone"):
+        cfg = d / repo / ".git" / "config"
+        text = cfg.read_text(encoding="utf-8")
+        assert posix(t / "origin.git") in text
+        cfg.write_text(text.replace(posix(t / "origin.git"), posix(d / "origin.git")), encoding="utf-8")
+    return {"bare": d / "origin.git", "work": d / "work", "clone": d / "clone",
+            "root": d / "clone" / "plugins" / "wiki", "first": first}
 
 
 def hook(run, cu, env=REMOTE, root=None):
