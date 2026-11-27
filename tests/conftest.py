@@ -119,6 +119,46 @@ def pytest_terminal_summary(terminalreporter, config):
         terminalreporter.write_line("%8.2fs %s" % (t, m))
 
 
+# The slowest modules, longest first: the top of CI's "time per module" table
+# (#115, #123). With --dist loadfile xdist hands out whole modules in
+# collection order, so a long module picked up last bounds the run; these start
+# first. A stale list only costs time.
+HEAVY = [
+    "test_guard", "test_save_paths", "test_save", "test_save_github",
+    "test_codebase", "test_cloud_update", "test_wiki_check", "test_install",
+    "test_codebase_fetch", "test_contract_parity", "test_codebase_grep",
+    "test_sources",
+]
+
+
+def heavy_first(scopes):
+    """The scopes (test file paths) with the HEAVY modules first, in HEAVY order."""
+    rank = {name: i for i, name in enumerate(HEAVY)}
+    return sorted(scopes, key=lambda s: rank.get(Path(s).stem, len(HEAVY)))
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_xdist_make_scheduler(config, log):
+    """Start the HEAVY modules first under `-n N --dist loadfile`; else xdist's default."""
+    try:
+        if config.getvalue("dist") != "loadfile":
+            return None
+        from xdist.scheduler import LoadFileScheduling
+
+        class HeavyFirst(LoadFileScheduling):
+            def _assign_work_unit(self, node):
+                queue = self.workqueue
+                for scope in reversed(heavy_first(queue)):
+                    queue.move_to_end(scope, last=False)
+                super()._assign_work_unit(node)
+
+        if not callable(getattr(LoadFileScheduling, "_assign_work_unit", None)):
+            return None
+        return HeavyFirst(config, log)
+    except Exception:  # xdist's internals changed: keep its own order
+        return None
+
+
 def pytest_collection_finish(session):
     if session.config.getoption("--check-names"):
         for item in session.items:
