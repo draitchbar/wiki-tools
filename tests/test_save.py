@@ -10,7 +10,7 @@ import save
 
 from conftest import PLUGIN, git, posix, write
 import save_wiki
-from save_wiki import file_url, out, refused, se, so
+from save_wiki import Wiki, file_url, out, refused, se, so
 
 # save_wiki's fixtures, which pytest looks up in this module.
 fakebin, built, wk, ghw = save_wiki.fakebin, save_wiki.built, save_wiki.wk, save_wiki.ghw
@@ -18,24 +18,26 @@ fakebin, built, wk, ghw = save_wiki.fakebin, save_wiki.built, save_wiki.wk, save
 
 # --- arguments ----------------------------------------------------------------
 
-@pytest.mark.parametrize("args", [
-    pytest.param(["--force"], id="save/refuse-unknown-flag"),
-    pytest.param(["main"], id="save/refuse-word"),
-    pytest.param(["--check", "--update"], id="save/refuse-two-forms"),
-    pytest.param(["--unattended", "--update"], id="save/refuse-flag-order"),
-    pytest.param(["--allow"], id="save/refuse-allow-without-path"),
-    pytest.param(["--check", "--allow", "CLAUDE.md"], id="save/refuse-allow-not-first"),
-    pytest.param(["--update", "--update"], id="save/refuse-repeated"),
-    pytest.param(["--che"], id="save/refuse-abbreviation"),
-    pytest.param(["--allow=CLAUDE.md"], id="save/refuse-allow-equals"),
-    pytest.param(["--check=yes"], id="save/refuse-flag-value"),
-    pytest.param(["-c"], id="save/refuse-short-flag"),
+@pytest.mark.parametrize("args,launcher", [
+    pytest.param(["--force"], True, id="save/refuse-unknown-flag"),
+    pytest.param(["main"], False, id="save/refuse-word"),
+    pytest.param(["--check", "--update"], False, id="save/refuse-two-forms"),
+    pytest.param(["--unattended", "--update"], False, id="save/refuse-flag-order"),
+    pytest.param(["--allow"], False, id="save/refuse-allow-without-path"),
+    pytest.param(["--check", "--allow", "CLAUDE.md"], False, id="save/refuse-allow-not-first"),
+    pytest.param(["--update", "--update"], False, id="save/refuse-repeated"),
+    pytest.param(["--che"], False, id="save/refuse-abbreviation"),
+    pytest.param(["--allow=CLAUDE.md"], False, id="save/refuse-allow-equals"),
+    pytest.param(["--check=yes"], False, id="save/refuse-flag-value"),
+    pytest.param(["-c"], False, id="save/refuse-short-flag"),
 ])
-def test_unknown_arguments(args, wk):
-    r = wk.save(*args)
+def test_unknown_arguments(args, launcher, tmp_path, cli, fakebin):
+    """Refused before save looks at any repository: no wiki needed. The
+    first case goes through save.sh with --e2e."""
+    w = Wiki(tmp_path, cli, fakebin, build=False)
+    r = w.save(*args, cwd=tmp_path, launcher=launcher)
     refused(r, "unknown arguments: ")
     assert "usage: save.sh [--check | --update | --unattended | --update --unattended | --allow <path>...]" in se(r)
-    assert wk.remote() == out("rev-parse", "HEAD", cwd=wk.other)
 
 
 # --- the config ---------------------------------------------------------------
@@ -316,7 +318,7 @@ def test_empty_remote(wk):
 @pytest.mark.checks("save/push", "save/other-host-reminder")
 def test_push(wk):
     wk.commit("page", "wiki/page.md", "raw/a.txt", "outputs/r.md", "open-questions.md")
-    r = wk.save()
+    r = wk.save(launcher=True)
     assert r.rc == 0, r
     assert so(r) == "saved %s to main\n" % wk.short()
     assert wk.remote() == wk.head()

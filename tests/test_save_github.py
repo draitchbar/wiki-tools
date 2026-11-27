@@ -32,6 +32,8 @@ def test_github_ok(ghw):
     assert se(r) == ""
 
 
+# The first case in all three forms that check (save calls protection the
+# same way in each); the others once.
 @pytest.mark.parametrize("mode,why", [
     pytest.param("no-deletion", "example/wiki doesn't protect main: no deletion rule",
                  id="save/refuse-github-no-deletion-rule"),
@@ -51,7 +53,8 @@ def test_github_ok(ghw):
 def test_github_refused(mode, why, ghw):
     before = ghw.remote()
     ghw.commit("page", "wiki/page.md")
-    for args in ([], ["--check"], ["--unattended"]):
+    forms = ([], ["--check"], ["--unattended"]) if mode == "no-deletion" else ([],)
+    for args in forms:
         r = ghw.save(*args, env={"FAKE_GH_MODE": mode})
         refused(r, why)
         assert 'Set up the ruleset as docs/setup.md, "Optional: the wiki on GitHub" shows.' in se(r)
@@ -59,7 +62,7 @@ def test_github_refused(mode, why, ghw):
 
 
 @pytest.mark.checks("save/refuse-github-no-gh")
-def test_github_no_gh(ghw, monkeypatch):
+def test_github_no_gh(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda _name: None)
     with pytest.raises(save.Refused, match="gh isn't installed"):
         save.protection(None, GH_URL, "main")
@@ -83,7 +86,7 @@ def test_github_gh_host(ghw):
     pytest.param(GH_URL, "ma#in", "can't check GitHub's protection of a branch named ma#in",
                  id="save/refuse-github-odd-base"),
 ])
-def test_github_names(url, base, why, ghw, monkeypatch):
+def test_github_names(url, base, why, monkeypatch):
     """A github.com pin is always checked: names gh would expand or that
     break the API path refuse, never fall back to the other-host note."""
     monkeypatch.setattr(shutil, "which", lambda _name: None)
