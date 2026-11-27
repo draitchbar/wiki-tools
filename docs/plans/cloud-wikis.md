@@ -1,151 +1,41 @@
-# Research: running a wiki in a Claude Code cloud session
+# Plan: the remaining live checks for wikis in a cloud session
 
-Status: research, 2026-11-20, reviewed the same day (one round, folded in); **spike run 2026-11-21: option 2's second variant works** (**Spike results**), written up as a guided setup in `plugins/wiki/cloud/SETUP.md`. Of what it discusses, only that page and, since 2026-11, saving to the remote (**Saving to the remote**, at the end) are built. Facts marked **(docs)** come from the Claude Code documentation as fetched that day (`code.claude.com/docs/en/`: `claude-code-on-the-web`, `cloud-environments`, `routines`, `settings`, `plugins/install`, `plugins/org`, `plugins/loading`, `hooks`, `mcp`, `skills`, `remote-control`); nothing was tried in a real cloud session. Cloud scheduled tasks are a research preview, so the facts may change.
+Status: 2026-11-27. Wikis run in Claude Code cloud sessions and routines: the plugin comes from the environment (`docs/adr.md`, 20) and updates itself (19), connector rules carry both names (17), and saving pushes through `save.sh` (18). The guided setup and its user-facing "Still to test" are in `plugins/wiki/cloud/SETUP.md`. This page is only what is left to check live, with how each is run and when it passes. Indexed in [the roadmap](../roadmap.md).
 
-## The question
+Record each run in `tests/live/results.md`, "Cloud sessions", with the Claude Code version, and tick it off here; a check that fails gets an issue, and a decision it changes is amended in `docs/adr.md`. When every check is done or moved to an issue, this page is deleted.
 
-Can a wiki run where the user's machine is off: a session at claude.ai/code (web or phone), or a scheduled cloud task that runs `/wiki:ingest all --unattended` (`docs/adr.md`, 12)?
+Most checks need the user: a new session or a routine started at claude.ai/code, or a resume. A cloud session can run the in-session checks itself.
 
-## Finding: not as the wikis are set up today
+## Setup and the guard (20, 19)
 
-**A cloud session doesn't load the plugins a repo's `.claude/settings.json` turns on, nor the ones installed on the user's machine (docs).** The only documented way to get a plugin into one is an organisation's server-managed settings. A wiki opened in the cloud today is therefore a plain repo: no `/wiki:*` skills, no guard, no schema at session start. Everything else follows from that.
+1. **A failing setup script.** An environment whose setup script exits 1. Passes if the session doesn't start, or starts with the plugin's absence obvious and every tool call refused. If it starts unguarded, build the decision's open item (a project hook in the wiki that refuses everything when `CLAUDE_CODE_REMOTE` is `true` and the plugin isn't loaded) and check again.
+2. **Self-update from a stale snapshot.** After a commit lands on wiki-tools `main`, a new session in an environment whose snapshot is older. Passes if `/opt/wiki-tools/.git/refs/heads/main` (or `packed-refs`) is the new `main`, the session start shows `wiki plugin updated <old> -> <new>` once, and `/opt/wiki-tools/.git/logs/HEAD` has a merge entry after the clone. (2026-11-27: a fresh clone was already current, so nothing was updated and no line printed, as designed.) If the session shows a fresh clone instead, the snapshot was rebuilt: try again later.
+3. **Resume.** The same session resumed after it went idle: no second update line when `main` hasn't moved; one when it has.
+4. **Skills read at startup.** A skill added or removed by an update appears or disappears only from the next session; a changed skill body is used at once.
 
-## What a cloud session is (docs)
+## Saving (18)
 
-- **Machine:** a fresh Ubuntu 24.04 VM per session, with the repo cloned from GitHub. Python 3, git, `gh` and `jq` are there. PowerShell, `pdftotext`, LibreOffice and `ocrmypdf` aren't listed.
-- **What loads from the repo:** `.claude/skills/`, `.claude/agents/`, `.claude/commands/`, `.claude/rules/`, `.mcp.json`, and the hooks and permission rules in `.claude/settings.json`. Hooks, rules and `.mcp.json` load only when the session has one repository; with several, only `enabledPlugins` and `extraKnownMarketplaces` are read from each, and "the marketplaces and plugins those two keys declare still don't load". A cloud thread inside a claude.ai Project loads none of the repo's settings, hooks or skills.
-- **What doesn't:** the user's `~/.claude/settings.json`, `~/.claude/skills/` and local `claude mcp add` servers.
-- **Setup script:** per environment, bash, runs as root before Claude Code starts. If it finishes in about five minutes the filesystem is snapshotted and reused; the snapshot is rebuilt when the script or the allowed hosts change, and after about seven days. Environment variables aren't set yet when it runs. If it exits non-zero the session fails to start, or starts without what failed to install.
-- **Hooks:** the same events fire as locally. `CLAUDE_CODE_REMOTE` is `true` there and never `true` in the local CLI.
-- **Persistence:** an idle VM is paused and may be reclaimed; a reopened session then gets a fresh VM. Only what was pushed to GitHub is sure to last.
-- **Network:** an allowlist by default (package registries, GitHub, `*.microsoftonline.com`, `*.googleapis.com`; not `graph.microsoft.com`), extendable per environment. Connector traffic and GitHub go around it.
-- **GitHub:** through a proxy that holds the credentials outside the VM. Only the session's repositories are reachable; API and archive requests for another repository get a 403, a public one included (a plain `git clone` of one isn't described). It refuses tag pushes and branch deletions but doesn't limit which branches a push updates, and branch rules the connected GitHub account can bypass don't stop a push. GraphQL is refused, so `gh pr` and `gh issue` fail; `gh api repos/…` works.
-- **Commits** carry the user's GitHub identity and a `Claude-Session:` trailer unless `attribution.sessionUrl` is `false`.
-- **Credentials:** no local logins exist, and interactive sign-in isn't supported. Environment variables are readable by the model. A "network secret" is added to requests for named hosts outside the VM, which suits a static API key.
-- **Connectors:** claude.ai connectors work in cloud sessions and scheduled tasks; a task includes every connected connector by default. This answers the roadmap's "unknown whether claude.ai connectors load under cron" for cloud tasks (not for local cron).
-- **Scheduled tasks:** a saved prompt, repositories, an environment and connectors; hourly at most; each run clones the default branch afresh and is a full session in the history. The prompt "is not live user input". Runs start in auto mode; a prompt that does appear waits until someone opens the run. Claude's changes go to `claude/`-prefixed branches (described, not enforced).
-- **Cloud-only tools:** `SearchPlugins` and `SuggestPluginInstall` at least, and built-in GitHub tools that can post comments (names unknown).
-- **Not available** to organisations with zero data retention, the HIPAA configuration or customer-managed keys; on Team and Enterprise an Owner enables it.
+5. **Force push.** With the ruleset on the default branch and no bypass actors, a force push from the session's proxy account is refused. Run with a throwaway wiki only.
+6. **The draft pull request.** An unattended save of a change that needs permission opens a draft pull request through `gh api -X POST …/pulls` via the proxy.
+7. **The API past the guard.** Whether `curl` or Python reach GitHub's API from a session (the guard's text-matching limit). In auto mode Claude Code's classifier refused a read-only `curl` first (2026-11-27), so run it in a session in default mode, read-only, against the wiki's own repository.
+8. **Prompt with an allow rule.** The guard's "ask" reply for `save.sh --allow` still prompts when `settings.local.json` has a matching allow rule.
+9. **A routine saves.** A routine's `/wiki:ingest <key> --unattended` updates at its start and saves at its end with no prompt that stalls it; a change needing permission goes to a holding branch with a draft pull request; the next run stops while that branch is there.
 
-Not documented: whether a setup script can install a plugin, or whether `claude` is on its `PATH`; whether a plugin turned on for the claude.ai account (the cloud UI's "Plugin suggestions" add to it) loads in a cloud session; whether a user can type a repo or plugin skill's `/name` in the web or phone UI; whether a scheduled task's prompt can start a manual-only skill (a session-scoped scheduled task can't, and the prompt isn't user input, so probably not); where the clone lands; whether uncommitted files survive a reclaimed VM.
+## Connectors (17)
 
-## What that means for the wiki plugin
+10. **Deny in a routine.** A cloud-name deny rule in the committed `settings.json` holds in an auto-mode routine. (2026-11-27, in a session: every tool the wiki denies under its cloud name was missing from the tool list.)
+11. **Short names, local side.** Each pair's short tool names in `plugins/wiki/sources/connectors.md` match, compared in both directions: the cloud side was compared 2026-11-25 and again 2026-11-27; the local tool lists are still to compare.
+12. **No settings warning** locally for an allow rule naming a tool that exists only in the cloud.
+13. **End to end.** A wiki bound locally ingests each connector source in a cloud routine, with no stalled prompt and a save.
+14. **Google Drive's cloud name,** once the connector is attached in a cloud session; then its pair is added by pull request.
 
-- **Plugin, guard, schema:** absent unless one of the options below brings them. Worse than absent: the wiki's permission rules and every connector are still there, so a wiki opened in the cloud without the plugin runs unguarded.
-- **`git push`:** the guard refuses it and the settings template denies it, but in the cloud nothing lasts unless pushed. A cloud wiki needs a push exception, and the wiki's content then lives on GitHub in branches the user merges.
-- **Protected files:** `.claude/settings.json` and `.claude/sources/` are written only by the user, in a terminal (`install-source-file.sh`). That stays a local step; a cloud session uses what is committed.
-- **Rules in user settings:** a reader's allow and deny rules kept in `~/.claude/settings.json` don't reach the cloud; they would have to be in the wiki's settings.
-- **The cache** (`~/.cache/wiki-sources/<wiki>/<key>/`) starts empty in every VM. Downloads and research run folders are working files, so that costs only time. Two types keep state there: `onenote` its page snapshots (it doesn't work in the cloud anyway, below), and `ms-teams` its folder snapshot (`file-snapshot.sh`'s, used only when the reader's folder listing has no modified times). Teams channels and chats use the cursor in the sync log and are unaffected, but the folder walk would fall back to the citations check on every run and no longer see changed or moved files.
-- **Reading files:** fetched PDFs and Office files are read with `pdftotext` and LibreOffice (`skills/ingest/reading-files.md`), which the VM lacks until the setup script installs them (`poppler-utils`, `libreoffice`).
-- **Manual-only skills** (`ingest`, `clarify`, `lint`, …): usable only if the user can type them in the cloud UI, and by a scheduled task only if its prompt can start one. The first is unknown, the second doubtful.
-- **Unknown tools:** the guard refuses any tool it hasn't classified, so the cloud-only tools above would be refused until added to `hookjson.py`.
-- **Auto mode:** runs start in it, where the wikis today rely on the user's answer to a permission prompt (e.g. the reader binding, `docs/adr.md`, 11).
+## Sessions and routines
 
-### Sources
+15. **Typing skills on the phone:** `/wiki:sync-status`, `/wiki:ingest <key>`. (The web UI ran `/wiki:ingest` and `/wiki:save`, 2026-11-27.)
+16. **Permission prompts in a routine:** what happens where a skill relies on the user's answer (e.g. the reader binding, 11) when nobody can answer.
+17. **Git identity.** `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL` set as the environment's variables make the session's commits carry the user's identity. (Today they are `Claude <noreply@anthropic.com>` from the VM's `/root/.gitconfig`; a merge made with `--no-edit` has no `Claude-Session:` trailer.)
+18. **Reading fetched files.** `pdftotext` and LibreOffice are in the VM (2026-11-27); an ingest reads a fetched PDF and an Office file with them.
 
-| Source | In the cloud |
-|---|---|
-| `raw` | Only what is committed: Markdown and text, `raw/ocr/*.txt`. `/wiki:init`'s `.gitignore` keeps PDFs, Office files and images out of the repo, so those never reach the VM; ingesting and auditing them stays local. |
-| `gmail` | The connector loads, with its tools named `mcp__Gmail__*` (seen 2026-11-22). The contract is tool-neutral and Gmail read-only now (`docs/adr.md`, 10), and the local binding serves the cloud too once its settings carry both names (`docs/adr.md`, 17). |
-| `google-drive` | No, not yet: the claude.ai Google Drive connector's cloud name hasn't been seen (not attached on 2026-11-25), so it isn't in the pair table: it can't run in a cloud session until that name is seen and paired (`docs/adr.md`, 17). |
-| `ms-teams` | Should work with the claude.ai Microsoft 365 connector, if the instance is bound locally and its settings carry the cloud names too (`mcp__Microsoft_365__*`, `docs/adr.md`, 17); folders only in part (the cache, above). |
-| `jira` | The Atlassian connector connects (2026-11-24; it failed on 2026-11-22), with its tools named `mcp__Atlassian_MCP__*`: `getJiraIssue`, `searchJiraIssuesUsingJql`, `listJiraIssueComments`, `executeRead` and `getAccessibleAtlassianResources` among them; `executeWrite`, `executeDestructive` and `showConfluenceEditor` weren't offered on 2026-11-24; offered 2026-11-25. The pair table covers it, as for `gmail`; `executeRead`, bound with limits, stays denied under its cloud name (`docs/adr.md`, 17). |
-| `codebase` | No, as built. The clone would be a second repository in the session, which turns off the wiki's hooks and rules; the root in the instance is a per-machine path; `gh.sh` first asks `gh auth token -u <gh_user>`, which has no login to answer (`git.sh`'s fetch likewise), and its `gh pr` and `gh issue` calls are refused by the proxy. |
-| `local-folder` | No: the folders are on the user's machine. |
-| `proton-files`, `onenote` | No: their readers need a local sign-in. |
+## Not checks
 
-So a cloud wiki is a connector wiki, plus the committed text in `raw/`. A wiki with other sources can still ingest those locally; `/wiki:ingest all` already skips a source that isn't available on the platform, but "platform" would need to know about the cloud.
-
-## Options
-
-1. **Remote Control: no change.** The session runs on the user's machine and is steered from the web or phone (docs). Plugin, guard, every source and every login work as today. The machine must be on and the `claude` process running. Desktop scheduled tasks and `/loop` are the local ways to schedule. A variant: a machine that is always on (a home server or VPS) with the wiki, the logins and local scheduling.
-2. **The setup script brings the plugin.** One plugin and one guard, as ADR 1 has it, but on behaviour the docs don't describe, which may stop working. Variants, all untested:
-   - `claude plugin marketplace add draitchbar/wiki-tools` and an install. Needs `claude` on the script's `PATH` and the proxy to let a repository outside the session be cloned. The copy lands under `.claude/plugins/`, which the guard refuses in commands; plain calls of the guard's own scripts are exempt before that check (`guard.py`, `protected_shell`), but no fixture pins a core script under a cache path.
-   - The plugin's files fetched from `raw.githubusercontent.com` (on the allowlist) into a folder named by `CLAUDE_CODE_PLUGIN_SEED_DIR` or `CLAUDE_CODE_PLUGIN_DIRS`, set on the environment (`plugins/org`, "Seed containers and CI").
-3. **The plugin inside each wiki.** Two forms:
-   - A plugin folder in the wiki's `.claude/skills/` (with `.claude-plugin/plugin.json`), which loads in place as `wiki@skills-dir` with its skills, hooks and agents (`plugins/loading`). The names stay `/wiki:x`, and locally the installed marketplace plugin wins the name, so nothing runs twice. Whether a skills-dir plugin loads in a cloud session isn't stated.
-   - Plain vendoring: skills in `.claude/skills/`, hooks in the wiki's settings. Documented to load; skills become `/x` and the hooks would also run locally beside the plugin's.
-   - Either way, against ADR 1: a copy per wiki to keep in step; `/wiki:init` gitignores `.claude/*` and `wiki-check` expects that; the guard blocks commands naming the wiki's `.claude/skills` and assumes the plugin sits outside the wiki.
-4. **Server-managed settings** (docs: the one documented route). An organisation Owner turns the plugin on for every member's sessions, which is the user scope ADR 1 rules out, and a personal wiki has no organisation.
-
-The organisation's self-hosted environment is mentioned in the docs but wasn't researched.
-
-## Recommendation
-
-- **Reaching a wiki away from the desk:** Remote Control, today.
-- **Runs with the machine off:** a spike before any design, because whether option 2 or the skills-dir form of option 3 works decides the shape. If neither does, stay with option 1 and local scheduling; plain vendoring isn't worth its cost.
-
-### The spike
-
-A throwaway private wiki on GitHub with made-up content, set up as `/wiki:init` leaves one (its `.gitignore` included), and a cloud environment of its own. Before the cloud steps, locally: the first ingest of `raw` done and pushed, then a new committed text file in `raw/` and `last_checked_raw` before today, so that an unattended run has something it is allowed to ingest.
-
-1. **No setup script.** Confirm the plugin is absent: no skills, no schema, and `eval "git push …"` isn't refused by the guard's message. List the tools the session offers that `hookjson.py` doesn't know, and the connector tool names against the contracts'.
-2. **Each way of bringing the plugin** (option 2's two variants, option 3's skills-dir form), one at a time. Passes when: the skills appear; the SessionStart schema arrives; a push and a write to `.claude/settings.json` are refused with the guard's own message ("git push is not allowed in wiki sessions"; the settings deny rule also refuses a plain `git push`, so use `eval "git push …"` or read the message); the core-script exceptions pass (`sources.sh list`). Note `${CLAUDE_PLUGIN_ROOT}`, `CLAUDE_PROJECT_DIR`, the git identity and the commit trailer.
-3. **Again in a second session,** which starts from the snapshot rather than a live run of the script.
-4. **The script failing** (exit 1): does the session start, and is it unguarded?
-5. **Typing skills:** `/wiki:sync-status` and `/wiki:ingest raw` in the web UI and on the phone.
-6. **Permissions:** do the wiki's rules apply, and is there a prompt nobody can answer?
-7. **A scheduled task** with the prompt `/wiki:ingest all --unattended`: does it start the skill, is the guard there, does the connector load? With the guard working it can't push, so what counts is the run's transcript.
-
-Record the results where the other live checks are (`tests/live/results.md`), with the Claude Code version.
-
-### Spike results (2026-11-21, Claude Code 2.1.330)
-
-Run through one-off routines created with the routines API, which the session's own tools can do; the user only created the environment. Runs and outcomes: `tests/live/results.md`, "Cloud sessions"; the setup they proved: `plugins/wiki/cloud/SETUP.md`.
-
-- **Option 2, second variant, works:** a setup script clones the public wiki-tools (a plain `git clone` of a repository outside the session is allowed) into `/opt`, and `CLAUDE_CODE_PLUGIN_DIRS` set on the environment loads it. Steps 1 to 3 and 7 passed: skills, schema, sync status, the guard's own refusals, `sources.sh`, a reused snapshot, and a routine prompt starting a manual-only skill (`/wiki:lint`, `/wiki:ingest all --unattended`). Step 7 in a real wiki: Gmail skipped (Check needed), Proton failed cleanly, nothing committed.
-- **Option 2, first variant:** `claude plugin marketplace add draitchbar/wiki-tools` works in the setup script, but was not taken further; the guard refuses commands naming `.claude/plugins/`, where it installs.
-- **Not tried:** option 3 (a plugin folder in the wiki); the docs say repo-shared plugins need the trust dialog, which cloud sessions never show. Steps 4 (failing script), 5 (typing skills) and 6 (permissions) remain, with the design list below: **Still to test** in the setup page.
-- **New facts:** a routine's `enabled_plugins` field can't be set through the API; plugins synced from the claude.ai account do load in cloud sessions (a route ADR 1's user scope rules out); a second repository makes the session start above both clones, so the wiki's settings and sync status are lost; commits are made as `Claude <noreply@anthropic.com>`; nine cloud-only tools are unclassified in `hookjson.py`.
-- **GitHub Copilot's cloud agent, compared from its docs:** a plugin from another repository is a documented repo setting there (`.github/copilot/settings.json`), but plugin hooks in its sandbox are contradicted by the docs, hook timeouts fail open, manual-only skills don't work, OAuth MCP servers aren't supported and there are no Gmail or Google Drive connectors. Not a better home for these wikis today.
-- **Proton Drive:** the CLI signs in only through a browser (completable on another device) and its refresh tokens work once, so a session stored read-only in the environment lasts one run. Workable routes, both with read access limited to one folder: a password-protected public link read through Proton's SDK without an account (`experimental.authURLAccess`), or the session in a 1Password vault (a service account, its token in the environment) written back after each refresh, with a viewer-only Proton account. A network secret can't carry either: Proton and 1Password decrypt on the machine.
-
-### If the spike passes: what a design must settle
-
-- **Never unguarded.** A wiki opened in an environment without the script, or after a failed setup, has no guard but every connector. Something in the repo itself must notice (a project hook in the wiki's settings that refuses when `CLAUDE_CODE_REMOTE` is `true` and the plugin isn't there, say).
-- **Push.** An exception to the guard's first rule when `CLAUDE_CODE_REMOTE` is `true`. Text matching can't hold a push to a `claude/` branch (`git push origin HEAD:main` is one refspec away), so branch protection on the default branch that the owner can't bypass is a prerequisite, if pushes are to stay off it; whether a private repository on a free plan has it needs checking. The settings deny rule can't be conditional, so it would go altogether. This weakens a guard (irreversible harm is why it is guarded, `docs/adr.md`, 3) and must say so in its commit.
-- **State and branches.** Each run starts from the default branch, so a run whose branch isn't merged is repeated by the next, and two unmerged branches both change `raw/sync-log.md` and `open-questions.md`. Gmail is read-only (`docs/adr.md`, 10), so a discarded branch loses nothing at Gmail: the next run repeats the threads from `last_checked`.
-- **Starting the skill.** How a scheduled run starts a manual-only skill, if its prompt can't.
-- **Setup script.** Where it lives (a file in wiki-tools the user pastes into the environment), what it installs (the plugin, `poppler-utils`, LibreOffice), and how a plugin update reaches a cached snapshot (it is rebuilt when the script changes and after about seven days).
-- **Platform.** A way for contracts and `sources.sh due` to say "not available in the cloud" (`platforms` today names operating systems).
-- **Cache-held state:** the `ms-teams` folder snapshot (`file-snapshot.sh`'s).
-- **Tools and connectors.** Classifying the cloud-only tools in `hookjson.py`; which connectors a task includes (all, by default); the connectors' cloud tool names (`docs/adr.md`, 17).
-- **Settings.** Reader rules in the wiki's settings rather than the user's; `attribution.sessionUrl` off if the trailer isn't wanted.
-- **Auto mode** in place of the user's answer to a prompt.
-- **Privacy.** A cloud wiki's content is on GitHub and in an Anthropic-hosted VM. A decision per wiki; a work wiki also needs its organisation to allow cloud sessions.
-- **Pushing from a managed account.** A wiki on a GitHub Enterprise Managed User account can't get the Claude GitHub App, and `/web-setup` wasn't offered (Claude Code 2.1.330), so its cloud sessions may never push. The setup page should say a cloud wiki needs a repository the session can push to.
-
-### Connector names
-
-Built (2026-11-25): a wiki's committed `.claude/settings.json` carries each connector rule under both names, from the pair table `plugins/wiki/sources/connectors.md`. The decision, the reasons and the rejected alternatives are in `docs/adr.md`, 17; the live checks run from the pull request's test plan.
-
-Sightings. Seen in a wiki's cloud session: `/wiki:ingest gmail` stopped at Check (2026-11-22) because the Gmail tools there are `mcp__Gmail__*`. Locally, on Linux and Windows alike, claude.ai connectors are `mcp__claude_ai_<Connector>__*`; Microsoft 365 (`mcp__Microsoft_365__*`) and Atlassian (`mcp__Atlassian_MCP__*`) are renamed the same way in the cloud, and Google Drive's cloud name isn't known. Community reports (anthropics/claude-code #42323, #77598, #92787) confirm the cloud names and add a third form, the Desktop app's `mcp__<connection-uuid>__*`, which differs per user and changes on its own. No Anthropic statement on unifying them. A one-repository cloud session reads only the committed `.claude/settings.json` (docs, `settings` and `permissions`, read 2026-11-25).
-
-Cloud side of live check 2, observed from a cloud session on 2026-11-25: the Gmail tool set equals the gmail contract's short names exactly (all reads and every listed write and deny tool); Microsoft 365 offers only read tools (no `teams_send_*`, no `outlook_create_event`), whose short names match the ms-teams contract; Atlassian offers, among them, `getJiraIssue`, `searchJiraIssuesUsingJql`, `listJiraIssueComments`, `executeRead` and `getAccessibleAtlassianResources`, and now also `executeWrite`, `executeDestructive` and `showConfluenceEditor` (not offered on 2026-11-24); Google Drive wasn't attached, so it stays unpaired.
-
-Live checks still open:
-1. A cloud-name deny rule in the committed `settings.json` hides or blocks the tool in a cloud session and in an auto-mode routine.
-2. Each pair's short tool names match, compared in both directions (the cloud side is done, above; the local tool lists are still to compare).
-3. An allow rule for a tool that doesn't exist raises no settings warning locally.
-4. A wiki bound locally ingests end to end in a cloud routine, with no stalled prompt.
-
-### Saving to the remote
-
-Built (2026-11): `save.sh`, `/wiki:save` and the unattended ingest's update and save; the decision and its residual risks are in `docs/adr.md`, 18, the setup in `docs/setup.md`, "Optional: saving from Claude", and in `plugins/wiki/cloud/SETUP.md`, step 6.
-
-Live checks 1 and 4 of the design, observed in a Claude Code cloud session on 2026-11-25:
-- **The URL and the proxy.** `origin` is the plain `https://github.com/<owner>/<repo>` URL; there is no loopback form. Traffic goes through `HTTPS_PROXY=http://127.0.0.1:<port>`, and the proxy injects the credentials (`GH_TOKEN=proxy-injected`). Git's config arrives through `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`: `credential.interactive=false`, and `url.https://github.com/.insteadOf` for `git@github.com:` and `ssh://git@github.com/`; no `pushInsteadOf`. `GIT_SSL_CAINFO` (the proxy's CA bundle) is needed for TLS.
-- **The clone** is shallow, and the session works on its own `claude/…` branch. `CLAUDE_CODE_REMOTE=true`.
-- **What it changed in the design:** the script doesn't clear every inherited `GIT_*` variable (that would break the push in the cloud) but keeps `GIT_SSL_CAINFO` and `GIT_SSL_CAPATH`, and leaves the proxy variables alone; in the cloud, `origin`'s URL must equal the pinned one after normalising (no proxy rewrite needs allowing); a save into a shallow clone with no merge base fetches again with `--unshallow`, once.
-
-Live run of the pull request's test plan, 2026-11-26:
-- **Locally, Windows (Git Bash):** every step passed: the setup, `--check`, a save, the permission prompt for `CLAUDE.md` (a "No" kept the commit local, a plain Yes saved it), and the guard's refusal of `git push` pointing to `/wiki:save`. The wiki's default branch was `master`, not `main`, so `docs/setup.md` now says `base` is the default branch, whatever its name.
-- **Cloud session, auto mode:** `origin` equals the pinned `https://github.com/<owner>/<repo>`; `--check` passed the ruleset check (`gh api` works through the proxy); a save pushed to the default branch through the proxy; the `CLAUDE.md` save showed the permission prompt in the web UI, in auto mode, and saved after Yes.
-- **Seen in the cloud session:** the environment's Stop hook asked after each save to push the session's `claude/…` branch, with its unpushed commits; the session rightly declined (the guard refuses `git push`; session branches are never pushed). And `origin/<base>` stayed where it was after a save, since `save.sh` pushes to the pinned URL, not to the remote named `origin`, so `git log origin/<base>..HEAD` still listed the saved commits. Fixed since: when `origin` is the pinned URL, `save.sh` moves `origin/<base>` after a save to the base and after `--update`; whether the Stop hook then stops asking is still to be seen live.
-
-Live checks, run from the pull request's test plan:
-1. **A push to the default branch** through the proxy (design check 2): done, 2026-11-26. Still open: whether a ruleset with no bypass actors stops a force push from the proxy's account.
-2. **The API through the proxy** (design check 3): `gh api …/rules/branches/<base>` done, 2026-11-26 (`--check` passed). Still open: `gh api -X POST …/pulls` (the draft pull request), and whether `curl` or Python reach GitHub's API too (if they do, that is the guard's text-matching limit, as for an obfuscated push).
-3. **Prompts** (design check 5): the guard's "ask" reply for `save.sh --allow` prompts in auto mode, in the web UI: done, 2026-11-26. Still open: with a matching allow rule in `settings.local.json`.
-4. **Routines** (design check 6), still open: whether a routine's unattended ingest (`/wiki:ingest all --unattended`) runs `save.sh` without a prompt that stalls it: the update at its start, the save at its end, a holding branch with a draft pull request for a change that needs permission, and the next run stopping while that branch is there.
-5. **`origin/<base>` after a save** in a cloud session, still open: `git log origin/<base>..HEAD` is empty, and the Stop hook no longer asks to push.
+Open work found by the checks, tracked in the roadmap item and issues rather than here: classifying the cloud-only tools in the guard; `platforms` and `sources.sh` in the cloud (a source with a local reader is reported available); the `ms-teams` folder snapshot lost with each VM; two machines ingesting the same source; the environment's Stop hook asking to push the session branch; Proton Drive (routes in `SETUP.md`); OneNote ([plan](onenote-cloud.md)).

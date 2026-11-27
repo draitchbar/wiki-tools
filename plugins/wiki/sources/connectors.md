@@ -16,7 +16,7 @@ How it is used (`docs/adr.md`, 17):
 - `sources.sh show <key>` prints each bound tool with its cloud name, and whether this session is local or cloud.
 - Read by `scripts/sourcelib.py` only; the guard doesn't use it. This file is not a source type.
 
-A pair is added by pull request to wiki-tools, only after the connector was seen live on both surfaces with the same short tool names, compared in both directions. The first three pairs were added before the local side of that comparison (live check 2 in `docs/plans/cloud-wikis.md`), on the cloud side's match and the documented local names; a mismatch found there is fixed by pull request. A connector not listed keeps one name, as bound.
+A pair is added by pull request to wiki-tools, only after the connector was seen live on both surfaces with the same short tool names, compared in both directions. The first three pairs were added before the local side of that comparison (check 11 in `docs/plans/cloud-wikis.md`), on the cloud side's match and the documented local names; a mismatch found there is fixed by pull request. A connector not listed keeps one name, as bound.
 
 ## Sightings
 

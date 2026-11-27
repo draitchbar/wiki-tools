@@ -142,7 +142,7 @@ The reader-binding plan, phase 1 (its decisions: `docs/adr.md`, 11): the tool-ne
 - **Shell:** an inline Python heredoc with nested quotes failed in Git Bash ("unexpected EOF while looking for matching `''"); the bash error, not the guard. The conventions now say to run such scripts from a file.
 
 ## Cloud sessions (2026-11-21, Claude Code 2.1.330)
-The spike of `docs/plans/cloud-wikis.md`: one-off routines (created through the routines API, no connectors), Anthropic-hosted environments. The setup the runs proved is in `plugins/wiki/cloud/SETUP.md`. Wiki names and contents left out.
+The cloud spike (`docs/adr.md`, 20): one-off routines (created through the routines API, no connectors), Anthropic-hosted environments. The setup the runs proved is in `plugins/wiki/cloud/SETUP.md`. Wiki names and contents left out.
 
 | Run | Environment | Repository | Prompt | Outcome |
 |---|---|---|---|---|
