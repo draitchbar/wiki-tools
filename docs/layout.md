@@ -48,7 +48,7 @@ plugins/wiki/
     decode_download.py            finds the base64 (plain, or a saved tool result's "content") and decodes it
     file-snapshot.sh              folder-walk snapshot for readers without modified times (any access: tools type); work in file_snapshot.py
     schema.sh                     prints one schema file (SessionStart, every start, resume, /clear, compaction)
-    cloud-update.sh               SessionStart (startup, resume): in a cloud session, updates and prunes the setup script's plugin copy from its clone when it follows a branch (cloud/SETUP.md, "Keeping the plugin current")
+    cloud-update.sh               SessionStart (startup, resume): in a cloud session, fast-forwards the setup script's wiki-tools clone the plugin runs from, when it is on a branch (cloud/SETUP.md, "Keeping the plugin current")
     sync-status.sh                staleness report from raw/sync-log.md, and the open questions' count; a launcher for sync_status.py
     sync_status.py                the work of sync-status.sh
     ocr.sh                        ocrmypdf wrapper (Linux)
