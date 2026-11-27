@@ -337,7 +337,7 @@ Ready when the reader exists and passes in Claude with traversal/export/citation
 
 Expected effort: highest.
 
-Channels, replies, chat-day fetching, SharePoint trees, resource URIs, auth scopes, conversation ordering and tenant-wide result filtering, each evaluated separately. The contract is already tool-neutral (`access: tools`, 2026-11); reuse `scripts/file-snapshot.sh`; no broad Microsoft 365 grants.
+Channels, replies, chat-day fetching, SharePoint trees, resource URIs, auth scopes, conversation ordering and tenant-wide result filtering, each evaluated separately. The contract is already tool-neutral (`access: tools`, 2026-11); reuse the folder snapshot (it and the connector's details may move to a `teams-reader` plugin, [spike plan](teams-reader-plugin.md); whether Copilot loads it is a follow-up there); no broad Microsoft 365 grants.
 
 ## Evidence references
 

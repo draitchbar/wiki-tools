@@ -51,15 +51,15 @@ case "$op" in
 esac
 
 # 2. The instance, its repository and its gh account. One Python call reads
-# and validates the instance (src_codebase_instance); the checks keep their
+# and validates the instance (src_instance_fields); the checks keep their
 # order.
 wroot=$(src_wiki_root) || die "not inside a git repo; run from a wiki."
 [[ $key =~ $SRC_NAME_RE ]] || die "invalid instance key '$key'"
 inst="$(src_instance_dir "$wroot")/$key.md"
 [ -f "$inst" ] || die "no instance '$key' ($inst) in this wiki."
-info=$(src_codebase_instance "$wroot" "$key" 2>/dev/null) || die "instance file $inst doesn't validate; run /wiki:init to check it."
-{ IFS= read -r i_type; IFS= read -r i_valid; IFS= read -r _; IFS= read -r i_root
-  IFS= read -r _; IFS= read -r user; } <<<"$info"
+info=$(src_instance_fields "$wroot" "$key" type 'roots[]' gh_user 2>/dev/null) || die "instance file $inst doesn't validate; run /wiki:init to check it."
+{ IFS= read -r i_valid; IFS= read -r i_type; IFS= read -r _; IFS= read -r i_root
+  IFS= read -r user; } <<<"$info"
 [ "$i_type" = codebase ] || die "instance '$key' is not a codebase instance."
 [ "$i_valid" = 1 ] || die "instance file $inst doesn't validate; run /wiki:init to check it."
 [ -n "$user" ] || die "instance '$key' has no gh_user, so PR and issue context is off. Add gh_user to $inst to turn it on."
