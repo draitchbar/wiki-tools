@@ -23,6 +23,7 @@ The decisions behind how wiki-tools is built, and why. Plans and parked work are
 | 17 | Connector names per surface come from a plugin table | Each connector rule is emitted under its local and its cloud name. |
 | 18 | Saving to the wiki's remote through a core script | `save.sh` pushes to a pinned URL; the model never gets `git push`. |
 | 19 | The plugin updates itself at the start of a cloud session | A `SessionStart` hook fast-forwards the cloud clone to `main`; the guard protects the clone. |
+| 20 | A cloud session gets the plugin from its environment | The environment's setup script clones wiki-tools and `CLAUDE_CODE_PLUGIN_DIRS` loads it; nothing is vendored into a wiki. |
 
 ## 1. One plugin, enabled per wiki, runnable from any clone
 **Decision.** wiki-tools is a local-directory marketplace with one plugin, `wiki`, enabled in each wiki's `.claude/settings.json`, never at user scope; everything the wikis need lives under `plugins/wiki/`, and nothing names a fixed clone path.
@@ -249,3 +250,17 @@ The decisions behind how wiki-tools is built, and why. Plans and parked work are
 - Git runs in a cleaned environment, as `save.py`'s (18); `HOME` and the proxy variables are inherited, since the cloud fetch needs them.
 - **The guard is tightened** (3): a shell command naming the clone is refused, `git -C /opt/wiki-tools rev-parse HEAD` included; Read, Grep and Glob still read it. A local install that loads the plugin from a wiki-tools checkout gets the same protection. The hook isn't in the guard's `CORE_SCRIPTS`, so the model can't start it.
 - Locally it does nothing. Environments made with the first setup script must replace it; guide and open live checks: `plugins/wiki/cloud/SETUP.md`.
+
+## 20. A cloud session gets the plugin from its environment
+**Decision.** In a Claude Code cloud session the plugin comes from the cloud environment, not the wiki: the environment's setup script clones the public wiki-tools repository and its variable `CLAUDE_CODE_PLUGIN_DIRS` loads `plugins/wiki` from that clone (19 keeps it current). Nothing of the plugin is vendored into a wiki, and a cloud wiki is the session's only repository. The guided setup is `plugins/wiki/cloud/SETUP.md`.
+
+**Why.**
+- A cloud session ignores the plugins a repository's `enabledPlugins` turns on and those installed on the user's machine; the spike (2026-11-21, `tests/live/results.md`, "Cloud sessions") showed the clone route working: skills, schema, sync status, the guard and a routine starting `/wiki:ingest all --unattended`.
+- Rejected: Remote Control only (needs the user's machine on, though it stays the way to reach a local wiki); a plugin folder or vendored skills in each wiki (a copy per wiki, against 1); server-managed settings or a plugin synced from the claude.ai account (user scope, against 1; a personal wiki has no organisation); `claude plugin marketplace add` in the setup script (installs under `.claude/plugins/`, which the guard refuses in commands); GitHub Copilot's cloud agent (plugin hooks in its sandbox contradicted by its docs, fail-open hook timeouts, no manual-only skills, no Gmail or Drive connectors).
+
+**Consequences.**
+- It rests on `CLAUDE_CODE_PLUGIN_DIRS`, documented for containers and CI, not cloud sessions; an update may break it.
+- With a second repository the session starts above both clones and loses the wiki's settings and sync status, so sources that need another repository (`codebase`) stay local.
+- Only what is pushed lasts (18), and the cache starts empty in each VM, so state kept there (the `onenote` and `ms-teams` snapshots) doesn't carry over.
+- Sources with a local reader or sign-in (`local-folder`, `onenote`, `proton-files`) don't run there; connector sources do (17).
+- Open: a failing setup script may start a session without the plugin, so unguarded. Live checks: `docs/plans/cloud-wikis.md`.
