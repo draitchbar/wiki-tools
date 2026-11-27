@@ -5,10 +5,6 @@
 # against it (docs/adr.md, 15).
 # The two test modes run as separate jobs, and each runs its modules in
 # parallel (pytest-xdist, docs/adr.md, 6): the Windows suite is slow.
-# On Windows a step first turns Defender's real-time scanning off, with
-# exclusions for the workspace, temp and Git as a fallback: a runner setting
-# for speed only, since the suite starts thousands of short processes (#123).
-# It never fails the job (docs/adr.md, 6).
 # The tools (pytest, pytest-xdist, ruff, mypy, shellcheck) come from uv.lock,
 # installed into .venv by `uv sync --locked` on the Python setup-python
 # gives; uv never downloads one (docs/adr.md, 15).
@@ -76,37 +72,6 @@ jobs:
       - run: uv sync --locked
         env:
           UV_PYTHON: ${{ steps.py.outputs.python-path }}
-      - name: Defender real-time scanning off (speed only)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          # Never fails the job: Defender may be absent, or Tamper Protection
-          # may block a setting. Each attempt prints what happened.
-          $ErrorActionPreference = 'Continue'
-          try {
-            Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction Stop
-            Write-Host 'real-time monitoring: turned off'
-          } catch {
-            Write-Host "real-time monitoring: not turned off: $($_.Exception.Message)"
-          }
-          $paths = @($env:GITHUB_WORKSPACE, $env:RUNNER_TEMP, $env:TEMP)
-          $git = Get-Command git -ErrorAction SilentlyContinue
-          if ($git) { $paths += (Split-Path (Split-Path $git.Source -Parent) -Parent) }
-          foreach ($p in ($paths | Where-Object { $_ } | Select-Object -Unique)) {
-            try {
-              Add-MpPreference -ExclusionPath $p -ErrorAction Stop
-              Write-Host "exclusion added: $p"
-            } catch {
-              Write-Host "exclusion not added: ${p}: $($_.Exception.Message)"
-            }
-          }
-          try {
-            $on = (Get-MpComputerStatus -ErrorAction Stop).RealTimeProtectionEnabled
-            Write-Host "RealTimeProtectionEnabled: $on"
-          } catch {
-            Write-Host "Defender status unavailable: $($_.Exception.Message)"
-          }
-          exit 0
       - run: git config --global user.name ci && git config --global user.email ci@example.invalid
       - name: tests (${{ matrix.mode }})
         run: bash tests/run-tests.sh ${{ matrix.mode == 'e2e' && '--e2e' || '' }}
