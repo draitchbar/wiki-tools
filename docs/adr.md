@@ -22,6 +22,7 @@ The decisions behind how wiki-tools is built, and why. Plans and parked work are
 | 16 | Functional style where it fits | Comprehensions for pure transforms, loops for the rest. |
 | 17 | Connector names per surface come from a plugin table | Each connector rule is emitted under its local and its cloud name. |
 | 18 | Saving to the wiki's remote through a core script | `save.sh` pushes to a pinned URL; the model never gets `git push`. |
+| 19 | The plugin updates itself at the start of a cloud session | A `SessionStart` hook fast-forwards the cloud clone to `main`; the guard protects the clone. |
 
 ## 1. One plugin, enabled per wiki, runnable from any clone
 **Decision.** wiki-tools is a local-directory marketplace with one plugin, `wiki`, enabled in each wiki's `.claude/settings.json`, never at user scope; everything the wikis need lives under `plugins/wiki/`, and nothing names a fixed clone path.
@@ -63,6 +64,7 @@ The decisions behind how wiki-tools is built, and why. Plans and parked work are
 - Left to Claude Code's permission prompt on purpose: `git config` and `git -c` (the keys that run commands are a long, growing list), and a Monitor WebSocket watch.
 - The user's own `~/.claude/skills` is not protected, since a source's reader may live there; accepted, as it is outside every wiki.
 - `save.sh` is a second push path, `save.sh --allow` gets an "ask" reply, and `gh` with a subcommand that writes past git is refused (18).
+- A plugin that runs from `plugins/wiki` of a git clone has the whole clone protected, as the plugin folder is (19).
 - A guard must never be weakened without saying so in the commit message.
 
 ## 4. Python behind bash launchers
@@ -219,7 +221,7 @@ The decisions behind how wiki-tools is built, and why. Plans and parked work are
 - Not covered: Google Drive (cloud name not seen) and the Desktop app's `mcp__<uuid>__*` names. A pair is added by pull request once both surfaces were seen. Open live checks: `docs/plans/cloud-wikis.md`; if a cloud-name deny doesn't hold, this decision is revised.
 
 ## 18. Saving to the wiki's remote through a core script
-**Decision.** The model never gets a push. One core script, `save.sh` (`save.py`), opt-in per wiki, saves the wiki's commits to the URL and branch pinned in the committed, guard-protected `save` section of `.claude/settings.wiki.json`: never forced, merging the remote's branch rather than rebasing, and relying on the host to refuse force pushes and deletion of that branch (checked on `github.com` before every save).
+**Decision.** The model never gets a push. One core script, `save.sh` (`save.py`), opt-in per wiki, saves the wiki's commits to the URL and branch pinned in the committed, guard-protected `save` section of `.claude/settings.wiki.json`: never forced, merging the remote's branch rather than rebasing, and relying on the host to refuse force pushes and deletion of that branch (checked on `github.com` before every save). Where `origin` equals the pinned URL, a save and `--update` also move `refs/remotes/origin/<base>` to the remote's base (a cloud session's `origin/<base>` lagged after a save, 2026-11-26); a failure there is only a warning.
 
 **Why.**
 - In a cloud session only what is pushed lasts, so a routine is worth running only if its commits are saved.
@@ -232,3 +234,18 @@ The decisions behind how wiki-tools is built, and why. Plans and parked work are
 - **A guard is weakened** (3): `save.sh` is a second push path. `no_push` stays first and unchanged in what it matches. `save.sh --allow <plain paths>` gets an "ask" reply, denied in a headless run, so unattended runs use a holding branch. Any other form naming `save.sh`, and its test settings, is refused. A tightening beside it: `gh` with `api`, `pr`, `repo`, `release`, `workflow`, `secret`, `variable` or `gist` is refused, as these write past git.
 - Core code calls a host: `save.py` calls `gh api` on `github.com` (REST only); other hosts get a reminder, not a check (2).
 - Left open: an obfuscated command can push anywhere, as before; transport config (`core.sshCommand`, proxies) can redirect the connection, as a config denylist was rejected for its upkeep; a config change between check and push; an approval given without reading the diff. Personal data once pushed stays in the history; lint findings never block a save, since an unpushed cloud commit is lost. Open live checks: `docs/plans/cloud-wikis.md`.
+
+## 19. The plugin updates itself at the start of a cloud session
+**Decision.** In a Claude Code cloud session the plugin runs straight from the wiki-tools clone the setup script makes (`/opt/wiki-tools`, loaded with `CLAUDE_CODE_PLUGIN_DIRS`), and its first `SessionStart` hook, `cloud-update.sh`, fast-forwards that clone to `origin/main` at the start of each session. It acts only when `CLAUDE_CODE_REMOTE` is `true` and the clone is on `main`, and it fails open: exit 0 on every path, the fetch stopped after 15 s, and any failure leaves the clone as it was. The guard protects the clone as it protects the plugin folder (3).
+
+**Why.**
+- A setup script runs only when the environment's snapshot is built, about once a week, so a session could otherwise run a plugin a week old while the plugin changes often (live tests, 2026-11-26).
+- A fast-forward does what a copy has to do by hand (replace, remove, record the commit). Rejected: refreshing a copy at `/opt/wiki-plugin` (about three times the code, review 2026-11-27); a Python hook (joins the allowed Python, 4, and pays for a launcher every start); a pinned commit bumped per environment; following another branch (dropped for now, owner's review 2026-11-27); a hook per wiki; checking for updates on every tool call.
+- Without the clone protected, a session could check out another commit or edit `.git/` and change the guard it runs under.
+
+**Consequences.**
+- Every cloud session runs the latest `main`: a bad commit reaches the next session at once; there is no pin for now.
+- **Version skew:** sessions start with the snapshot's `hooks.json` until it is rebuilt, so a `hooks.json` change must keep working with the previous launch lines for a week (`docs/development.md`, "Workflow"). The guard fails closed, so a mismatch blocks calls, never leaves a session unguarded.
+- Git runs in a cleaned environment, as `save.py`'s (18); `HOME` and the proxy variables are inherited, since the cloud fetch needs them.
+- **The guard is tightened** (3): a shell command naming the clone is refused, `git -C /opt/wiki-tools rev-parse HEAD` included; Read, Grep and Glob still read it. A local install that loads the plugin from a wiki-tools checkout gets the same protection. The hook isn't in the guard's `CORE_SCRIPTS`, so the model can't start it.
+- Locally it does nothing. Environments made with the first setup script must replace it; guide and open live checks: `plugins/wiki/cloud/SETUP.md`.
