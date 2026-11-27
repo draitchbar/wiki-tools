@@ -10,7 +10,7 @@ import hookjson
 import pytest
 import save
 
-from conftest import call_main, git, posix, write
+from conftest import git, posix, write
 import save_wiki
 from save_wiki import CALL, Wiki, call_in, file_url, out, refused, se, so
 
@@ -24,7 +24,7 @@ fakebin, built, wk, ghw = save_wiki.fakebin, save_wiki.built, save_wiki.wk, save
 def test_permission_refused(wk):
     before = wk.remote()
     wk.commit("rules", "CLAUDE.md", ".gitattributes", "wiki/page.md")
-    r = wk.save()
+    r = wk.save(launcher=True)
     refused(r, "these changes need your permission: .gitattributes CLAUDE.md")
     assert se(r) == (
         "save: refused: these changes need your permission: .gitattributes CLAUDE.md\n"
@@ -72,12 +72,10 @@ def test_allow_wrong_set(allow, wk):
     pytest.param("CLAUDE.md\nrm", id="save/refuse-allow-control"),
     pytest.param("", id="save/refuse-allow-empty"),
 ])
-def test_allow_bad_path(path, wk):
-    wk.commit("rules", "CLAUDE.md")
-    before = wk.remote()
-    r = wk.save("--allow", "CLAUDE.md", path)
+def test_allow_bad_path(path, tmp_path, cli, fakebin):
+    """Refused before save looks at any repository: no wiki needed."""
+    r = Wiki(tmp_path, cli, fakebin, build=False).save("--allow", "CLAUDE.md", path, cwd=tmp_path)
     refused(r, "not a plain relative path after --allow: ")
-    assert wk.remote() == before
 
 
 @pytest.mark.checks("save/refuse-allow-prose")
@@ -98,23 +96,34 @@ def test_allow_nothing_needed(wk):
     assert "run: %s\n" % CALL in se(r)
 
 
-@pytest.mark.parametrize("name", [pytest.param("my notes.md", id="save/unallowable-space"),
-                                  pytest.param("a(b).md", id="save/unallowable-paren"),
-                                  pytest.param("it's.md", id="save/unallowable-quote"),
-                                  pytest.param("x#1.md", id="save/unallowable-hash"),
-                                  pytest.param("[x].md", id="save/unallowable-bracket")])
-def test_unallowable_path(name, wk):
+def _unallowable(name):
+    return ("can't be allowed by --allow: %s. Rename it, or save with --unattended (a holding branch "
+            "for you to merge)" % shlex.quote(name))
+
+
+@pytest.mark.checks("save/unallowable-space")
+def test_unallowable_path(wk):
     """A path the guard wouldn't let through --allow gets no dead-end run:
-    line, but the way out."""
-    wk.commit("odd", name, "CLAUDE.md")
+    line, but the way out; in both refusals that print the call."""
+    wk.commit("odd", "my notes.md", "CLAUDE.md")
     r = wk.save()
     refused(r, "these changes need your permission: ")
     assert "run:" not in se(r)
-    assert ("can't be allowed by --allow: %s. Rename it, or save with --unattended (a holding branch "
-            "for you to merge)" % shlex.quote(name)) in se(r)
+    assert _unallowable("my notes.md") in se(r)
     r = wk.save("--allow", "CLAUDE.md")
     refused(r, "the --allow list isn't the set of paths that need permission")
     assert "run:" not in se(r)
+
+
+@pytest.mark.parametrize("name", [pytest.param("a(b).md", id="save/unallowable-paren"),
+                                  pytest.param("it's.md", id="save/unallowable-quote"),
+                                  pytest.param("x#1.md", id="save/unallowable-hash"),
+                                  pytest.param("[x].md", id="save/unallowable-bracket")])
+def test_unallowable_chars(name):
+    """The other characters, in the line both refusals print (save.call,
+    as test_unallowable_path shows end to end)."""
+    perm = sorted([name, "CLAUDE.md"], key=save._key)
+    assert save.call("/opt/plugins/wiki/scripts/save.sh", perm) == _unallowable(name)
 
 
 @pytest.mark.parametrize("plugin,want", [
@@ -125,13 +134,14 @@ def test_unallowable_path(name, wk):
     pytest.param("/opt/$x/wiki", "the plugin's path /opt/$x/wiki/scripts/save.sh holds a character the call "
                  "can't carry", id="save/call-path-unusable"),
 ])
-def test_call_script_path(plugin, want, wk):
-    wk.commit("rules", "CLAUDE.md")
-    r = call_main(save.main, ["--plugin", plugin], cwd=wk.w, env=wk.env)
-    assert r.rc == 1
-    assert want in r.err.decode()
+def test_call_script_path(plugin, want):
+    """The line save.call prints for the script save.main passes it
+    (<plugin>/scripts/save.sh; end to end in test_permission_refused,
+    test_allow_wrong_set and test_launcher)."""
+    line = save.call(plugin + "/scripts/save.sh", ["CLAUDE.md"]) + "\n"
+    assert want in line
     if "$" in plugin:
-        assert "run:" not in r.err.decode()
+        assert "run:" not in line
 
 
 @pytest.mark.checks("save/allow-limits-as-guard")
@@ -200,19 +210,18 @@ def test_too_many_to_allow(wk):
                  "run: bash /opt/git/wiki/scripts/save.sh --allow CLAUDE.md templates/pushes.md",
                  id="save/allow-push-in-longer-word"),
 ])
-def test_push_word(plugin, paths, want, wk):
+def test_push_word(plugin, paths, want):
     """The guard's no_push refuses a command holding the words git and push:
-    such an --allow call is a dead end, so save prints the way out instead."""
-    wk.commit("rules", *paths)
-    r = call_main(save.main, ["--plugin", plugin], cwd=wk.w, env=wk.env)
-    assert r.rc == 1
-    err = r.err.decode()
-    assert want in err
+    such an --allow call is a dead end, so save prints the way out instead
+    (the line save.call gives the refusal, paths in save's order)."""
+    perm = sorted(paths, key=save._key)
+    line = save.call(plugin + "/scripts/save.sh", perm)
+    assert want in line
     # Agreement with the guard's own match on the call save would print.
-    cmd = "bash %s/scripts/save.sh --allow %s" % (plugin, " ".join(sorted(paths, key=save._key)))
+    cmd = "bash %s/scripts/save.sh --allow %s" % (plugin, " ".join(perm))
     refused_by_guard = bool(guard._PUSH.search(guard._STASH_PUSH.sub("git stash", hookjson.norm(cmd))))
     assert refused_by_guard == (not want.startswith("run: "))
-    assert ("run:" in err) == want.startswith("run: ")
+    assert line.startswith("run: ") == want.startswith("run: ")
 
 
 def _index_entry(wk, mode, sha, path):
@@ -341,7 +350,7 @@ def test_non_ff_conflict(wk):
     wk.other_push("theirs", "wiki/index.md", content="# Index\n\ntheirs\n")
     wk.commit("mine", "wiki/index.md", content="# Index\n\nmine\n")
     before = wk.remote()
-    r = wk.save()
+    r = wk.save(launcher=True)
     assert r.rc == 3, r
     assert so(r) == "conflict: wiki/index.md\n"
     assert se(r) == ("save: merge conflict: the merge of main from the wiki's remote is left in progress; "
@@ -359,8 +368,9 @@ def test_update_ff(wk):
     assert r.rc == 0, r
     assert so(r) == "updated main: ff\n"
     assert wk.head() == wk.remote()
-    assert so(wk.save("--update")) == "updated main: up to date\n"
-    assert se(wk.save("--update")) == ""
+    r = wk.save("--update")
+    assert so(r) == "updated main: up to date\n"
+    assert se(r) == ""
 
 
 @pytest.mark.checks("save/update-merge")
@@ -384,7 +394,7 @@ def test_update_conflict(wk):
 
 
 @pytest.mark.checks("save/shallow-unshallow")
-def test_shallow(wk, cli):
+def test_shallow(wk):
     """A shallow clone whose merge base lies below its boundary is
     deepened once (the cloud's clones are shallow)."""
     a = wk.head()
@@ -398,7 +408,7 @@ def test_shallow(wk, cli):
     wk.commit("c", "wiki/c.md")
     git(wk.w, "push", "-q", "-f", posix(wk.bare), "HEAD:refs/heads/main")
     wk.commit("d", "wiki/d.md", d=s)
-    r = cli("save", cwd=s, env=wk.env)
+    r = wk.save(cwd=s)
     assert r.rc == 0, r
     assert out("rev-parse", "--is-shallow-repository", cwd=s) == "false"
     assert wk.remote() == out("rev-parse", "HEAD", cwd=s)
