@@ -100,6 +100,25 @@ def check_names(item):
     return [item.name]
 
 
+# Each module's time, setup to teardown, summed over its tests: with xdist's
+# --dist loadfile a module runs on one worker, so the slowest module bounds
+# the run (docs/adr.md, 15). Shown with --durations, which CI sets (#115).
+_MODULE_TIME: dict = {}
+
+
+def pytest_runtest_logreport(report):
+    m = report.nodeid.split("::")[0]
+    _MODULE_TIME[m] = _MODULE_TIME.get(m, 0.0) + report.duration
+
+
+def pytest_terminal_summary(terminalreporter, config):
+    if config.getoption("durations") is None or not _MODULE_TIME:
+        return
+    terminalreporter.write_sep("=", "time per module (its tests' setup, call and teardown)")
+    for m, t in sorted(_MODULE_TIME.items(), key=lambda x: -x[1])[:15]:
+        terminalreporter.write_line("%8.2fs %s" % (t, m))
+
+
 def pytest_collection_finish(session):
     if session.config.getoption("--check-names"):
         for item in session.items:

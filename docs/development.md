@@ -125,7 +125,7 @@ With Copilot CLI:
 
 ## Tests
 
-The tests are pytest modules (`tests/test_*.py`, helpers in `tests/conftest.py`, and `tests/codebase_story.py` for the three codebase modules). They never call a real source CLI or account; they use fakes in `tests/sources/<type>/`. Recorded outputs (`tests/fixtures/*/*.out`) are rewritten with `bash tests/run-tests.sh --record`; review the diff. How the tests are built, and why: `docs/adr.md`, 7.
+The tests are pytest modules (`tests/test_*.py`, helpers in `tests/conftest.py`, `tests/codebase_story.py` for the three codebase modules and `tests/save_wiki.py` for the three save modules). They never call a real source CLI or account; they use fakes in `tests/sources/<type>/`. Recorded outputs (`tests/fixtures/*/*.out`) are rewritten with `bash tests/run-tests.sh --record`; review the diff. How the tests are built, and why: `docs/adr.md`, 7.
 
 ## Personal data
 
