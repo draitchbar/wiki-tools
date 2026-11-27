@@ -270,7 +270,7 @@ def edge(tmp_path_factory, cli):
     case("lint", w, "lint", TODAY)
     case("lint-bad-today", w, "lint", {"WIKI_LINT_TODAY": "16-10-2026"})
 
-    # Bound (gmail is access: tools, docs/adr.md 23), so wiki-check below
+    # Bound (gmail is access: tools, docs/adr.md 10), so wiki-check below
     # still finds its permission rules missing.
     write(w / ".claude/sources/instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: X\n" + GMAIL_READER
           + "---\n")

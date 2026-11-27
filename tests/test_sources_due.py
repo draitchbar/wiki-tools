@@ -135,7 +135,7 @@ def test_check_needed_same_day_ingest(cli, wiki):
 
 def test_thread_ids_row_is_ingest(cli, wiki):
     """gmail's history row ends with the thread IDs it read (`; thread IDs:
-    <id>, <id>`, docs/adr.md 23); it is still this key's ingest row, found
+    <id>, <id>`, docs/adr.md 10); it is still this key's ingest row, found
     on a second ingest the same day as in test_check_needed_same_day_ingest."""
     log = wiki / "raw/sync-log.md"
     gm = wiki / ".claude/sources/instances/gmail.md"

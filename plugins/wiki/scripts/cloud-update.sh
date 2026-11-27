@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cloud-update.sh: in a Claude Code cloud session, fast-forward the
 # wiki-tools clone the plugin runs from (cloud/SETUP.md, "Keeping the
-# plugin current"; docs/adr.md, 27). The first SessionStart hook, at
+# plugin current"; docs/adr.md, 19). The first SessionStart hook, at
 # startup and resume: a cloud environment keeps its setup script's clone
 # in a snapshot for about a week.
 #

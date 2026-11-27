@@ -106,7 +106,7 @@ def test_contract_live_run_fixes():
 
 @pytest.mark.checks("bind-reader/ms-teams-contract")
 def test_ms_teams_contract():
-    """ms-teams (docs/adr.md 22): Check stops for a parameter's unbound
+    """ms-teams (docs/adr.md 10): Check stops for a parameter's unbound
     operation; Bind names the connector's denies (write, Outlook, people)
     and hands over the snapshot script's allow."""
     text = (SOURCES / "ms-teams" / "SOURCE.md").read_text(encoding="utf-8")
@@ -125,7 +125,7 @@ def test_ms_teams_contract():
 
 @pytest.mark.checks("bind-reader/gmail-contract")
 def test_gmail_contract():
-    """gmail (docs/adr.md 23): read-only, no Gmail write at all; Bind names
+    """gmail (docs/adr.md 10): read-only, no Gmail write at all; Bind names
     the connector's denies (writes, label writes, draft reads) on both
     surfaces; List new searches a 7-day overlap with no old-label
     exclusion (issue #87: it hid new replies in threads labelled before the

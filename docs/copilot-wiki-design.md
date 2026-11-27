@@ -29,7 +29,7 @@ Claude Code                    Copilot CLI
           unchanged wiki pages, citations and state
 ```
 
-Extend [ADR 10](adr.md)'s single-authoring pattern from development of this repo to the plugin itself. Keep a wiki's `CLAUDE.md` and `.claude/sources/`; Copilot reads Claude instructions, and folder names do not justify migration. Keep the manifests and everything the wiki needs under `plugins/wiki/`. No copied skills, generated instruction trees, symlinks or alternate PowerShell/Python implementation.
+Extend [ADR 9](adr.md)'s single-authoring pattern from development of this repo to the plugin itself. Keep a wiki's `CLAUDE.md` and `.claude/sources/`; Copilot reads Claude instructions, and folder names do not justify migration. Keep the manifests and everything the wiki needs under `plugins/wiki/`. No copied skills, generated instruction trees, symlinks or alternate PowerShell/Python implementation.
 
 Copilot's shipped documentation establishes Claude-style package discovery, project settings/hooks, legacy hook fields and plugin/project environment aliases. It does not establish equivalent tool arguments, deny responses, context injection or child-agent behavior. The plan records observed discovery results separately from runtime gates.
 
@@ -95,7 +95,7 @@ These are architectural assessments, not completed migrations or time estimates.
 | OneNote | Low-to-medium with a compatible reader; otherwise high. Fresh HTML/text, timestamps, scope and snapshots matter |
 | Proton files | Medium with a compatible external reader; otherwise high. Read-only operations, roots and installation/cache paths matter |
 | Jira | Medium-to-high: reader, API/paging differences, JQL, cursor semantics and read-only enforcement |
-| Gmail | Medium through the `gws` reader plugin: read-only at Google (`gmail.readonly`), so date state replaces the wiki label (contract and state done in Claude, ADR 23); thread semantics |
+| Gmail | Medium through the `gws` reader plugin: read-only at Google (`gmail.readonly`), so date state replaces the wiki label (contract and state done in Claude, ADR 10); thread semantics |
 | Google Drive | Medium through the `gws` reader plugin: read-only at Google (`drive.readonly`); recursive listing, exports/downloads and timestamps |
 | Microsoft Teams | Highest expected: channels/replies/chats/SharePoint, ordering, URIs, scopes and tenant-wide filtering |
 
@@ -121,4 +121,4 @@ The detailed cases live in the deterministic tests. A [small live smoke set](pla
 
 ## References
 
-[ADR 1-7 and 10](adr.md), [development](development.md), [setup](setup.md), [guard](guard.md), the existing plugin hooks/scripts/skills/agents and all eight source contracts; the client documentation and read-only discovery findings recorded in the plan.
+[ADR 1-6 and 9](adr.md), [development](development.md), [setup](setup.md), [guard](guard.md), the existing plugin hooks/scripts/skills/agents and all eight source contracts; the client documentation and read-only discovery findings recorded in the plan.

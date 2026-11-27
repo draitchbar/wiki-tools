@@ -22,7 +22,7 @@ ALLOWED = {
     # a script a session must run
     "guard.py": {"codebase", "onenote"},
     # in its docstring, a connector's names as the example of a pair
-    # from sources/connectors.md (docs/adr.md, 2 and 25)
+    # from sources/connectors.md (docs/adr.md, 2 and 17)
     "sourcelib.py": {"claude_ai_"},
     # local-folder/read.sh, the model for local type scripts, among the
     # users of the bash helpers

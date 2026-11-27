@@ -1,6 +1,6 @@
 """cloud-update.sh, the SessionStart hook that fast-forwards the wiki-tools
 clone a cloud session's plugin runs from (cloud/SETUP.md, "Keeping the
-plugin current"; docs/adr.md, 27). End to end through bash: a local bare
+plugin current"; docs/adr.md, 19). End to end through bash: a local bare
 repository stands in for GitHub, and a clone of it, on main, for the setup
 script's /opt/wiki-tools; the hook runs from the clone's plugins/wiki."""
 

@@ -1,4 +1,4 @@
-"""The repo's dev environment (docs/adr.md, 19): scripts/dev-env.sh, which
+"""The repo's dev environment (docs/adr.md, 15): scripts/dev-env.sh, which
 run-tests.sh and dev-lint.sh source to use .venv (made by `uv sync --locked`
 from uv.lock) and to stop when it is missing or stale; and the policy in
 pyproject.toml. End to end through bash, on a copy of the scripts with a

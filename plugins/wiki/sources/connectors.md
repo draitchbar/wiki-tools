@@ -9,7 +9,7 @@ servers:
 
 A claude.ai connector's tools have one name in a local Claude Code session, on Linux and Windows alike, and another in a Claude Code cloud session: `mcp__claude_ai_<Connector>__<tool>` locally, `mcp__<Connector>__<tool>` in the cloud. Each item above pairs the two server names (the part between `mcp__` and the next `__`) of one connector.
 
-How it is used (`docs/adr.md`, 25):
+How it is used (`docs/adr.md`, 17):
 
 - A reader binding (an instance's `reader` and `reader_deny`) is made locally, with the local names. `sources.sh settings` gives each of its rules under the cloud name too, so the wiki's committed `.claude/settings.json` serves both surfaces; a tool bound only with a limit is denied under its cloud name, where the limit can't hold. Cloud-name rules count only from the wiki's own `.claude/settings.json`: a cloud session reads no other settings file.
 - The server name matches exactly, never as a prefix. The mapping goes one way, local to cloud; a binding written in cloud names is taken as it is, and serves only the cloud. A binding may not name one connector under both names.

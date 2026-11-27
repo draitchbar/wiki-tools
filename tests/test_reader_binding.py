@@ -1,4 +1,4 @@
-"""Reader bindings (docs/adr.md, 13): the `operations` of a tool-neutral
+"""Reader bindings (docs/adr.md, 11): the `operations` of a tool-neutral
 contract, an instance's `reader` and `reader_deny` lists, their
 validation, and the settings rules check-settings looks for, which may sit
 in the user's settings. The guard's side is in test_guard.py (fixtures
@@ -17,7 +17,7 @@ GMAIL = posix(PLUGIN / "sources" / "gmail" / "SOURCE.md")
 CODEBASE = posix(PLUGIN / "sources" / "codebase" / "SOURCE.md")
 GDRIVE = posix(PLUGIN / "sources" / "google-drive" / "SOURCE.md")
 T = "mcp__claude_ai_Atlassian_MCP__"
-C = "mcp__Atlassian_MCP__"  # its cloud name (docs/adr.md, 25)
+C = "mcp__Atlassian_MCP__"  # its cloud name (docs/adr.md, 17)
 OK = ["search: %ssearchJiraIssuesUsingJql" % T, "read issue: %sgetJiraIssue" % T,
       "list comments: %slistJiraIssueComments" % T]
 
@@ -83,7 +83,7 @@ def test_reader_errors(reader, deny, want, tmp_path):
 
 def test_reader_only_tools(tmp_path):
     """A contract that isn't access: tools (codebase; gmail was the example
-    until it became tool-neutral, docs/adr.md 23) takes no binding."""
+    until it became tool-neutral, docs/adr.md 10) takes no binding."""
     f = _inst(tmp_path, "codebase", OK)
     assert sourcelib.reader_errors(f, CODEBASE) == [
         "only an access: tools instance has a reader binding ('reader', 'reader_deny')"]
@@ -117,7 +117,7 @@ def test_reader_rules(tmp_path):
         ["allow\t%s\t%s" % (T + t, T + t) for t in
          ("searchJiraIssuesUsingJql", "getJiraIssue", "listJiraIssueComments", "executeRead", "executeRead")]
         + ["deny\t%sexecuteWrite\t%sexecuteWrite" % (T, T)])
-    # With it (docs/adr.md, 25): each line followed by its cloud name's; the
+    # With it (docs/adr.md, 17): each line followed by its cloud name's; the
     # dispatcher bound only with limits is denied under its cloud name.
     assert sourcelib.reader_rules(f, sourcelib.connector_pairs(posix(PLUGIN))) == (
         ["allow\t%s\t%s" % (p + t, p + t) for t in ("searchJiraIssuesUsingJql", "getJiraIssue", "listJiraIssueComments")
@@ -176,7 +176,7 @@ def test_check_settings_reader_in_user(rw, cli):
     assert rc == 0 and "missing: none" in o and "(~/.claude/settings.json, 2 permission rules)" in o, o
 
 
-# The cloud names (docs/adr.md, 25) count only from the wiki's settings.
+# The cloud names (docs/adr.md, 17) count only from the wiki's settings.
 
 def _drop(sjson, rule):
     q = '"%s"' % rule
@@ -242,7 +242,7 @@ def test_check_settings_cache_not_from_user(rw, cli):
     assert rc == 1 and "allow: Edit(~/.cache/wiki-sources/rw/code/**)" in o, o
 
 
-# ms-teams (access: tools, docs/adr.md 22): no required operation, so a
+# ms-teams (access: tools, docs/adr.md 10): no required operation, so a
 # binding is valid whatever it binds; its Check asks for each parameter's
 # operations. The connector binding is guard-wiki's teams.md.
 
@@ -324,7 +324,7 @@ def test_teams_all_operations_bound(tmp_path, cli):
         assert '"%s%s"' % (M, t) in o, o
 
 
-# gmail (access: tools, docs/adr.md 23): the contract names no tools; the
+# gmail (access: tools, docs/adr.md 10): the contract names no tools; the
 # connector binding is guard-wiki's gmail.md. Gmail is read-only: the
 # binding denies the label writes the old contract allowed, and the draft
 # reads.

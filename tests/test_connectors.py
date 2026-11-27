@@ -1,4 +1,4 @@
-"""Connector names per surface (docs/adr.md, 25): the pair table
+"""Connector names per surface (docs/adr.md, 17): the pair table
 plugins/wiki/sources/connectors.md, each binding rule under its cloud name
 in the settings rules (a tool bound with a limit denied there), the
 refusal of a binding that names one connector under both names, a broken

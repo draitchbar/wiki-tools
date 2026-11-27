@@ -18,7 +18,7 @@ messages and filled-in contracts use that spelling, files are opened
 through its native form (sourcelib.native). Run it from inside a wiki.
 `show` also says whether this session is local or cloud
 (CLAUDE_CODE_REMOTE) and lists a reader binding's tools with their cloud
-names (sources/connectors.md; docs/adr.md, 25); in a cloud session, an
+names (sources/connectors.md; docs/adr.md, 17); in a cloud session, an
 instance whose cloud-name rules the wiki's settings lack gets a Check
 needed line (`due` skips it), so it can't run with its writes undenied. Writes nothing. Exit 1: a refusal
 or a problem (as the bash version); exit 3: an internal error.
@@ -231,7 +231,7 @@ def check_needed(w: Wiki, k: str, f: str) -> str | None:
 
 
 def remote() -> bool:
-    """A Claude Code cloud session (docs/adr.md, 25)."""
+    """A Claude Code cloud session (docs/adr.md, 17)."""
     return os.environ.get("CLAUDE_CODE_REMOTE", "").lower() == "true"
 
 
@@ -257,7 +257,7 @@ def cloud_blocked(w: Wiki, c: str, f: str) -> str | None:
 
 
 def reader_names(w: Wiki, f: str) -> None:
-    """Each `reader` item with its tool's cloud name (docs/adr.md, 25): how
+    """Each `reader` item with its tool's cloud name (docs/adr.md, 17): how
     Check picks the name to use."""
     out("Reader tools and their cloud names (the plugin's sources/connectors.md):")
     has_mcp = any(r.startswith("mcp__") for r in sourcelib.binding_rules(f))
@@ -314,8 +314,8 @@ def op_show(w: Wiki, args: list[str]) -> int:
     if unbound(c, f):
         # Without a reader binding, Check (its step 1) must stop the ingest,
         # whatever the instance file's history. A `## Reader` section alone
-        # is a binding in prose, from before the `reader` list (docs/adr.md, 13).
-        # Binding is done locally (docs/adr.md, 25).
+        # is a binding in prose, from before the `reader` list (docs/adr.md, 11).
+        # Binding is done locally (docs/adr.md, 17).
         if sourcelib.has_body_section(f, "Reader"):
             how = ("bind it again in a local session" if remote()
                    else "run /wiki:bind-reader %s again" % k)

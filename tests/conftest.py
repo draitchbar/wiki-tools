@@ -1,4 +1,4 @@
-"""Shared pytest setup for the wiki plugin's tests (docs/adr.md, 7).
+"""Shared pytest setup for the wiki plugin's tests (docs/adr.md, 6).
 
 Two layers:
 - in-process: a script's Python module is called through its main(argv),
@@ -60,7 +60,7 @@ PLUGIN_BASH = msys(PLUGIN_P)      # as bash's `pwd` prints it
 SCRIPTS_P = posix(SCRIPTS)
 
 # A gmail instance's reader binding to the claude.ai Gmail connector
-# (docs/adr.md, 23), as frontmatter lines: gmail is access: tools, so its
+# (docs/adr.md, 10), as frontmatter lines: gmail is access: tools, so its
 # settings rules come from these lists, not from the contract.
 GMAIL_T = "mcp__claude_ai_Gmail__"
 GMAIL_DENY = ("send_message", "reply", "forward", "create_draft", "update_draft", "delete_draft",
@@ -102,7 +102,7 @@ def check_names(item):
 
 # Each module's time, setup to teardown, summed over its tests: with xdist's
 # --dist loadfile a module runs on one worker, so the slowest module bounds
-# the run (docs/adr.md, 15). Shown with --durations, which CI sets (#115).
+# the run (docs/adr.md, 6). Shown with --durations, which CI sets (#115).
 _MODULE_TIME: dict = {}
 
 

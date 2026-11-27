@@ -28,7 +28,7 @@ covered by its narrowed or contract form, or by a broader Read/Edit rule
 on a folder (<prefix>/**) that holds its path. A reader binding's rules
 may be met in the user's settings too, except their cloud names.
 
-Connector names per surface (docs/adr.md, 25): the pair table
+Connector names per surface (docs/adr.md, 17): the pair table
 sources/connectors.md maps a claude.ai connector's local server name
 (mcp__claude_ai_Gmail) to its cloud one (mcp__Gmail). The needed rules
 give each binding rule under its cloud name too (a tool bound only with
@@ -311,7 +311,7 @@ def read_questions(root: str) -> tuple[list[Question], bool] | None:
     return open_questions(read_text(p))
 
 
-# Connector names per surface (docs/adr.md, 25): sources/connectors.md
+# Connector names per surface (docs/adr.md, 17): sources/connectors.md
 # pairs a claude.ai connector's local server name with its cloud one.
 
 CONNECTORS = "sources/connectors.md"
@@ -659,9 +659,9 @@ def _quoted(s: str) -> bool:
 
 def reader_errors(f: str, c: str, pairs: dict[str, str] | None = None) -> list[str]:
     """What is wrong with an instance's reader binding (`reader`,
-    `reader_deny`; docs/adr.md, 13), given its contract c. With the pair
+    `reader_deny`; docs/adr.md, 11), given its contract c. With the pair
     table (connector_pairs), also a connector named under both its local
-    and its cloud name (docs/adr.md, 25)."""
+    and its cloud name (docs/adr.md, 17)."""
     items, deny = contract.list_(f, "reader"), contract.list_(f, "reader_deny")
     if contract.field(c, "access") != "tools":
         return (["only an access: tools instance has a reader binding ('reader', 'reader_deny')"]
@@ -735,7 +735,7 @@ def reader_rules(f: str, pairs: dict[str, str] | None = None, free: Container[st
     by the cloud name's line: denied for a reader_deny rule, and for a tool
     bound with a limit unless its cloud name is in free (the cloud names
     bound without a limit; default: this instance's own), since a limit
-    holds only under the bound name (docs/adr.md, 25)."""
+    holds only under the bound name (docs/adr.md, 17)."""
     if pairs and free is None:
         free = _free_of(f, pairs)
     res: list[str] = []
@@ -853,7 +853,7 @@ def needed_rules(root: str, plugin: str | None, reader: set[str] | None = None) 
 def user_rules() -> list[str]:
     """The permission rules in the user's settings (~/.claude/settings.json),
     as settings_rules lines; [] when the file is missing or not valid JSON.
-    Only reader rules may be met there (docs/adr.md, 13)."""
+    Only reader rules may be met there (docs/adr.md, 11)."""
     sf = contract._home() + "/.claude/settings.json"
     try:
         with open(native(sf), "rb") as fh:

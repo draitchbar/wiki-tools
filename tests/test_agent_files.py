@@ -1,4 +1,4 @@
-"""The files coding agents read (docs/adr.md, 10): rules and skills are
+"""The files coding agents read (docs/adr.md, 9): rules and skills are
 written once for Claude Code and Copilot CLI. CLAUDE.md only imports
 AGENTS.md, which imports CONTRIBUTING.md; no instruction, skill or config files only
 one agent reads; skills in .claude/skills/ have the frontmatter both need,

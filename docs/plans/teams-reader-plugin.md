@@ -1,6 +1,6 @@
 # Spike: a Teams reader plugin for `ms-teams`
 
-The Teams half of the roadmap item **Reader plugins for connector workarounds**: move everything specific to reading Teams with the claude.ai Microsoft 365 connector out of the core `wiki` plugin into a second plugin, `teams-reader`, in the wiki-tools marketplace. It serves only the `ms-teams` source type. This page plans a spike that answers whether that works and with what shape; it builds nothing that is merged, and no-go is an acceptable outcome. The Atlassian half (the dispatcher limit, `docs/adr.md`, 13) and readers from other marketplaces (**Readers from installed plugins**) stay parked.
+The Teams half of the roadmap item **Reader plugins for connector workarounds**: move everything specific to reading Teams with the claude.ai Microsoft 365 connector out of the core `wiki` plugin into a second plugin, `teams-reader`, in the wiki-tools marketplace. It serves only the `ms-teams` source type. This page plans a spike that answers whether that works and with what shape; it builds nothing that is merged, and no-go is an acceptable outcome. The Atlassian half (the dispatcher limit, `docs/adr.md`, 11) and readers from other marketplaces (**Readers from installed plugins**) stay parked.
 
 ## Principles
 
@@ -40,7 +40,7 @@ The Teams half of the roadmap item **Reader plugins for connector workarounds**:
 ## Why now (changes since the roadmap item, 2026-11-22)
 
 - ADR 2 was sharpened (2026-11-25) and is checked by `tests/test_source_neutral.py`; reader details go in the contract, the binding, or a reader plugin.
-- ADR 25: cloud names for concrete MCP bindings and denies come from `sources/connectors.md`, read only by `sourcelib.py`.
+- ADR 17: cloud names for concrete MCP bindings and denies come from `sources/connectors.md`, read only by `sourcelib.py`.
 - Cloud wikis: the setup script copies only `plugins/wiki/` to `/opt/wiki-plugin` (`CLAUDE_CODE_PLUGIN_DIRS`); the cache starts empty in each VM.
 - Wiki-local skills (#110) are an alternative home for a reader skill, per wiki.
 - Connector tools opt-in (planned): `teams-reader`'s tools must fit it once it exists.

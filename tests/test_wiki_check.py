@@ -32,7 +32,7 @@ def good(tmp_path_factory, cli):
     write(w / "CLAUDE.md", "# Test wiki\n\n## Purpose\n\nTesting.\n")
     write(w / ".gitignore", ".obsidian/\n.claude/*\n!.claude/settings.json\n!.claude/sources/\n!.claude/skills/\n")
     write(w / "raw/sync-log.md", "# Sync Log\n\nlast_checked_raw: never\nlast_checked_gmail: never\nlast_checked_scans: never\n")
-    # gmail is access: tools (docs/adr.md 23): bound, so it has rules.
+    # gmail is access: tools (docs/adr.md 10): bound, so it has rules.
     write(w / ".claude/sources/instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: Test\nstate:\n"
           "  - last_checked\n" + GMAIL_READER + "---\n")
     write(w / ".claude/sources/instances/scans.md",
@@ -155,7 +155,7 @@ FAULTS = [  # name, change, text
      "FAIL source `scans` has no `last_checked_scans` line"),
     ("source-rule-missing", _edit(SETTINGS, lambda s: s.replace('"mcp__claude_ai_Gmail__send_message",', "", 1)),
      'FAIL source permission rules missing from .claude/settings.json: "mcp__claude_ai_Gmail__send_message"'),
-    # A cloud name (docs/adr.md, 25): the fix says where those lines go.
+    # A cloud name (docs/adr.md, 17): the fix says where those lines go.
     ("cloud-rule-missing", _edit(SETTINGS, lambda s: s.replace('"mcp__Gmail__send_message",', "", 1)),
      CLOUD_MISSING),
     ("settings-not-json", _edit(SETTINGS, lambda s: s.replace('"allow": [', '"allow": [,', 1)),

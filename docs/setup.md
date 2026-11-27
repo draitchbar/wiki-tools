@@ -72,7 +72,7 @@ A private GitHub repository gives the wiki an offsite copy, and a ruleset stops 
 
 ### Optional: saving from Claude
 
-With saving on, Claude saves the wiki's commits to its remote with `/wiki:save`, and a scheduled `/wiki:ingest … --unattended` brings in the remote's changes at its start and saves at its end. Claude still never runs `git push`: the core script `save.sh` pushes, only to the default branch at the URL pinned in the wiki's committed `.claude/settings.wiki.json`, never forced (`docs/adr.md`, 26). In a cloud session it is what keeps a session's work: an idle VM is thrown away with every commit not pushed. In a wiki session, `/wiki:init` (check mode) walks you through these steps.
+With saving on, Claude saves the wiki's commits to its remote with `/wiki:save`, and a scheduled `/wiki:ingest … --unattended` brings in the remote's changes at its start and saves at its end. Claude still never runs `git push`: the core script `save.sh` pushes, only to the default branch at the URL pinned in the wiki's committed `.claude/settings.wiki.json`, never forced (`docs/adr.md`, 18). In a cloud session it is what keeps a session's work: an idle VM is thrown away with every commit not pushed. In a wiki session, `/wiki:init` (check mode) walks you through these steps.
 
 1. **The remote, with the default branch on it.** Create it and push once yourself (`save.sh` refuses a remote that has no such branch yet).
 2. **The host refuses force pushes and deletion of that branch.** `save.sh` relies on it: a save merges, so its pushes are fast-forwards, and the host is what stops anything else.

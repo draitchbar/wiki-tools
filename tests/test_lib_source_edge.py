@@ -28,7 +28,7 @@ INSTANCES = {
     "nofm": "key: nofm\ntype: gmail\n",
     "local": "---\nkey: local\ntype: loc\nthing: a\n---\n",
     "two words": "---\nkey: two words\ntype: gmail\n---\n",
-    # needed-rules: gmail is access: tools (docs/adr.md 23), so its rules
+    # needed-rules: gmail is access: tools (docs/adr.md 10), so its rules
     # come from a bound instance's reader binding; a local access: mcp type
     # keeps the contract's read, bookkeeping and forbidden tools covered
     # (gmail was the last standard type with bookkeeping tools).

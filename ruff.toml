@@ -8,9 +8,9 @@ select = ["E", "F", "W", "B", "ANN", "C4", "PERF401"]
 ignore = ["E501", "C408"]
 
 [lint.per-file-ignores]
-# The guard's code isn't rewritten for style (docs/adr.md, 24).
+# The guard's code isn't rewritten for style (docs/adr.md, 16).
 "plugins/wiki/scripts/guard.py" = ["PERF401"]
 "plugins/wiki/scripts/contract.py" = ["PERF401"]
 "plugins/wiki/scripts/hookjson.py" = ["PERF401"]
-# The tests are outside type checking (docs/adr.md, 20).
+# The tests are outside type checking (docs/adr.md, 15).
 "tests/**" = ["ANN"]

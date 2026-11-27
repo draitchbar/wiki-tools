@@ -1,4 +1,4 @@
-"""The skills that run save.sh (docs/adr.md, 26): /wiki:save and the
+"""The skills that run save.sh (docs/adr.md, 18): /wiki:save and the
 unattended ingest. What they may run is fixed in their allowed-tools, and
 the conflict rules live in one place, the save skill."""
 
