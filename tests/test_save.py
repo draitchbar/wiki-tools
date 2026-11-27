@@ -3,6 +3,7 @@
 The setup is in save_wiki.py."""
 
 import json
+import subprocess
 
 import pytest
 import save
