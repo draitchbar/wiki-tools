@@ -213,6 +213,97 @@ def test_cloud_origin(wk):
     assert wk.save(env={"CLAUDE_CODE_REMOTE": "true"}).rc == 0
 
 
+def origin_ref(wk):
+    """refs/remotes/origin/main in the wiki, or None."""
+    r = subprocess.run(["git", "-C", str(wk.w), "rev-parse", "-q", "--verify", "refs/remotes/origin/main"],
+                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    return r.stdout.decode().strip() if r.returncode == 0 else None
+
+
+def with_origin(wk, url):
+    """origin set to url, its main at the remote's main (as a clone has it)."""
+    git(wk.w, "remote", "add", "origin", url)
+    git(wk.w, "update-ref", "refs/remotes/origin/main", wk.remote())
+    return wk.remote()
+
+
+@pytest.mark.checks("save/origin-ref-after-save", "save/origin-ref-after-update")
+def test_origin_ref_follows(wk):
+    """origin is the pinned URL (another spelling): its main follows the
+    remote's main after a save and after --update; the output is as without."""
+    with_origin(wk, wk.url[:-len(".git")] + "/")
+    wk.commit("page", "wiki/page.md")
+    r = wk.save()
+    assert r.rc == 0, r
+    assert so(r) == "saved %s to main\n" % wk.short()
+    assert "warning" not in se(r)
+    assert origin_ref(wk) == wk.remote() == wk.head()
+    wk.other_push("theirs", "wiki/theirs.md")
+    r = wk.save("--update")
+    assert so(r) == "updated main: ff\n"
+    assert origin_ref(wk) == wk.remote()
+    # Nothing new to push: it stays at the remote's main.
+    git(wk.w, "update-ref", "refs/remotes/origin/main", "HEAD~1")
+    r = wk.save("--unattended")
+    assert so(r) == "saved %s to main\nnothing new: main already has it\n" % wk.short()
+    assert origin_ref(wk) == wk.remote()
+    # An unattended save with free paths pushes to main: the same.
+    wk.commit("more", "wiki/more.md")
+    assert wk.save("--unattended").rc == 0
+    assert origin_ref(wk) == wk.remote() == wk.head()
+
+
+@pytest.mark.checks("save/origin-ref-other-origin")
+def test_origin_ref_other_origin(wk):
+    before = with_origin(wk, file_url(wk.t / "other.git"))
+    wk.commit("page", "wiki/page.md")
+    assert wk.save().rc == 0
+    wk.other_push("theirs", "wiki/theirs.md")
+    assert wk.save("--update").rc == 0
+    assert wk.remote() != before
+    assert origin_ref(wk) == before
+
+
+@pytest.mark.checks("save/origin-ref-no-origin")
+def test_origin_ref_no_origin(wk):
+    wk.commit("page", "wiki/page.md")
+    assert wk.save().rc == 0
+    wk.other_push("theirs", "wiki/theirs.md")
+    assert wk.save("--update").rc == 0
+    assert out("for-each-ref", "refs/remotes", cwd=wk.w) == ""
+
+
+@pytest.mark.checks("save/origin-ref-not-held", "save/origin-ref-not-check")
+def test_origin_ref_untouched(wk):
+    """A holding branch and --check leave origin's main as it was."""
+    before = with_origin(wk, wk.url)
+    wk.other_push("theirs", "wiki/theirs.md")
+    wk.commit("page", "wiki/page.md")
+    r = wk.save("--check")
+    assert r.rc == 0, r
+    assert origin_ref(wk) == before
+    wk.commit("rules", "CLAUDE.md")
+    r = wk.save("--unattended")
+    assert so(r).startswith("held claude/wiki-"), r
+    assert origin_ref(wk) == before
+
+
+@pytest.mark.checks("save/origin-ref-fails-warns")
+def test_origin_ref_fails(wk):
+    """A failed update of origin's main is a warning after the push, exit 0."""
+    before = with_origin(wk, wk.url)
+    lock = wk.w / ".git" / "refs" / "remotes" / "origin" / "main.lock"
+    write(lock, "")
+    wk.commit("page", "wiki/page.md")
+    r = wk.save()
+    assert r.rc == 0, r
+    assert so(r) == "saved %s to main\n" % wk.short()
+    assert wk.remote() == wk.head()
+    assert "save: warning: origin/main not updated: " in se(r)
+    lock.unlink()
+    assert origin_ref(wk) == before
+
+
 @pytest.mark.checks("save/refuse-empty-remote")
 def test_empty_remote(wk):
     git(wk.bare, "update-ref", "-d", "refs/heads/main")
