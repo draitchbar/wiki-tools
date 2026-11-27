@@ -406,8 +406,10 @@ def load_config(g: Git) -> dict[str, Any]:
     return sec
 
 
-def check_url(g: Git, url: str) -> None:
-    """The URL git will really use is the pinned one."""
+def check_url(g: Git, url: str) -> str | None:
+    """The URL git will really use is the pinned one. In a cloud session,
+    returns origin's URL (for track_origin; git config doesn't change
+    during a save), else None."""
     pi = g.out("config", "--get-regexp", r"^url\..*\.pushinsteadof$")
     if pi:
         raise Refused("git config has a url.*.pushInsteadOf setting, which could send the push "
@@ -439,6 +441,8 @@ def check_url(g: Git, url: str) -> None:
         if normal(origin) != normal(url):
             raise Refused("this session's repository is not the wiki's pinned remote",
                           "origin: %s" % origin, "pinned: %s" % url)
+        return origin
+    return None
 
 
 def transport(url: str) -> str:
@@ -537,19 +541,21 @@ def remote_heads(g: Git, turl: str) -> dict[str, str]:
     return heads
 
 
-def fetch_base(g: Git, turl: str, base: str) -> str:
+def fetch_base(g: Git, turl: str, base: str) -> tuple[str, str]:
     """The remote's base, fetched (and the history unshallowed once when
-    HEAD and it have no merge base): its sha."""
+    HEAD and it have no merge base): its sha and that merge base."""
     g.must("can't fetch %s from the wiki's remote" % base,
            "fetch", "--no-tags", "--no-recurse-submodules", turl, "refs/heads/" + base)
     rsha = g.must("can't fetch %s from the wiki's remote" % base, "rev-parse", "FETCH_HEAD").strip()
-    if not g.ok("merge-base", "HEAD", rsha):
+    mb = g.out("merge-base", "HEAD", rsha)
+    if mb is None:
         if (g.out("rev-parse", "--is-shallow-repository") or "").strip() == "true":
             g.must("can't fetch the full history of %s" % base, "fetch", "--unshallow", "--no-tags",
                    "--no-recurse-submodules", turl, "refs/heads/" + base)
-        if not g.ok("merge-base", "HEAD", rsha):
+        mb = g.out("merge-base", "HEAD", rsha)
+        if mb is None:
             raise Refused("this wiki and its remote's %s share no history" % base)
-    return rsha
+    return rsha, mb.strip()
 
 
 def check_pin(g: Git, rsha: str, url: str, own: list[str]) -> list[str]:
@@ -586,12 +592,13 @@ def ancestor(g: Git, a: str, b: str) -> bool:
     return g.ok("merge-base", "--is-ancestor", a, b)
 
 
-def integrate(g: Git, rsha: str, base: str) -> str:
-    """Bring the remote's base into HEAD: "up to date", "ff" or "merge"."""
-    head = g.must("no commit at HEAD", "rev-parse", "HEAD").strip()
-    if ancestor(g, rsha, head):
+def integrate(g: Git, head: str, rsha: str, mb: str, base: str) -> str:
+    """Bring the remote's base into HEAD (head; mb their merge base): "up
+    to date", "ff" or "merge"."""
+    # One is an ancestor of the other exactly when it is their merge base.
+    if mb == rsha:
         return "up to date"
-    if ancestor(g, head, rsha):
+    if mb == head:
         g.must("can't fast-forward to %s from the wiki's remote" % base, "merge", "--ff-only", rsha)
         return "ff"
     r = g.run("merge", "--no-ff", "--no-edit", "-m", MERGE_MSG % base, rsha)
@@ -732,13 +739,15 @@ def push(g: Git, turl: str, url: str, sha: str, branch: str, held: bool = False)
     _pushed.append("%s is on %s" % (sha[:12], branch))
 
 
-def track_origin(g: Git, url: str, base: str, sha: str) -> None:
+def track_origin(g: Git, url: str, base: str, sha: str, origin: str | None) -> None:
     """When the remote named origin is the pinned URL (a cloud session's
     clone), move refs/remotes/origin/<base> to what the remote's base now
     is: the push went to the URL, not to origin, so git's own view of
     origin would lag. Only ever after the remote's base is known; a
-    failure is a warning, never a refusal (the push already happened)."""
-    origin = (g.out("ls-remote", "--get-url", "origin") or "").rstrip("\r\n")
+    failure is a warning, never a refusal (the push already happened).
+    origin: its URL as check_url read it, None when it didn't."""
+    if origin is None:
+        origin = (g.out("ls-remote", "--get-url", "origin") or "").rstrip("\r\n")
     if normal(origin) != normal(url):
         return
     r = g.run("update-ref", "refs/remotes/origin/" + base, sha)
@@ -791,11 +800,14 @@ def run(form: str, allow: list[str], script: str) -> int:
     g = Git()
     if g.ok("rev-parse", "-q", "--verify", "MERGE_HEAD"):
         raise Refused("a merge is in progress", "Resolve its conflicts, commit the merge, then save again.")
-    if not g.ok("rev-parse", "-q", "--verify", "HEAD^{commit}"):
+    # HEAD can only hold a commit, so this is `rev-parse HEAD`; it doesn't
+    # move until integrate.
+    head = (g.out("rev-parse", "-q", "--verify", "HEAD^{commit}") or "").strip()
+    if not head:
         raise Refused("this wiki has no commit yet")
     cfg = load_config(g)
     url, base, cps = cfg["url"], cfg["base"], cfg["content_paths"]
-    check_url(g, url)
+    origin = check_url(g, url)
     turl = transport(url)
     update = form.startswith("update")
     note = "" if update else protection(g, url, base)
@@ -803,7 +815,7 @@ def run(form: str, allow: list[str], script: str) -> int:
     if "refs/heads/" + base not in heads:
         raise Refused("the wiki's remote has no %s yet: create %s on the remote first (you, not Claude)"
                       % (base, base))
-    rsha = fetch_base(g, turl, base)
+    rsha, mb = fetch_base(g, turl, base)
     cps = check_pin(g, rsha, url, cps)
     if form in ("unattended", "update-unattended"):
         # A holding branch whose tip the base already has was merged; one
@@ -816,21 +828,28 @@ def run(form: str, allow: list[str], script: str) -> int:
                           "An unattended save waits there for your permission; runs don't build on it.")
 
     if update:
-        how = integrate(g, rsha, base)
-        track_origin(g, url, base, rsha)
+        how = integrate(g, head, rsha, mb, base)
+        track_origin(g, url, base, rsha, origin)
         _say("updated %s: %s" % (base, how))
         return 0
 
-    head = g.must("no commit at HEAD", "rev-parse", "HEAD").strip()
-    how, frm = "up to date", rsha
+    how, frm, sha = "up to date", rsha, head
     if form == "check":
         # No merge: the paths are those HEAD changed since the common base.
-        frm = g.must("no merge base", "merge-base", "HEAD", rsha).strip()
-        if not ancestor(g, rsha, head) and not ancestor(g, head, rsha):
+        frm = mb
+        if mb not in (rsha, head):
             how = "merge"
+        # nothing new: HEAD is in the remote's base.
+        nothing = mb == head
     else:
-        how = integrate(g, rsha, base)
-    sha = g.must("no commit at HEAD", "rev-parse", "HEAD").strip()
+        how = integrate(g, head, rsha, mb, base)
+        if how == "ff":
+            sha = rsha
+        elif how == "merge":
+            sha = g.must("no commit at HEAD", "rev-parse", "HEAD").strip()
+        # Up to date: HEAD has rsha, so rsha has HEAD only when they are one
+        # commit; a fast-forward moved HEAD to rsha; a merge is a new commit.
+        nothing = sha == rsha
     ch = changes(g, frm, sha)
     bad = marked(g, ch)
     if bad:
@@ -840,22 +859,23 @@ def run(form: str, allow: list[str], script: str) -> int:
     if never:
         raise Refused("symlinks and submodules are never saved: %s" % " ".join(never),
                       "Remove them from the commits (you decide how), then save again.")
-    nothing = ancestor(g, sha, rsha)
+    short = g.short(sha)
 
-    look = "look: git diff %s %s -- %s" % (g.short(frm), g.short(sha),
-                                           " ".join(shlex.quote(p) for p in perm))
+    def look() -> str:
+        return "look: git diff %s %s -- %s" % (g.short(frm), short,
+                                               " ".join(shlex.quote(p) for p in perm))
     if form == "allow" and set(allow) != set(perm):
         if not perm:
             raise Refused("no path needs permission", call(script, []))
         raise Refused("the --allow list isn't the set of paths that need permission",
-                      "need permission: %s" % " ".join(perm), look, call(script, perm))
+                      "need permission: %s" % " ".join(perm), look(), call(script, perm))
     if perm and form in ("save", "check"):
-        raise Refused("these changes need your permission: %s" % " ".join(perm), look, call(script, perm))
+        raise Refused("these changes need your permission: %s" % " ".join(perm), look(),
+                      call(script, perm))
 
     dirty_warning(g)
     if note:
         _later.append(note)
-    short = g.short(sha)
     if form == "check":
         _say("checked: would push %s to %s" % (short, base))
         if how == "merge":
@@ -874,7 +894,7 @@ def run(form: str, allow: list[str], script: str) -> int:
     if not nothing:
         push(g, turl, url, sha, base)
     # The remote's base is now sha (pushed), or rsha (it had sha already).
-    track_origin(g, url, base, rsha if nothing else sha)
+    track_origin(g, url, base, rsha if nothing else sha, origin)
     _say("saved %s to %s" % (short, base))
     if how != "up to date":
         _say("merged %s from the wiki's remote first (%s)" % (base, how))
