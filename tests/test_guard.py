@@ -237,7 +237,7 @@ def test_parse_none(path):
 @pytest.mark.parametrize("tool,ti,want", [
     pytest.param("WebFetch", {"url": "https://example.com"}, ("harmless", "", ""),
                  id="hookjson/parse-harmless"),
-    pytest.param("mcp__example__search", {"query": "x"}, ("mcp", "", ""), id="hookjson/parse-mcp"),
+    pytest.param("mcp__example__search", {"query": "x"}, ("mcp", "", ""), id="hookjson/parse-kind-mcp"),
     pytest.param("LSP", {"file_path": "/home/u/src/components/A.java"}, ("unknown", "", ""),
                  id="hookjson/parse-unknown"),
     pytest.param("Monitor", {"command": "tail -f log.txt", "timeout_ms": 1000},

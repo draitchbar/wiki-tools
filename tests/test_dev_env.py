@@ -68,7 +68,9 @@ def log(tmp_path, name):
 
 
 def pytest_cmd(root, args=""):
-    return ("python -X utf8 -m pytest %s -n auto --dist loadfile%s"
+    """As run-tests.sh starts pytest with CI set (dev's env): parallel, the
+    slowest tests' times after the summary."""
+    return ("python -X utf8 -m pytest %s -n auto --dist loadfile --durations=20%s"
             % (msys(posix(root / "tests")), args))
 
 
