@@ -3,7 +3,11 @@ books), the standard contracts, and the recorded edge cases in
 fixtures/sources/edge.out (formerly the sources section of run-tests.sh).
 
 The checks replay the old section's steps in order on one wiki (`Story`),
-because the recorded edge cases depend on the state the steps leave."""
+because the recorded edge cases depend on the state the steps leave.
+
+Only the recorded edge cases run through sources.sh under --e2e (`cli`);
+the other steps call sources.main in-process either way, as the launcher
+does (a launcher call is slow on Windows, #123)."""
 
 import re
 import sys
@@ -11,6 +15,7 @@ import sys
 import pytest
 
 import sourcelib
+import sources
 from conftest import PLUGIN, PLUGIN_BASH, TESTS, Story, call_main, copytree, git, norm, posix, recorded, story_assert, write
 
 HOST = {"linux": "linux", "darwin": "macos"}.get(sys.platform, "windows")
@@ -259,7 +264,7 @@ NAMES = (["sources/" + n for n, _, _ in LIST_ETC + NOTES + PROSE + SHADOW] + ["s
 
 
 @pytest.fixture(scope="module")
-def story(tmp_path_factory, cli, request):
+def story(tmp_path_factory, cli, pydata, request):
     t = tmp_path_factory.mktemp("src")
     sw = copytree(TESTS / "guard-wiki", t / "sw")
     git(sw, "init", "-q")
@@ -267,11 +272,16 @@ def story(tmp_path_factory, cli, request):
     st = Story()
     inst = sw / ".claude/sources/instances"
 
+    def inproc(*args):
+        """sources.sh's Result, in-process: sources.main as the launcher calls it."""
+        return call_main(sources.main, ["--plugin", PLUGIN_BASH] + list(args), cwd=sw,
+                         env={"CLAUDE_PLUGIN_DATA": pydata})
+
     def srun(*args, memo=None):
         """sources.sh's output; with memo (a dict, for steps on one unchanged
         wiki) each argument list runs once."""
         if memo is None or args not in memo:
-            o = cli("sources", *args, cwd=sw).merged.decode("utf-8", errors="surrogateescape")
+            o = inproc(*args).merged.decode("utf-8", errors="surrogateescape")
             if memo is None:
                 return o
             memo[args] = o
@@ -315,7 +325,7 @@ def story(tmp_path_factory, cli, request):
     sjson = "\n".join(out[a:b + 1]) + "\n"
     for n, code, text, change in SCK:
         write(sw / ".claude/settings.json", change(sjson) if change else sjson)
-        r = cli("sources", "check-settings", cwd=sw)
+        r = inproc("check-settings")
         o = r.merged.decode("utf-8", errors="surrogateescape")
         st.check("sources/check-settings-" + n, text in o and r.rc == code, "rc %d, output:\n%s" % (r.rc, o))
     (sw / ".claude/settings.json").unlink()
