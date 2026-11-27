@@ -12,7 +12,7 @@
 # whether that is fatal.
 #
 # What stays in bash (docs/adr.md, 4):
-# what the wrappers (codebase/git.sh, gh.sh, local-folder/read.sh,
+# what the wrappers (the standard types' git.sh, gh.sh, local-folder/read.sh,
 # decode-download.sh) and the wikis' local types use.
 # /wiki:add-source names src_values, src_expand, src_match_root and
 # src_has_dots for local type scripts and models them on read.sh, so keep
@@ -27,7 +27,7 @@ SRC_SCRIPTS=$SRC_PLUGIN/scripts
 SRC_NAME_RE='^[a-z0-9][a-z0-9-]*$'
 
 # The bridge: src_validate_instance and
-# src_codebase_instance run in sourcelib.py, one Python start each instead
+# src_instance_fields run in sourcelib.py, one Python start each instead
 # of hundreds of processes.
 # Their edge cases are checked in the tests (lib-source-edge). py-run.sh is
 # sourced here, at the first bridged call, not at the top: scripts that never
@@ -122,7 +122,9 @@ src_match_root() {
 # src_validate_instance ROOT KEY: check an instance file and its contract.
 src_validate_instance() { _src_py validate-instance "$1" "$2"; }
 
-# src_codebase_instance ROOT KEY: six lines for the codebase wrappers: type,
-# 1|0 (src_validate_instance passes, messages dropped), the number of roots,
-# the first root as written, ref, gh_user. One Python start for all of it.
-src_codebase_instance() { _src_py codebase-instance "$1" "$2"; }
+# src_instance_fields ROOT KEY FIELD...: what a wrapper needs from an
+# instance, in one Python start: 1|0 (src_validate_instance passes, messages
+# dropped), then per FIELD a scalar's value as written (empty if absent), or
+# for NAME[] (quote it) two lines: the number of items and the first item
+# as written (empty if none), as src_values reads them.
+src_instance_fields() { _src_py instance-fields "$@"; }

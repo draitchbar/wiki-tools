@@ -112,13 +112,13 @@ for a in "$@"; do
 done
 
 # 2. The instance and its clone. One Python call reads and validates the
-# instance (src_codebase_instance); the checks keep their order.
+# instance (src_instance_fields); the checks keep their order.
 root_wiki=$(src_wiki_root) || die "not inside a git repo; run from a wiki."
 [[ $key =~ $SRC_NAME_RE ]] || die "invalid instance key '$key'"
 inst="$(src_instance_dir "$root_wiki")/$key.md"
 [ -f "$inst" ] || die "no instance '$key' ($inst) in this wiki."
-info=$(src_codebase_instance "$root_wiki" "$key" 2>/dev/null) || die "instance file $inst doesn't validate; run /wiki:init to check it."
-{ IFS= read -r i_type; IFS= read -r i_valid; IFS= read -r i_nroots; IFS= read -r i_root
+info=$(src_instance_fields "$root_wiki" "$key" type 'roots[]' ref gh_user 2>/dev/null) || die "instance file $inst doesn't validate; run /wiki:init to check it."
+{ IFS= read -r i_valid; IFS= read -r i_type; IFS= read -r i_nroots; IFS= read -r i_root
   IFS= read -r i_ref; IFS= read -r i_ghuser; } <<<"$info"
 [ "$i_type" = codebase ] || die "instance '$key' is not a codebase instance."
 [ "$i_valid" = 1 ] || die "instance file $inst doesn't validate; run /wiki:init to check it."
