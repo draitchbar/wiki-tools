@@ -102,6 +102,7 @@ The decisions behind how wiki-tools is built, and why. Plans and parked work are
 - One normaliser (`norm`) maps every spelling of a path to `@TMP@` and `@PLUGIN@`. Arguments to bash go NUL-separated through a file to a fixed driver, since Git Bash re-parses its command line on Windows; there a restricted `PATH` still has Git's folders in front.
 - The required checks are `test (<os>, plain)` and `test (<os>, e2e)`. Print debugging and `--pdb` need `-n 0`; `--check-names` runs serially.
 - The slowest story bounds a run: a story that grows past the others is split into modules (as `test_codebase*.py`, over `tests/codebase_story.py`, and the save tests over `tests/save_wiki.py`, which builds each wiki once and copies it per test). In CI, `run-tests.sh` adds `--durations=20` and the summary lists each module's summed time; no time limit is checked.
+- Windows CI turns Defender's real-time scanning off, with exclusions for the workspace, temp and Git as a fallback, before the tests: a runner setting for speed only, which never fails the job (#123).
 
 ## 7. Changes through pull requests, checked on both platforms
 **Decision.** `main` changes only through pull requests. CI (`ci.yml`) runs lint (`bash scripts/dev-lint.sh`: ruff, mypy, shellcheck, no CRLF) and the suite, plain and with `--e2e`, on Linux and Windows; Claude reviews each pull request (`claude-review.yml`).
