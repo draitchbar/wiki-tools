@@ -6,8 +6,9 @@
 # in a snapshot for about a week.
 #
 # Acts only when CLAUDE_CODE_REMOTE is true and the plugin root (this
-# folder's parent) is plugins/wiki of a git clone. On a branch it fetches
-# that branch from origin and fast-forwards; a detached HEAD is pinned.
+# folder's parent) is plugins/wiki of a git clone on main (for now the only
+# branch followed; anything else, detached included, is left alone). It
+# fetches main from origin and fast-forwards.
 # Output (stdout, into the session context), one line or nothing:
 #   wiki plugin updated <old> -> <new>
 #   wiki plugin: update check failed; this session runs <old>
@@ -42,6 +43,7 @@ _cu_main() {
   fi
   [ "$("${g[@]}" -C "$root" rev-parse --show-prefix 2>/dev/null)" = plugins/wiki/ ] || return 0
   branch=$("${g[@]}" symbolic-ref -q --short HEAD 2>/dev/null) || return 0
+  [ "$branch" = main ] || return 0
 
   # The fetch, stopped after 15 s whatever hangs (DNS, the proxy, a stall).
   "${g[@]}" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=10 fetch -q --no-tags origin \

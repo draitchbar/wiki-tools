@@ -120,8 +120,21 @@ def test_not_remote(run, cu, env):
 
 @pytest.mark.checks("cloud-update/pinned-detached")
 def test_pinned(run, cu):
-    """A setup script whose REF is a commit leaves the clone detached: pinned."""
+    """A detached clone (a commit checked out) is left alone."""
     git(cu["clone"], "checkout", "-q", "--detach")
+    new_commit(cu)
+    assert hook(run, cu) == ""
+    unchanged(cu)
+
+
+@pytest.mark.checks("cloud-update/main-only")
+def test_main_only(run, cu):
+    """main is the only branch followed: a clone on another branch, even
+    one origin has with newer commits, is left alone."""
+    git(cu["clone"], "checkout", "-q", "-b", "other")
+    commit(cu["clone"], {"plugins/wiki/schema/a.md": "other a\n"}, "on other")
+    git(cu["clone"], "push", "-q", "origin", "other")
+    git(cu["clone"], "reset", "-q", "--hard", cu["first"])
     new_commit(cu)
     assert hook(run, cu) == ""
     unchanged(cu)
