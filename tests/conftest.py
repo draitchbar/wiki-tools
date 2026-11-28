@@ -87,11 +87,11 @@ def pytest_addoption(parser):
     parser.addoption("--record", action="store_true",
                      help="rewrite recorded outputs (tests/fixtures/*/*.out) instead of comparing")
     parser.addoption("--check-names", action="store_true",
-                     help="print the bash check names the collected tests carry, one per line")
+                     help="print the check names (<area>/<case>) the collected tests carry, one per line")
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "checks(*names): the bash runner's check names this test replaces")
+    config.addinivalue_line("markers", "checks(*names): the check names (<area>/<case>) this test carries, for --check-names")
 
 
 def check_names(item):

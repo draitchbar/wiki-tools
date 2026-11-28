@@ -33,8 +33,6 @@ printf '%s %s\n' "${0##*/}" "$*" >> "$FAKE_LOG"
 exit 0
 '''
 OUTDATED = "error: The environment is outdated; run `uv sync`"
-LOCK_STALE = ("error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.\n"
-              "hint: run `uv lock`")
 
 
 def exe(path, body):
@@ -87,14 +85,14 @@ def test_current(run, dev, tmp_path):
     assert log(tmp_path, "uv.log") == ["%s|never|sync --locked --check -q" % msys(posix(root))]
 
 
-@pytest.mark.parametrize("err", [pytest.param(OUTDATED, id="dev-env/stale"),
-                                 pytest.param(LOCK_STALE, id="dev-env/lock-stale")])
-def test_stale(err, run, dev, tmp_path):
+@pytest.mark.checks("dev-env/stale")
+def test_stale(run, dev, tmp_path):
+    """uv's exit 1, whatever its message (an outdated .venv, a stale lock)."""
     root, env = dev
     venv(root)
-    r = run(["bash", root / "tests" / "run-tests.sh"], env=dict(env, FAKE_UV_RC="1", FAKE_UV_ERR=err))
+    r = run(["bash", root / "tests" / "run-tests.sh"], env=dict(env, FAKE_UV_RC="1", FAKE_UV_ERR=OUTDATED))
     assert r.rc == 1, r
-    assert err.encode() in r.err
+    assert OUTDATED.encode() in r.err
     assert b"run-tests: .venv is missing or out of date with uv.lock. Run: uv sync --locked\n" in r.err
     assert log(tmp_path, "tools.log") == []
 

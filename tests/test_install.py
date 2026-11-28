@@ -1,7 +1,12 @@
 """install-source-file.sh (the user's installer), decode-download.sh and
-local-folder/read.sh against throwaway wikis, end to end through bash:
-their flow (terminal, prompt, paths) is in the launchers (formerly the
-install and install-edge sections of run-tests.sh)."""
+local-folder/read.sh against throwaway wikis (formerly the install and
+install-edge sections of run-tests.sh). What install_source.py and
+decode_download.py decide runs in-process through their main, in both
+modes (docs/adr.md, 6); the installer's flow (the refusal inside Claude,
+the paste, the diff, the prompt) and the paths are the launchers', so a few
+chosen cases (INSTALL_BOUNDARY, DECODE_BOUNDARY, install-edge) run through
+them, in both modes. decode-download.sh's own checks and local-folder/read.sh
+are bash, tested end to end."""
 
 import base64
 import json
@@ -9,11 +14,14 @@ import os
 import re
 import time
 
+import decode_download
+import install_source
 import pytest
 
 from sourcelib import CLOUD_NOTE
 
-from conftest import (GMAIL_READER, PLUGIN, SCRIPTS_P, TESTS, Story, git, norm, posix, recorded, story_assert, write)
+from conftest import (GMAIL_READER, PLUGIN, PLUGIN_BASH, SCRIPTS_P, TESTS, Story, call_main, git, norm, posix,
+                      recorded, story_assert, write)
 
 ISF = SCRIPTS_P + "/install-source-file.sh"
 DDS = SCRIPTS_P + "/decode-download.sh"
@@ -23,27 +31,42 @@ LFS = posix(PLUGIN / "sources/local-folder/read.sh")
 GM = "---\nkey: gmail\ntype: gmail\nlabels: Projects\n" + GMAIL_READER + "---\n\nNotes.\n"
 BK = (TESTS / "guard-wiki/.claude/sources/types/bookish/SOURCE.md").read_text(encoding="utf-8")
 
-# name, text, exit, answer, target, content (None: a step with its own check)
+# The story's steps that run through install-source-file.sh, in both modes:
+# each covers something the launcher does that install_source.main can't show.
+INSTALL_BOUNDARY = {
+    # The refusal inside Claude (CLAUDECODE set) is the launcher's.
+    "install/refused-in-claude",
+    # A refusal of install_source.py through py-run.sh: exit 1, the reason on stderr.
+    "install/key-mismatch",
+    # The prompt answered no: "Not installed.", exit 1, nothing written.
+    "install/answer-no",
+    # The prompt answered yes: the new file shown, then check and write.
+    "install/gmail-new",
+    # The diff of the current and the pasted file, which the launcher prints.
+    "install/diff-shown",
+}
+
+# name, text, exit, target, content; the exit is install_source.py's (2:
+# already exactly this), or the launcher's for an INSTALL_BOUNDARY step.
 IEXPECT = [
-    ("no-frontmatter", 'first line pasted: "key: gmail"', 1, "y", "instances/gmail.md", "key: gmail\ntype: gmail\n"),
-    ("key-mismatch", "key 'mail' doesn't match the file name", 1, "y", "instances/gmail.md",
+    ("no-frontmatter", 'first line pasted: "key: gmail"', 1, "instances/gmail.md", "key: gmail\ntype: gmail\n"),
+    ("key-mismatch", "key 'mail' doesn't match the file name", 1, "instances/gmail.md",
      "---\nkey: mail\ntype: gmail\nlabels: X\n---\n"),
-    ("unknown-type", "unknown source type 'nosuch' (looked in", 1, "y", "instances/x.md", "---\nkey: x\ntype: nosuch\n---\n"),
-    ("bad-target", "target must be instances/<key>.md", 1, "y", "sources/instances/gmail.md", GM),
-    ("dotdot-target", "must be a plain name", 1, "y", "types/bookish/../x.sh", "x\n"),
-    ("standard-name", "'gmail' is a standard type", 1, "y", "types/gmail/SOURCE.md", "x\n"),
-    ("empty-paste", "nothing pasted", 1, "y", "instances/gmail.md", ""),
-    ("answer-no", "Not installed.", 1, "n", "instances/gmail.md", GM),
+    ("unknown-type", "unknown source type 'nosuch' (looked in", 1, "instances/x.md", "---\nkey: x\ntype: nosuch\n---\n"),
+    ("bad-target", "target must be instances/<key>.md", 1, "sources/instances/gmail.md", GM),
+    ("dotdot-target", "must be a plain name", 1, "types/bookish/../x.sh", "x\n"),
+    ("standard-name", "'gmail' is a standard type", 1, "types/gmail/SOURCE.md", "x\n"),
+    ("empty-paste", "nothing pasted", 1, "instances/gmail.md", ""),
 ]
 NAMES = (["install/" + n for n, *_ in IEXPECT]
-         + ["install/no-frontmatter-not-written", "install/refused-in-claude", "install/gmail-new",
-            "install/gmail-rules", "install/gmail-rules-cloud", "install/present-rule-omitted", "install/codebase-narrow",
-            "install/broad-cache-rule-counts", "install/wiki-cache-rule-counts", "install/unchanged",
-            "install/diff-shown", "install/crlf", "install/crlf-stripped", "install/crlf-checkout-unchanged",
-            "install/crlf-checkout-diff", "install/fs-no-roots", "install/cut-contract",
-            "install/cut-contract-not-written", "install/script-first", "install/contract-note",
-            "install/script-unlisted", "install/script-ok", "install/local-instance", "install/breaks-other",
-            "install/no-git", "install/rules-complete", "install/deny-blocks"])
+         + ["install/answer-no", "install/no-frontmatter-not-written", "install/refused-in-claude",
+            "install/gmail-new", "install/gmail-rules", "install/gmail-rules-cloud", "install/present-rule-omitted",
+            "install/codebase-narrow", "install/broad-cache-rule-counts", "install/wiki-cache-rule-counts",
+            "install/unchanged", "install/diff-shown", "install/crlf", "install/crlf-stripped",
+            "install/crlf-checkout-unchanged", "install/crlf-checkout-diff", "install/fs-no-roots",
+            "install/cut-contract", "install/cut-contract-not-written", "install/script-first",
+            "install/contract-note", "install/script-unlisted", "install/script-ok", "install/local-instance",
+            "install/breaks-other", "install/no-git", "install/rules-complete", "install/deny-blocks"])
 
 
 def settings_with(out, have="{}"):
@@ -73,15 +96,38 @@ def story(tmp_path_factory, run):
     # An empty HOME: a reader binding's rules may sit in the user's
     # settings, which would otherwise count as present.
     (t / "inst-home").mkdir()
+    home = {"HOME": posix(t / "inst-home")}
+    scratches = []
 
-    def inst(answer, target, content, env=None):
+    def launched(answer, target, content, env=None):
         r = run(["bash", ISF, target], cwd=iw, input=content.encode("utf-8"), merged=True,
-                env=dict({"CLAUDECODE": None, "WIKI_INSTALL_ANSWER": answer, "HOME": posix(t / "inst-home")},
-                         **(env or {})))
+                env=dict(dict(home, CLAUDECODE=None, WIKI_INSTALL_ANSWER=answer), **(env or {})))
         return r.merged.decode("utf-8", "surrogateescape"), r.rc
 
-    def iexpect(name, text, code, answer, target, content):
-        o, rc = inst(answer, target, content)
+    def checked(target, content):
+        """install_source.py check in-process: (output, exit, scratch)."""
+        scratch = t / ("scratch-%d" % len(scratches))
+        scratches.append(scratch)
+        write(scratch / "pasted", content)
+        r = call_main(install_source.main, ["--plugin", PLUGIN_BASH, "check", target, posix(scratch)],
+                      cwd=iw, env=home)
+        return r.merged.decode("utf-8", "surrogateescape"), r.rc, scratch
+
+    def inst(target, content):
+        """check, then write when the check passes (the prompt answered yes):
+        (output, the exit of the last step run)."""
+        o, rc, scratch = checked(target, content)
+        if rc != 0:
+            return o, rc
+        r = call_main(install_source.main, ["--plugin", PLUGIN_BASH, "write", target, posix(scratch)],
+                      cwd=iw, env=home)
+        return o + r.merged.decode("utf-8", "surrogateescape"), r.rc
+
+    def iexpect(name, text, code, target, content, answer="y"):
+        if "install/" + name in INSTALL_BOUNDARY:
+            o, rc = launched(answer, target, content)
+        else:
+            o, rc = inst(target, content)
         st.check("install/" + name, text in o and rc == code, "rc %d, output:\n%s" % (rc, o))
         return o
 
@@ -90,60 +136,64 @@ def story(tmp_path_factory, run):
         iexpect(*row)
         if i == 0:
             st.check("install/no-frontmatter-not-written", not gmail.exists())
-    o, rc = inst("y", "instances/gmail.md", GM, env={"CLAUDECODE": "1"})
+    iexpect("answer-no", "Not installed.", 1, "instances/gmail.md", GM, answer="n")
+    o, rc = launched("y", "instances/gmail.md", GM, env={"CLAUDECODE": "1"})
     st.check("install/refused-in-claude", "outside Claude" in o and rc == 1, o)
-    iexpect("gmail-new", "New file .claude/sources/instances/gmail.md", 0, "y", "instances/gmail.md", GM)
-    o = iexpect("gmail-rules", '"mcp__claude_ai_Gmail__send_message",', 0, "y", "instances/gmail.md", GM + "More.\n")
+    iexpect("gmail-new", "New file .claude/sources/instances/gmail.md", 0, "instances/gmail.md", GM)
+    o = iexpect("gmail-rules", '"mcp__claude_ai_Gmail__send_message",', 0, "instances/gmail.md", GM + "More.\n")
     # Its cloud name too (docs/adr.md, 17), and where those lines go.
     st.check("install/gmail-rules-cloud", '"mcp__Gmail__send_message",' in o and "\n  " + CLOUD_NOTE + "\n" in o, o)
-    o, _ = inst("y", "instances/gmail.md", GM + "More.\n")
+    o, _ = inst("instances/gmail.md", GM + "More.\n")
     st.check("install/present-rule-omitted", '"mcp__claude_ai_Gmail__search_threads"' not in o, o)
     cbi = "---\nkey: code\ntype: codebase\nroots:\n  - %s\n---\n" % posix(iw)
-    iexpect("codebase-narrow", '"Edit(~/.cache/wiki-sources/iw/code/**)",', 0, "y", "instances/code.md", cbi)
+    iexpect("codebase-narrow", '"Edit(~/.cache/wiki-sources/iw/code/**)",', 0, "instances/code.md", cbi)
     settings = iw / ".claude/settings.json"
     write(settings, settings.read_text().replace('"mcp__claude_ai_Gmail__search_threads"',
                                                  '"mcp__claude_ai_Gmail__search_threads", "Edit(~/.cache/wiki-sources/**)"'))
-    o, _ = inst("y", "instances/code.md", cbi + "Notes.\n")
+    o, _ = inst("instances/code.md", cbi + "Notes.\n")
     st.check("install/broad-cache-rule-counts", '"Edit(~/.cache/wiki-sources/iw/code/**)"' not in o, o)
     write(settings, settings.read_text().replace('"Edit(~/.cache/wiki-sources/**)"', '"Edit(~/.cache/wiki-sources/iw/**)"'))
-    o, _ = inst("y", "instances/code.md", cbi + "More notes.\n")
+    o, _ = inst("instances/code.md", cbi + "More notes.\n")
     st.check("install/wiki-cache-rule-counts", '"Edit(~/.cache/wiki-sources/iw/code/**)"' not in o, o)
     saved = settings.read_text()
     write(settings, settings_with(o, saved))
-    o, _ = inst("y", "instances/code.md", cbi + "Last notes.\n")
+    o, _ = inst("instances/code.md", cbi + "Last notes.\n")
     st.check("install/rules-complete", "has every rule these sources need" in o and "still lacks" not in o, o)
     # A deny rule covering a needed allow rule blocks it: deny wins.
     write(settings, settings.read_text().replace('"deny": [', '"deny": ["Edit(~/.cache/wiki-sources/**)",', 1))
-    o, _ = inst("y", "instances/code.md", cbi + "Denied notes.\n")
+    o, _ = inst("instances/code.md", cbi + "Denied notes.\n")
     blocks = '"Edit(~/.cache/wiki-sources/**)" blocks "Edit(~/.cache/wiki-sources/iw/code/**)"'
     st.check("install/deny-blocks", blocks in o and "has every rule" not in o, o)
     write(settings, saved)
     (iw / ".claude/sources/instances/code.md").unlink()
-    iexpect("unchanged", "already exactly this", 0, "y", "instances/gmail.md", GM + "More.\n")
-    iexpect("diff-shown", "+Changed.", 0, "y", "instances/gmail.md", GM + "Changed.\n")
-    iexpect("crlf", "Installed", 0, "y", "instances/gmail.md", "---\r\nkey: gmail\r\ntype: gmail\r\nlabels: Y\r\n---\r\n")
+    iexpect("unchanged", "already exactly this", 2, "instances/gmail.md", GM + "More.\n")
+    iexpect("diff-shown", "+Changed.", 0, "instances/gmail.md", GM + "Changed.\n")
+    iexpect("crlf", "Installed", 0, "instances/gmail.md", "---\r\nkey: gmail\r\ntype: gmail\r\nlabels: Y\r\n---\r\n")
     st.check("install/crlf-stripped", b"\r" not in gmail.read_bytes())
     # A CRLF checkout (core.autocrlf) without a final newline is the same file.
     write(gmail, "---\r\nkey: gmail\r\ntype: gmail\r\nlabels: Y\r\n---")
-    iexpect("crlf-checkout-unchanged", "already exactly this", 0, "n", "instances/gmail.md",
-            "---\nkey: gmail\ntype: gmail\nlabels: Y\n---\n")
-    o, rc = inst("n", "instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: Z\n---\n")
-    st.check("install/crlf-checkout-diff", "-key: gmail" not in o and rc == 1
-             and re.search(r"-labels: Y.*\+labels: Z.*Not installed\.", o, re.S), o)
-    iexpect("fs-no-roots", "required parameter 'roots' is empty", 1, "y", "instances/scans.md",
+    o, rc, _ = checked("instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: Y\n---\n")
+    st.check("install/crlf-checkout-unchanged", "already exactly this" in o and rc == 2, o)
+    # Changed: the current file, which the launcher diffs, is normalised
+    # the same way, so only the changed line differs. Not written.
+    o, rc, scratch = checked("instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: Z\n---\n")
+    st.check("install/crlf-checkout-diff", rc == 0
+             and (scratch / "current").read_bytes() == b"---\nkey: gmail\ntype: gmail\nlabels: Y\n---\n"
+             and (scratch / "new").read_bytes() == b"---\nkey: gmail\ntype: gmail\nlabels: Z\n---\n", o)
+    iexpect("fs-no-roots", "required parameter 'roots' is empty", 1, "instances/scans.md",
             "---\nkey: scans\ntype: local-folder\n---\n")
-    iexpect("cut-contract", "missing section '## Resolve citation'", 1, "y", "types/bookish/SOURCE.md",
+    iexpect("cut-contract", "missing section '## Resolve citation'", 1, "types/bookish/SOURCE.md",
             BK[:BK.index("## Resolve citation")])
     st.check("install/cut-contract-not-written", not (iw / ".claude/sources/types/bookish/SOURCE.md").exists())
-    iexpect("script-first", "SOURCE.md doesn't exist yet", 1, "y", "types/bookish/fetch.sh", "#!/bin/bash\n")
-    iexpect("contract-note", "script 'fetch.sh' is listed but missing (install it next)", 0, "y",
+    iexpect("script-first", "SOURCE.md doesn't exist yet", 1, "types/bookish/fetch.sh", "#!/bin/bash\n")
+    iexpect("contract-note", "script 'fetch.sh' is listed but missing (install it next)", 0,
             "types/bookish/SOURCE.md", BK)
-    iexpect("script-unlisted", "other.sh isn't listed under scripts", 1, "y", "types/bookish/other.sh", "#!/bin/bash\n")
-    iexpect("script-ok", "Installed .claude/sources/types/bookish/fetch.sh", 0, "y", "types/bookish/fetch.sh",
+    iexpect("script-unlisted", "other.sh isn't listed under scripts", 1, "types/bookish/other.sh", "#!/bin/bash\n")
+    iexpect("script-ok", "Installed .claude/sources/types/bookish/fetch.sh", 0, "types/bookish/fetch.sh",
             "#!/bin/bash\necho hi\n")
-    iexpect("local-instance", "Installed .claude/sources/instances/books.md", 0, "y", "instances/books.md",
+    iexpect("local-instance", "Installed .claude/sources/instances/books.md", 0, "instances/books.md",
             "---\nkey: books\ntype: bookish\nshelf: Byg\n---\n")
-    iexpect("breaks-other", "required parameter 'colour' is empty", 1, "y", "types/bookish/SOURCE.md",
+    iexpect("breaks-other", "required parameter 'colour' is empty", 1, "types/bookish/SOURCE.md",
             BK.replace("  - shelf (required): shelf name\n",
                        "  - shelf (required): shelf name\n  - colour (required): x\n", 1))
     import subprocess
@@ -189,6 +239,15 @@ INPUTS = {
 }
 
 
+@pytest.mark.parametrize("name", [pytest.param(n, id="decode-download/" + n) for n in INPUTS])
+def test_decode(name, tmp_path):
+    """decode_download.main finds the base64 and writes the file: in-process."""
+    src, dest = write(tmp_path / name, INPUTS[name]), tmp_path / "plan.drawio"
+    r = call_main(decode_download.main, [posix(src), posix(dest)])
+    assert (r.rc, r.out, r.err) == (0, b"%d\n" % len(WANT), b""), r
+    assert dest.read_text() == WANT
+
+
 @pytest.fixture(scope="module")
 def dd(story, run):
     _, t = story
@@ -207,8 +266,15 @@ def dd(story, run):
     return _dd, d, out
 
 
-@pytest.mark.parametrize("name", [pytest.param(n, id="decode-download/" + n) for n in INPUTS])
-def test_decode(name, dd):
+# Through decode-download.sh, in both modes: one success (DECODE_BOUNDARY:
+# the input and target paths converted for Python, the wrote message), and
+# below, the launcher's own checks and the messages it gives for
+# decode_download.py's exits (4, 5, 6), which are bash.
+DECODE_BOUNDARY = ["plain.b64"]
+
+
+@pytest.mark.parametrize("name", [pytest.param(n, id="decode-download/boundary-" + n) for n in DECODE_BOUNDARY])
+def test_decode_launched(name, dd):
     _dd, d, out = dd
     if out.exists():
         out.unlink()
@@ -221,7 +287,6 @@ def test_decode(name, dd):
     pytest.param(["gmail", "plain.b64", "../../x.drawio"], id="decode-download/refuse-dotdot"),
     pytest.param(["gmail", "plain.b64", "/tmp/x.drawio"], id="decode-download/refuse-absolute"),
     pytest.param(["nosuch", "plain.b64", "a.drawio"], id="decode-download/refuse-no-key"),
-    pytest.param(["gmail", "bad.txt", "a.drawio"], id="decode-download/refuse-not-b64"),
     pytest.param(["gmail", "plain.b64"], id="decode-download/refuse-args"),
 ])
 def test_decode_refused(args, dd):
@@ -250,6 +315,7 @@ def test_decode_raw_refused(args, dd):
     assert _dd(args[0], args[1], posix(d / args[2]), args[3])[1] == 1
 
 
+@pytest.mark.checks("decode-download/refuse-not-b64")
 def test_decode_not_b64_hints_raw(dd):
     _dd, d, _ = dd
     o, rc = _dd("gmail", posix(d / "bad.txt"), "a.drawio")
@@ -357,9 +423,11 @@ def test_lf_reads(lf):
     assert (t / "scans/2026/old.pdf").read_text() == "old\n"
 
 
-# --- install-edge: recorded against the bash version ----------------------
+# --- install-edge: the launcher's whole output, recorded ------------------
+# Through install-source-file.sh, in both modes: the paths it is given, the
+# file or diff it shows, the prompt, the stdout/stderr split.
 
-@pytest.mark.checks("install-edge/same", "install-edge/cases")
+@pytest.mark.checks("install-edge/recorded", "install-edge/cases")
 def test_install_edge(tmp_path, run, request):
     t = tmp_path
     cases = []

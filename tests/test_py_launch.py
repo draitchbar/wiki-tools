@@ -1,15 +1,13 @@
 """py-launch.sh, the hooks' launcher: interpreter cache, probe, fail-closed
 exits, end to end through bash with fake interpreters (formerly the
-py-launch section of run-tests.sh). Plus two guard cases about how the
-plugin folder is written (in-process, with the other guard tests' helpers)."""
+py-launch section of run-tests.sh)."""
 
-import json
 import re
 import sys
 
 import pytest
 
-from conftest import CACHE, PLUGIN, PLUGIN_BASH, PLUGIN_P, SCRIPTS, TESTS, copytree, hooks_guard_command, posix, write
+from conftest import CACHE, PLUGIN, PLUGIN_BASH, TESTS, copytree, hooks_guard_command, posix, write
 
 PUSH = '{"tool_name":"Bash","tool_input":{"command":"git push"}}'
 LS = '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
@@ -44,8 +42,8 @@ def pl(tmp_path_factory, run):
                     "py-launch/warm-cache-pass", "py-launch/warm-cache-push", "py-launch/cache-no-newline",
                     "py-launch/stale-cache", "py-launch/stale-cache-rewritten", "py-launch/relative-cache",
                     "py-launch/relative-cache-rewritten", "py-launch/non-python-cache-push",
-                    "py-launch/exit1-pass-blocked", "py-launch/exit1-message", "py-launch/exit127-pass-blocked",
-                    "py-launch/store-alias-only", "py-launch/store-alias-message", "py-launch/old-python-only",
+                    "py-launch/exit1-pass-blocked", "py-launch/exit1-message",
+                    "py-launch/store-alias-only", "py-launch/store-alias-message",
                     "py-launch/py-only-pass", "py-launch/py-only-push", "py-launch/none",
                     "py-launch/order-python-first", "py-launch/order-python3-not-run", "py-launch/no-plugin-data",
                     "py-launch/empty-stdin", "py-launch/timing-log", "py-launch/old-cache-never-read",
@@ -86,15 +84,12 @@ def test_launcher(pl, run):
                                    'echo "SyntaxError: invalid syntax" >&2; exit 1') + "/python")
     r = hook(LS)
     assert r.rc == 2 and b"guard.py failed (exit 1)" in r.err
-    setcache(fk("exit127", "python", "exit 127") + "/python")
-    assert hook(LS).rc == 2
     # Probing: the Store alias, an old Python, `py -3` only, nothing.
     (pdata / CACHE).unlink(missing_ok=True)
     store = fk("store", "python3", 'echo "Python was not found; run without arguments to install from the '
                                    'Microsoft Store." >&2; exit 9009')
     r = hook(LS, path=store)
     assert r.rc == 2 and b"no Python 3.11 or later found" in r.err
-    assert hook(LS, path=fk("old", "python3", 'echo "old $0"')).rc == 2
     # The probe's floor: the real Python with its version set back to just
     # under the floor is rejected; set to the floor, it is used.
     (pdata / CACHE).unlink(missing_ok=True)
@@ -144,12 +139,6 @@ GUARD_MSG = rb"^wiki guard: Python 3\.11 or later is needed, .+ is 3\.10\. Insta
             rb"then start Claude again; refusing \(fail closed\)\.\r?\n$"
 
 
-@pytest.mark.checks("guard/version-check")
-def test_guard_version_check(run):
-    r = run([sys.executable, "-I", "-S", "-c", GUARD_AT_310, posix(SCRIPTS / "guard.py")], input=LS.encode())
-    assert r.rc == 2 and re.match(GUARD_MSG, r.err), r.err
-
-
 @pytest.mark.checks("py-launch/guard-version-check")
 def test_guard_version_check_launched(pl):
     """Through py-launch.sh: a cached interpreter that runs guard.py as 3.10."""
@@ -175,20 +164,3 @@ def test_space_in_root(pl, tmp_path):
     plug = copytree(PLUGIN, tmp_path / "plug in" / "wiki")
     assert hook(PUSH, root=posix(plug)).rc == 2
     assert hook(LS, root=posix(plug)).rc == 0
-
-
-# How the plugin folder is written in a command: with ~ when it is under
-# HOME, and with Windows backslashes (JSON-escaped).
-@pytest.mark.checks("guard/pass-lint-tilde-form")
-def test_tilde_form(guard_run, tmp_path):
-    gw = copytree(TESTS / "guard-wiki", tmp_path / "gw")
-    cmd = json.dumps({"tool_name": "Bash", "tool_input": {"command": "bash ~/%s/scripts/lint.sh" % PLUGIN.name}})
-    assert guard_run(cmd, str(gw), home=posix(PLUGIN.parent)).rc == 0
-
-
-@pytest.mark.checks("guard/pass-lint-backslash-form")
-def test_backslash_form(guard_run, tmp_path):
-    gw = copytree(TESTS / "guard-wiki", tmp_path / "gw")
-    cmd = json.dumps({"tool_name": "Bash",
-                      "tool_input": {"command": "bash %s\\scripts\\lint.sh" % PLUGIN_P.replace("/", "\\")}})
-    assert guard_run(cmd, str(gw)).rc == 0

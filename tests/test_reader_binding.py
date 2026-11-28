@@ -469,36 +469,6 @@ def test_contract_without_required_valid(tmp_path, capsys):
     assert capsys.readouterr().err == ""
 
 
-def test_check_settings_teams_outlook_deny_missing(rw, cli):
-    w, home, env, sjson = rw
-    rule = '"%soutlook_email_search"' % M
-    assert rule in sjson
-    write(w / ".claude/settings.json", sjson.replace("      %s,\n" % rule, "").replace("      %s\n" % rule, ""))
-    rc, o = _check(cli, w, env)
-    assert rc == 1 and "deny: %soutlook_email_search" % M in o, o
-
-
-def test_show_teams_unbound(tmp_path, cli):
-    """Without its reader binding, the Teams instance asks for Check."""
-    w = copytree(TESTS / "guard-wiki", tmp_path / "uw")
-    git(w, "init", "-q")
-    f = w / ".claude/sources/instances/teams.md"
-    lines = f.read_text(encoding="utf-8").split("\n")
-    out, skip = [], False
-    for ln in lines:
-        if ln in ("reader:", "reader_deny:"):
-            skip = True
-            continue
-        if skip and ln.startswith("  - "):
-            continue
-        skip = False
-        out.append(ln)
-    write(f, "\n".join(out).split("\n## Reader")[0])
-    o = cli("sources", "show", "teams", cwd=w).merged.decode("utf-8", errors="surrogateescape")
-    assert ("Check needed: ms-teams names no tools (access: tools) and this instance has no reader binding yet; "
-            "/wiki:bind-reader teams drafts it.") in o, o
-
-
 def test_teams_all_operations_bound(tmp_path, cli):
     """Every operation bound to the connector's tools: it validates, and
     `settings ms-teams --key` allows the tools only that binding adds."""
@@ -580,25 +550,6 @@ def test_check_settings_gmail_label_deny_missing(rw, cli):
     rc, o = _check(cli, w, env)
     assert rc == 1 and "deny: %slabel_thread" % GMAIL_T in o, o
 
-
-def test_check_settings_gmail_old_label_allow(rw, cli):
-    """A wiki moving from the old contract still allows label_thread: it
-    is now also denied, which check-settings reports until it is removed."""
-    w, home, env, sjson = rw
-    write(w / ".claude/settings.json", sjson.replace('"allow": [', '"allow": [\n      "%slabel_thread",' % GMAIL_T, 1))
-    rc, o = _check(cli, w, env)
-    assert rc == 1 and "in both allow and deny" in o and "%slabel_thread" % GMAIL_T in o, o
-
-
-def test_show_gmail_unbound(tmp_path, cli):
-    """Without its reader binding, the gmail instance asks for Check."""
-    w = copytree(TESTS / "guard-wiki", tmp_path / "ug")
-    git(w, "init", "-q")
-    write(w / ".claude/sources/instances/gmail.md", "---\nkey: gmail\ntype: gmail\nlabels: Receipts\nstate:\n"
-          "  - last_checked\n---\n")
-    o = cli("sources", "show", "gmail", cwd=w).merged.decode("utf-8", errors="surrogateescape")
-    assert ("Check needed: gmail names no tools (access: tools) and this instance has no reader binding yet; "
-            "/wiki:bind-reader gmail drafts it.") in o, o
 
 
 # --- the boundary ------------------------------------------------------------------

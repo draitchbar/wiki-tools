@@ -110,11 +110,11 @@ def test_calendar_days(ss2):
     assert "- three: last checked %s (3 days ago) (manual key" % d3 in out
 
 
-@pytest.mark.parametrize("v", [pytest.param(v, id="sync-status/strict-date-" + v.split(":")[0]) for v in
-                               ("short: unreadable date '2026-1-1'", "empty: unreadable date ''",
-                                "word: unreadable date 'yesterday'")])
-def test_strict_date(v, ss2):
-    assert "- " + v in ss2[2]
+@pytest.mark.checks("sync-status/strict-date")
+def test_strict_date(ss2):
+    for v in ("short: unreadable date '2026-1-1'", "empty: unreadable date ''",
+              "word: unreadable date 'yesterday'"):
+        assert "- " + v in ss2[2], v
 
 
 @pytest.mark.checks("sync-status/unterminated-and-local-research")

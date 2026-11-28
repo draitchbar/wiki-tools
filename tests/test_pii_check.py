@@ -178,10 +178,22 @@ def test_range_checks_a_merge_against_its_first_parent(pii, repo):
     assert pii("range", "HEAD~1..HEAD", cwd=repo).rc == 0
 
 
+@pytest.mark.parametrize("sep", [
+    pytest.param("\f", id="pii/lines-form-feed"),
+    pytest.param("\v", id="pii/lines-vertical-tab"),
+    pytest.param("\x1c", id="pii/lines-file-separator"),
+    pytest.param("\x85", id="pii/lines-next-line"),
+    pytest.param("\u2028", id="pii/lines-line-separator"),
+])
+def test_lines_split_on_newline_only(sep):
+    """str.splitlines() would split here and hide the rest from a rule."""
+    assert pii_check.lines("x" + sep + "y\r\nz\n") == ["x" + sep + "y", "z"]
+
+
 @pytest.mark.checks("pii/odd-line-breaks")
-@pytest.mark.parametrize("sep", ["\f", "\v", "\x1c", "\x85", "\u2028"])
-def test_odd_line_breaks_hide_nothing(pii, repo, sep):
-    commit(repo, {"a.md": "x" + sep + REAL_EMAIL + "\n"})
+def test_odd_line_breaks_hide_nothing(pii, repo):
+    """One odd break through a repo, in both modes that read files."""
+    commit(repo, {"a.md": "x\u2028" + REAL_EMAIL + "\n"})
     assert "a.md:1: email address" in out(pii("tree", cwd=repo))
     assert "a.md:1: email address" in out(pii("range", "HEAD~1..HEAD", cwd=repo))
 

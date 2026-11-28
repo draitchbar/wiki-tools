@@ -637,6 +637,23 @@ def test_broken_message(gb, guard_run):
     assert 'its first line is "key: x"' in m and "Read still works" in m
 
 
+# How the plugin folder is written in a command: with ~ when it is under
+# HOME, and with Windows backslashes (JSON-escaped).
+@pytest.mark.checks("guard/pass-lint-tilde-form")
+def test_tilde_form(guard_run, tmp_path):
+    gw = copytree(TESTS / "guard-wiki", tmp_path / "gw")
+    cmd = json.dumps({"tool_name": "Bash", "tool_input": {"command": "bash ~/%s/scripts/lint.sh" % PLUGIN.name}})
+    assert guard_run(cmd, str(gw), home=posix(PLUGIN.parent)).rc == 0
+
+
+@pytest.mark.checks("guard/pass-lint-backslash-form")
+def test_backslash_form(guard_run, tmp_path):
+    gw = copytree(TESTS / "guard-wiki", tmp_path / "gw")
+    cmd = json.dumps({"tool_name": "Bash",
+                      "tool_input": {"command": "bash %s\\scripts\\lint.sh" % PLUGIN_P.replace("/", "\\")}})
+    assert guard_run(cmd, str(gw)).rc == 0
+
+
 WIN_WRITE = _bash_input("Write", {"file_path": "C:\\Users\\u\\Pictures\\Receipts\\a.txt", "content": "x"},
                         cwd="C:\\Users\\u\\wikis\\mywiki")
 
