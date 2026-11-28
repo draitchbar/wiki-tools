@@ -237,8 +237,10 @@ SCK = [  # name, exit, text, change to the settings `settings` prints
      _sub('"allow": [', '"allow": [ "Bash(bash .claude/sources/types/oldtype/fetch.sh *)",')),
     ("stale-mcp", 0, STALE + "\n  allow: mcp__example_reader__get_note\n  allow: mcp__example_reader__list_notes\n",
      _sub('"allow": [', '"allow": [ "mcp__example_reader__list_notes", "mcp__example_reader__get_note",')),
+    ("stale-helper", 0, STALE + "\n  allow: Bash(bash */scripts/file-snapshot.sh *)\n",
+     _sub('"allow": [', '"allow": [ "Bash(bash */scripts/file-snapshot.sh *)",')),
     ("stale-unrelated", 0, "\nstale: none\n",
-     _seq(_sub('"allow": [', '"allow": [ "Bash(git status *)", "Bash(bash */scripts/file-snapshot.sh *)", '
+     _seq(_sub('"allow": [', '"allow": [ "Bash(git status *)", "Bash(bash */scripts/save.sh *)", '
                '"WebFetch", "Skill(wiki:ingest)", "Read(~/.cache/wiki-sources/**)", "mcp__claude_ai_Gmail",'),
           _sub('"deny": [', '"deny": [ "mcp__example_reader__delete_note", '
                '"Bash(bash */sources/ms-teams/snapshot.sh *)",'))),

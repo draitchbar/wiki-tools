@@ -1,5 +1,5 @@
 """Reader bindings (docs/adr.md, 11): the `operations` of a tool-neutral
-contract, an instance's `reader` and `reader_deny` lists, their
+contract, an instance's `reader`, `reader_deny` and `reader_allow` lists, their
 validation, and the settings rules check-settings looks for, which may sit
 in the user's settings. The guard's side is in test_guard.py (fixtures
 *-mcp-reader-*, test_reader_*)."""
@@ -49,12 +49,14 @@ def test_operation(item, want):
     assert contract.operation(item) == want
 
 
-def _inst(tmp_path, typ, reader=(), deny=()):
+def _inst(tmp_path, typ, reader=(), deny=(), allow=()):
     lines = ["---", "key: x", "type: " + typ]
     if reader:
         lines += ["reader:"] + ["  - " + r for r in reader]
     if deny:
         lines += ["reader_deny:"] + ["  - " + r for r in deny]
+    if allow:
+        lines += ["reader_allow:"] + ["  - " + r for r in allow]
     return posix(write(tmp_path / "x.md", "\n".join(lines + ["---", ""])))
 
 
@@ -86,7 +88,10 @@ def test_reader_only_tools(tmp_path):
     until it became tool-neutral, docs/adr.md 10) takes no binding."""
     f = _inst(tmp_path, "codebase", OK)
     assert sourcelib.reader_errors(f, CODEBASE) == [
-        "only an access: tools instance has a reader binding ('reader', 'reader_deny')"]
+        "only an access: tools instance has a reader binding ('reader', 'reader_deny', 'reader_allow')"]
+    f = _inst(tmp_path, "codebase", allow=("Bash(bash */scripts/file-snapshot.sh *)",))
+    assert sourcelib.reader_errors(f, CODEBASE) == [
+        "only an access: tools instance has a reader binding ('reader', 'reader_deny', 'reader_allow')"]
 
 
 def test_one_tool_two_operations(tmp_path):
@@ -124,6 +129,10 @@ def test_reader_rules(tmp_path):
          for p in (T, C)]
         + ["allow\t%sexecuteRead\t%sexecuteRead" % (T, T), "deny\t%sexecuteRead\t%sexecuteRead" % (C, C)] * 2
         + ["deny\t%sexecuteWrite\t%sexecuteWrite" % (T, T), "deny\t%sexecuteWrite\t%sexecuteWrite" % (C, C)])
+    # A reader_allow item adds no line here (allow_rules gives it).
+    (tmp_path / "a").mkdir()
+    g = _inst(tmp_path / "a", "jira", OK, allow=("Bash(bash */scripts/file-snapshot.sh *)",))
+    assert sourcelib.reader_rules(g) == ["allow\t%s\t%s" % (p, p) for p in (r.split(": ", 1)[1] for r in OK)]
 
 
 # check-settings on the test wiki (tracker is bound): reader rules may be
@@ -258,6 +267,192 @@ def test_teams_one_operation_valid(tmp_path):
     """No operation is required: one recommended operation alone validates
     (Check, not validation, catches a parameter's missing operations)."""
     assert sourcelib.reader_errors(_inst(tmp_path, "ms-teams", ["read file: %sread_resource" % M]), TEAMS) == []
+
+
+# reader_allow (docs/adr.md, 11): a binding's extra allow rules, only in
+# named shapes.
+
+SNAP = "Bash(bash */scripts/file-snapshot.sh *)"
+SHAPE = "must be Bash(bash */scripts/<script>.sh *) with <script> file-snapshot, decode-download or ocr"
+
+
+@pytest.mark.parametrize("allow,want", [
+    pytest.param((SNAP,), [], id="allow-snapshot"),
+    pytest.param(("Bash(bash */scripts/decode-download.sh *)",), [], id="allow-decode"),
+    pytest.param(("Bash(bash */scripts/ocr.sh *)",), [], id="allow-ocr"),
+    pytest.param(("Edit(~/.cache/wiki-sources/**)",), [], id="allow-cache-all"),
+    pytest.param(("Edit(~/.cache/wiki-sources/*/*/notes/*.json)",), [], id="allow-cache-path"),
+    pytest.param(("Bash(bash */scripts/save.sh *)",), [SHAPE], id="allow-core-script"),
+    pytest.param(("Bash(bash */scripts/sources.sh *)",), [SHAPE], id="allow-sources-sh"),
+    pytest.param(("Bash(curl *)",), [SHAPE], id="allow-any-bash"),
+    pytest.param(("Read(~/.cache/wiki-sources/**)",), [SHAPE], id="allow-read-cache"),
+    pytest.param(("Edit(~/.cache/other/**)",), [SHAPE], id="allow-other-cache"),
+    pytest.param(("Edit(~/.cache/wiki-sources/*/*/../x)",), [SHAPE], id="allow-dotdot"),
+    pytest.param(("Edit(~/.cache/wiki-sources/*/*/./x)",), [SHAPE], id="allow-dot"),
+    pytest.param(("Edit(~/.cache/wiki-sources/*/*/..*/x)",), [SHAPE], id="allow-dotstar"),
+    pytest.param(("Edit(~/.cache/wiki-sources/*/*/.*)",), [SHAPE], id="allow-dot-star"),
+    pytest.param(("Edit(~/.cache/wiki-sources/*/*/a//b)",), [SHAPE], id="allow-empty-seg"),
+    pytest.param(("Edit(~/.cache/wiki-sources/*/*/a b)",), [SHAPE], id="allow-space"),
+    pytest.param(("%sread_resource" % M,), [SHAPE], id="allow-mcp"),
+    pytest.param(("Skill(wiki:ingest)",), [SHAPE], id="allow-skill"),
+    pytest.param(('"%s"' % SNAP,), ["reader_allow item \"%s\" is in quotes; write it without them" % SNAP],
+                 id="allow-quoted"),
+    pytest.param((SNAP, SNAP), ["reader_allow lists %s twice" % SNAP], id="allow-twice"),
+])
+def test_reader_allow_errors(allow, want, tmp_path):
+    got = sourcelib.reader_errors(_inst(tmp_path, "ms-teams", ["read file: %sread_resource" % M], allow=allow), TEAMS)
+    assert len(got) == len(want) and all(w in g for w, g in zip(want, got, strict=True)), got
+
+
+def test_reader_allow_denied(tmp_path):
+    f = _inst(tmp_path, "ms-teams", ["read file: %sread_resource" % M], ("'%s'" % SNAP,), (SNAP,))
+    got = sourcelib.reader_errors(f, TEAMS)
+    assert got[-1] == "reader_allow allows %s, which reader_deny denies" % SNAP, got
+
+
+def test_reader_allow_only_unbound(tmp_path):
+    """reader_allow alone binds no operation: no required-operation error."""
+    assert sourcelib.reader_errors(_inst(tmp_path, "jira", allow=(SNAP,)), JIRA) == []
+
+
+def _allow_wiki(tmp_path, allow):
+    w = tmp_path / "w"
+    (w / ".claude/sources/instances").mkdir(parents=True)
+    write(w / ".claude/sources/instances/x.md",
+          "\n".join(["---", "key: x", "type: ms-teams", "reader:", "  - read file: %sread_resource" % M,
+                     "reader_allow:"] + ["  - " + r for r in allow] + ["---", ""]))
+    reader, aux = set(), set()
+    need = sourcelib.needed_rules(posix(w), posix(PLUGIN), reader, aux)
+    return need, reader, aux
+
+
+def test_reader_allow_needed_rules(tmp_path):
+    need, reader, aux = _allow_wiki(tmp_path, [SNAP, "Edit(~/.cache/wiki-sources/*/*/notes/**)",
+                                               "Edit(~/.cache/wiki-sources/**)", '"Bash(bash */scripts/ocr.sh *)"',
+                                               "Bash(curl *)"])
+    want = ["allow\t%s\t%s" % (SNAP, SNAP),
+            "allow\tEdit(~/.cache/wiki-sources/w/x/notes/**)\tEdit(~/.cache/wiki-sources/*/*/notes/**)",
+            "allow\tEdit(~/.cache/wiki-sources/w/x/**)\tEdit(~/.cache/wiki-sources/**)"]
+    for ln in want:
+        assert ln in need and ln in reader and ln in aux, (ln, need)
+    walk = "allow\tEdit(~/.cache/wiki-sources/w/x/walk.tsv)\tEdit(~/.cache/wiki-sources/*/*/walk.tsv)"
+    assert walk in need and walk not in reader and walk not in aux, need
+    assert not [ln for ln in need if "ocr.sh" in ln or "curl" in ln], need
+    assert aux == set(want), aux
+
+
+def test_reader_allow_same_narrowed(tmp_path):
+    """Two spellings that narrow to one rule give one line, the first's."""
+    need, reader, aux = _allow_wiki(tmp_path, ["Edit(~/.cache/wiki-sources/**)", "Edit(~/.cache/wiki-sources/*/*/**)"])
+    got = [ln for ln in need if ln.startswith("allow\tEdit(~/.cache/wiki-sources/w/x/**)\t")]
+    assert got == ["allow\tEdit(~/.cache/wiki-sources/w/x/**)\tEdit(~/.cache/wiki-sources/**)"], need
+    assert aux == set(got), aux
+
+
+def test_reader_allow_dup_of_contract(tmp_path):
+    """A copy of the contract's own cache rule is still the contract's: it
+    counts only from the wiki's settings."""
+    need, reader, aux = _allow_wiki(tmp_path, ["Edit(~/.cache/wiki-sources/*/*/walk.tsv)"])
+    walk = "allow\tEdit(~/.cache/wiki-sources/w/x/walk.tsv)\tEdit(~/.cache/wiki-sources/*/*/walk.tsv)"
+    assert need.count(walk) == 1 and walk not in reader and walk not in aux, need
+
+
+@pytest.fixture
+def rwa(rw):
+    """rw with the Teams instance's folder snapshot in reader_allow."""
+    w, home, env, _ = rw
+    f = w / ".claude/sources/instances/teams.md"
+    text = f.read_text(encoding="utf-8")
+    end = text.index("\n---\n") + 1
+    write(f, text[:end] + "reader_allow:\n  - %s\n" % SNAP + text[end:])
+    return w, home, env
+
+
+def _settings(cli, w, env, *args):
+    return cli("sources", "settings", *args, cwd=w, env=env).out.decode()
+
+
+def _sjson(o):
+    return o[o.index("{"):o.index("\n}\n") + 3]
+
+
+LOCAL = ("only in your user settings (enough locally; a cloud session or routine reads only this wiki's "
+         ".claude/settings.json):\n")
+
+
+def test_check_settings_allow_ok(rwa, cli):
+    w, home, env = rwa
+    sjson = _sjson(_settings(cli, w, env))
+    assert '"%s"' % SNAP in sjson
+    write(w / ".claude/settings.json", sjson)
+    rc, o = _check(cli, w, env)
+    assert rc == 0 and "missing: none" in o and "stale: none" in o and "only in your user settings" not in o, o
+
+
+def test_check_settings_allow_missing(rwa, cli):
+    w, home, env = rwa
+    write(w / ".claude/settings.json", _drop(_sjson(_settings(cli, w, env)), SNAP))
+    rc, o = _check(cli, w, env)
+    assert rc == 1 and "  allow: %s\n" % SNAP in o, o
+
+
+def test_check_settings_allow_only_in_user(rwa, cli):
+    w, home, env = rwa
+    write(w / ".claude/settings.json", _drop(_sjson(_settings(cli, w, env)), SNAP))
+    write(home / ".claude/settings.json", '{"permissions": {"allow": ["%s"]}}\n' % SNAP)
+    rc, o = _check(cli, w, env)
+    assert rc == 0 and "missing: none" in o and LOCAL + "  allow: %s\n" % SNAP in o, o
+
+
+def test_check_settings_allow_removed_stale(rw, cli):
+    """The last binding that needs the helper rule is gone: it is stale."""
+    w, home, env, sjson = rw
+    assert SNAP not in sjson
+    write(w / ".claude/settings.json", sjson.replace('"allow": [', '"allow": [\n      "%s",' % SNAP, 1))
+    rc, o = _check(cli, w, env)
+    assert rc == 0 and "\n  allow: %s\n" % SNAP in o[o.index("stale"):], o
+
+
+def test_check_settings_allow_narrowed_contract_rule(rw, cli):
+    """A reader_allow item spelled differently from the contract's rule but
+    narrowing to it stays the contract's rule: missing from the wiki's
+    settings even though the user's settings cover it, reported once."""
+    w, home, env, _ = rw
+    write(w / ".claude/sources/instances/n.md", "---\nkey: n\ntype: onenote\nreader_allow:\n"
+          "  - Edit(~/.cache/wiki-sources/**)\nstate:\n  - last_checked\n---\n")
+    rule = "Edit(~/.cache/wiki-sources/rw/n/**)"
+    sjson = _sjson(_settings(cli, w, env))
+    assert sjson.count('"%s"' % rule) == 1, sjson
+    write(w / ".claude/settings.json", _drop(sjson, rule))
+    write(home / ".claude/settings.json", '{"permissions": {"allow": ["Edit(~/.cache/wiki-sources/**)"]}}\n')
+    rc, o = _check(cli, w, env)
+    assert rc == 1 and o.count("  allow: %s\n" % rule) == 1 and "only in your user settings" not in o, o
+
+
+def test_check_settings_allow_cache_only_in_user(rwa, cli):
+    """A reader_allow cache rule, narrowed, met by a broader rule in the
+    user's settings: enough locally, reported."""
+    w, home, env = rwa
+    f = w / ".claude/sources/instances/teams.md"
+    write(f, f.read_text(encoding="utf-8").replace(
+        "reader_allow:\n", "reader_allow:\n  - Edit(~/.cache/wiki-sources/*/*/notes/**)\n", 1))
+    rule = "Edit(~/.cache/wiki-sources/rw/teams/notes/**)"
+    write(w / ".claude/settings.json", _drop(_sjson(_settings(cli, w, env)), rule))
+    write(home / ".claude/settings.json", '{"permissions": {"allow": ["Edit(~/.cache/wiki-sources/**)"]}}\n')
+    rc, o = _check(cli, w, env)
+    assert rc == 0 and "missing: none" in o and LOCAL + "  allow: %s\n" % rule in o, o
+
+
+def test_settings_key_allow(rwa, cli):
+    w, home, env = rwa
+    assert '"%s"' % SNAP in _settings(cli, w, env, "ms-teams", "--key", "teams")
+    assert SNAP not in _settings(cli, w, env, "ms-teams")
+    f = w / ".claude/sources/instances/teams.md"
+    write(f, f.read_text(encoding="utf-8").replace(
+        "reader_allow:\n", "reader_allow:\n  - Edit(~/.cache/wiki-sources/*/*/notes/**)\n", 1))
+    o = _settings(cli, w, env, "ms-teams", "--key", "teams")
+    assert '"Edit(~/.cache/wiki-sources/rw/teams/notes/**)"' in o, o
+    assert "Cache rules are narrowed to this wiki and instance" in o, o
 
 
 def test_contract_without_required_valid(tmp_path, capsys):
