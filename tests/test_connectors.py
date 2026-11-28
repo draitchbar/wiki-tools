@@ -4,10 +4,10 @@ in the settings rules (a tool bound with a limit denied there), the
 refusal of a binding that names one connector under both names, a broken
 table, and `sources.sh show`'s cloud names. check-settings' cloud-name
 lines on the test wiki are in test_reader_binding.py. Every case runs
-in-process in both modes; the cases in BOUNDARY, test_boundary_internal_error
-and the install tests run through the launchers in both modes (docs/adr.md, 6)."""
+in-process in both modes; the tests marked boundary also run through the
+launchers, and test_boundary_internal_error and the install tests always do
+(docs/adr.md, 6)."""
 
-import functools
 
 import pytest
 
@@ -15,7 +15,7 @@ import sources
 import sourcelib
 import wiki_check
 from conftest import (GMAIL_DENY, GMAIL_OPS, GMAIL_T, PLUGIN, SCRIPTS_P, TESTS, call_main, copytree, git, home_env,
-                      msys, posix, rerun, reset_modules, write)
+                      msys, posix, reset_modules, write)
 
 P = posix(PLUGIN)
 GC = "mcp__Gmail__"
@@ -218,12 +218,23 @@ def _mix_msg(who):
             "names (the plugin's sources/connectors.md)" % who)
 
 
-@pytest.mark.parametrize("case", ["across", "one-instance"])
-def test_mixed_forms_across_wiki(case, tmp_path, cli):
-    """One instance in local names, another in cloud names, or one instance
-    with both: refused, since a cloud name's allow or deny would depend on
-    which binding wins (one instance alone is invalid too, but its rules
-    would still be printed)."""
+@pytest.mark.checks("across")
+@pytest.mark.boundary("connectors/boundary-refusal",
+                      "a user's error: exit 1, its one line on stderr only, from sources.sh and the bridge")
+def test_mixed_forms_across_wiki(tmp_path, cli):
+    """One instance in local names, another in cloud names: refused, since a
+    cloud name's allow or deny would depend on which binding wins."""
+    _mixed_forms("across", tmp_path, cli)
+
+
+@pytest.mark.checks("one-instance")
+def test_mixed_forms_one_instance(tmp_path, cli):
+    """One instance with both names: refused too (alone it is invalid, but
+    its rules would still be printed)."""
+    _mixed_forms("one-instance", tmp_path, cli)
+
+
+def _mixed_forms(case, tmp_path, cli):
     w = gw(tmp_path)
     inst = w / ".claude/sources/instances"
     if case == "across":
@@ -368,6 +379,7 @@ def test_show_cloud_names(tmp_path, cli):
     assert "Reader tools" not in o and "this session:" not in o, o
 
 
+@pytest.mark.boundary("connectors/boundary-show-surface", "success: exit 0, CLAUDE_CODE_REMOTE passed through bash picks the surface")
 def test_show_unbound_cloud(tmp_path, cli):
     """The session line comes for an unbound instance too, and in a cloud
     session the hint is to bind locally, not /wiki:bind-reader."""
@@ -438,26 +450,6 @@ def test_cloud_rules_missing(case, gated, cli):
     assert "cloud rules missing" not in show + due and "- gmail: last checked 2026-10-01\n" in due, due
 
 
-# --- the boundary ------------------------------------------------------------------
-
-# The cases that also run through sources.sh, lib-source.sh's bridge and
-# wiki-check.sh (bash, py-run.sh, Python's stdout and stderr), in both
-# modes: each covers something the boundary can break that the in-process
-# run can't see. test_install_refuses_both_forms and test_install_mixed_forms
-# always run install-source-file.sh (stdin, an answer from the environment).
-BOUNDARY = [
-    # Success: exit 0, CLAUDE_CODE_REMOTE passed through bash picks the surface.
-    ("show-surface", test_show_unbound_cloud, {}),
-    # A user's error: exit 1, its one line on stderr only, from sources.sh and the bridge.
-    ("refusal", test_mixed_forms_across_wiki, {"case": "across"}),
-]
-
-
-@pytest.mark.parametrize("test,given", [pytest.param(t, g, id="connectors/boundary-" + n) for n, t, g in BOUNDARY])
-def test_boundary(test, given, request, cli):
-    """The chosen cases through the launchers, whatever --e2e says: same
-    assertions as in-process."""
-    rerun(request, test, cli=functools.partial(cli, launcher=True), **given)
 
 
 @pytest.mark.checks("connectors/boundary-internal-error")

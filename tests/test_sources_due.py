@@ -1,17 +1,16 @@
 """sources.sh due: what /wiki:ingest all ingests (issue #37), on a copy of
 guard-wiki with one source per reason. Dates in the state are fixed and
 long past, except "checked today", so only that line depends on today.
-Every case runs in-process in both modes; the cases in BOUNDARY also run
-through sources.sh, in both modes (docs/adr.md, 6)."""
+Every case runs in-process in both modes; the tests marked boundary also
+run through sources.sh, in both modes (docs/adr.md, 6)."""
 
 import datetime
-import functools
 import re
 import sys
 
 import pytest
 
-from conftest import TESTS, copytree, git, rerun, write
+from conftest import TESTS, copytree, git, write
 
 HOST = {"linux": "linux", "darwin": "macos"}.get(sys.platform, "windows")
 OTHER = "macos" if HOST == "linux" else "linux"
@@ -63,6 +62,7 @@ SKIPPED = [
 ]
 
 
+@pytest.mark.boundary("sources-due/boundary-success", "success: exit 0 and the whole list, with a date from the wiki's history")
 def test_due_reasons(cli, wiki):
     rc, out = due(cli, wiki)
     assert rc == 0
@@ -155,25 +155,8 @@ def test_due_nothing(cli, tmp_path):
     assert "- raw: never checked (first ingest: /wiki:ingest raw)" in out
 
 
+@pytest.mark.boundary("sources-due/boundary-usage", "a refusal: exit 1 and the usage line")
 def test_due_usage(cli, wiki):
     rc, out = due(cli, wiki, "extra")
     assert rc == 1
     assert out == "sources: usage: sources.sh due\n"
-
-
-# The cases that also run through sources.sh (bash, py-run.sh, Python's
-# stdout and stderr), in both modes: each covers something the boundary can
-# break that the in-process run can't see.
-BOUNDARY = [
-    # Success: exit 0 and the whole list, with a date from the wiki's history.
-    ("success", test_due_reasons),
-    # A refusal: exit 1 and the usage line.
-    ("usage", test_due_usage),
-]
-
-
-@pytest.mark.parametrize("test", [pytest.param(t, id="sources-due/boundary-" + n) for n, t in BOUNDARY])
-def test_boundary(test, request, cli):
-    """The chosen cases through sources.sh, whatever --e2e says: same
-    assertions as in-process."""
-    rerun(request, test, cli=functools.partial(cli, launcher=True))

@@ -3,17 +3,16 @@ contract, an instance's `reader`, `reader_deny` and `reader_allow` lists, their
 validation, and the settings rules check-settings looks for, which may sit
 in the user's settings. The guard's side is in test_guard.py (fixtures
 *-mcp-reader-*, test_reader_*). Every case runs in-process in both modes;
-the cases in BOUNDARY also run through sources.sh, in both modes
+the tests marked boundary also run through sources.sh, in both modes
 (docs/adr.md, 6)."""
 
-import functools
 import json
 
 import pytest
 
 import contract
 import sourcelib
-from conftest import GMAIL_DENY, GMAIL_OPS, GMAIL_T, PLUGIN, TESTS, copytree, git, home_env, posix, rerun, write
+from conftest import GMAIL_DENY, GMAIL_OPS, GMAIL_T, PLUGIN, TESTS, copytree, git, home_env, posix, write
 
 JIRA = posix(PLUGIN / "sources" / "jira" / "SOURCE.md")
 GMAIL = posix(PLUGIN / "sources" / "gmail" / "SOURCE.md")
@@ -160,6 +159,7 @@ def _check(cli, w, env):
     return r.rc, r.out.decode("utf-8", errors="surrogateescape")
 
 
+@pytest.mark.boundary("reader-binding/boundary-check-ok", "success: exit 0 and the report on stdout")
 def test_check_settings_reader_ok(rw, cli):
     w, home, env, sjson = rw
     write(w / ".claude/settings.json", sjson)
@@ -169,6 +169,7 @@ def test_check_settings_reader_ok(rw, cli):
             "(the plugin's sources/connectors.md), which count only here\n") in o, o
 
 
+@pytest.mark.boundary("reader-binding/boundary-check-missing", "a FAIL: exit 1 with the missing rule on stdout")
 def test_check_settings_reader_missing(rw, cli):
     w, home, env, sjson = rw
     write(w / ".claude/settings.json", sjson.replace('      "%sgetJiraIssue",\n' % T, ""))
@@ -176,6 +177,7 @@ def test_check_settings_reader_missing(rw, cli):
     assert rc == 1 and "  allow: %sgetJiraIssue" % T in o, o
 
 
+@pytest.mark.boundary("reader-binding/boundary-user-settings", "the user's settings found from HOME as bash passes it (USERPROFILE on Git Bash)")
 def test_check_settings_reader_in_user(rw, cli):
     """Still met: only the local names moved to the user's settings; their
     cloud names stay in the wiki's (the cloud-name tests below)."""
@@ -549,26 +551,3 @@ def test_check_settings_gmail_label_deny_missing(rw, cli):
     write(w / ".claude/settings.json", sjson.replace("      %s,\n" % rule, "").replace("      %s\n" % rule, ""))
     rc, o = _check(cli, w, env)
     assert rc == 1 and "deny: %slabel_thread" % GMAIL_T in o, o
-
-
-
-# --- the boundary ------------------------------------------------------------------
-
-# The cases that also run through sources.sh (bash, py-run.sh, Python's
-# stdout and stderr), in both modes: each covers something the boundary can
-# break that the in-process run can't see.
-BOUNDARY = [
-    # Success: exit 0 and the report on stdout.
-    ("check-ok", test_check_settings_reader_ok),
-    # A FAIL: exit 1 with the missing rule on stdout.
-    ("check-missing", test_check_settings_reader_missing),
-    # The user's settings found from HOME as bash passes it (USERPROFILE on Git Bash).
-    ("user-settings", test_check_settings_reader_in_user),
-]
-
-
-@pytest.mark.parametrize("test", [pytest.param(t, id="reader-binding/boundary-" + n) for n, t in BOUNDARY])
-def test_boundary(test, request, cli):
-    """The chosen cases through sources.sh, whatever --e2e says: same
-    assertions as in-process."""
-    rerun(request, test, cli=functools.partial(cli, launcher=True))

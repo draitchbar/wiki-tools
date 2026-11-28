@@ -7,8 +7,10 @@ Two layers:
 - end to end: the .sh launchers and the scripts that are still bash, run by
   a real bash (Git Bash on Windows) (`run`, `bash_argv`).
 Every case runs in-process, in both modes; a few chosen cases per script
-cross the boundary through its launcher, in both modes (`cli(...,
-launcher=True)`, a module's BOUNDARY list, `rerun`). Save and sources
+cross the boundary through its launcher, in both modes: a test marked
+`boundary(id, reason)` runs a second time with `cli` going through the
+launcher; cases that are steps of a sequence or data files say so in a
+module's BOUNDARY list (`cli(..., launcher=True)`). Save and sources
 still send their chosen cases through the launcher only with `--e2e`
 (`launcher="e2e"`) (docs/development.md, "Tests").
 
@@ -17,10 +19,10 @@ on both platforms; `norm` maps the spellings a path can come back in
 (native, forward slashes, Git Bash's /c/...) to @TMP@ and @PLUGIN@.
 
 Each test carries a check name of the form <area>/<case>, as its
-parametrize id or in a `checks` marker; `--check-names` prints them.
+parametrize id or in a `checks` marker, and a boundary run the id of its
+`boundary` marker; `--check-names` prints them.
 """
 
-import inspect
 import io
 import os
 import re
@@ -92,13 +94,48 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "checks(*names): the check names (<area>/<case>) this test carries, for --check-names")
+    config.addinivalue_line("markers", "boundary(id, reason): also run this test with `cli` through the launcher, "
+                            "in both modes, as check `id`; reason: the boundary risk it covers")
+
+
+# A test marked boundary(id, reason) runs twice: in-process, and with cli
+# (and a module's own runner, through boundary_run()) going through the
+# launcher. Same test, same assertions. Only on a test that isn't
+# parametrized, so each run keeps one check name.
+def pytest_generate_tests(metafunc):
+    m = metafunc.definition.get_closest_marker("boundary")
+    if m:
+        if metafunc.definition.get_closest_marker("parametrize"):
+            raise pytest.UsageError("%s: boundary on a parametrized test" % metafunc.definition.nodeid)
+        metafunc.parametrize("_boundary_run", [False, True], ids=["in-process", "launcher"], indirect=True)
+
+
+_BOUNDARY_RUN = False
+
+
+@pytest.fixture(autouse=True)
+def _boundary_run(request):
+    global _BOUNDARY_RUN
+    _BOUNDARY_RUN = getattr(request, "param", False)
+    yield
+    _BOUNDARY_RUN = False
+
+
+def boundary_run():
+    """True while a boundary marker's launcher run is on."""
+    return _BOUNDARY_RUN
 
 
 def check_names(item):
+    cs = getattr(item, "callspec", None)
+    through = cs.params.get("_boundary_run") if cs is not None else None
+    if through:
+        return [item.get_closest_marker("boundary").args[0]]
     m = item.get_closest_marker("checks")
     if m:
         return list(m.args)
-    cs = getattr(item, "callspec", None)
+    if through is not None:
+        return [item.originalname]
     if cs is not None:
         return [cs.id]
     return [item.name]
@@ -418,16 +455,16 @@ def cli(request, run, pydata):
     """cli(name, *args, cwd=..., env=None, input=b"", launcher=False) -> Result:
     the script `name` (lint, wiki-check, ...) in-process through its module's
     main, in both modes; launcher=True through bash
-    <plugin>/scripts/<name>.sh, in both modes (a module's boundary cases);
-    launcher="e2e" through it only with --e2e (save's and sources' chosen
-    cases)."""
+    <plugin>/scripts/<name>.sh, in both modes, as in a boundary marker's
+    launcher run; launcher="e2e" through it only with --e2e (save's and
+    sources' chosen cases)."""
     e2e = request.config.getoption("--e2e")
 
     def _cli(name, *args, cwd, env=None, input=b"", both=False, launcher=False):
         """both: separate streams and the real merged order (the launcher
         runs a second time for it, when both streams have output; with one
         empty the merged order is the other stream)."""
-        if launcher is True or (launcher == "e2e" and e2e):
+        if launcher is True or (launcher is False and _BOUNDARY_RUN) or (launcher == "e2e" and e2e):
             if name == "sourcelib":
                 argv = ["bash", "-c", _BRIDGE, "_", SCRIPTS_P, PLUGIN_BASH] + list(args)
             else:
@@ -440,15 +477,6 @@ def cli(request, run, pydata):
         env = dict(env or {}, CLAUDE_PLUGIN_DATA=pydata)
         return call_main(mod.main, _launcher_args(name, args), cwd=cwd, env=env, input=input)
     return _cli
-
-
-def rerun(request, test, **given):
-    """The test function `test` run again with its own fixtures, those in
-    `given` replacing them (and its parameters, when parametrized): a
-    module's BOUNDARY case, given its runner's launcher form, e.g.
-    cli=functools.partial(cli, launcher=True). Same assertions as in-process."""
-    names = inspect.signature(test).parameters
-    return test(**{n: given[n] if n in given else request.getfixturevalue(n) for n in names})
 
 
 # The guard as hooks.json runs it, for its launcher tests (guard_run(launcher=True)).

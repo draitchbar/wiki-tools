@@ -1,15 +1,15 @@
 """scripts/pii-check.sh: the personal-data check (docs/development.md,
 "Personal data"). Every term and address here is made up. Every case runs
-in-process in both modes; the cases in BOUNDARY also run through
-pii-check.sh, in both modes (docs/adr.md, 6)."""
+in-process in both modes; the tests marked boundary also run through
+pii-check.sh, in both modes (docs/adr.md, 6). It is the pre-push hook, on
+Git Bash too, so it keeps more of them than the plugin's scripts."""
 
-import functools
 import subprocess
 import sys
 
 import pytest
 
-from conftest import TESTS, call_main, git, posix, rerun
+from conftest import TESTS, boundary_run, call_main, git, posix
 
 REPO = TESTS.parent
 sys.path.insert(0, str(REPO / "scripts"))
@@ -29,13 +29,13 @@ DENY = "# test denylist\nJens Hansen\nSkovvej 12\nFrø\nmyhost-pc\n"
 @pytest.fixture
 def pii(run, tmp_path):
     """pii(*args, cwd, input=b"", deny=DENY, launcher=False) -> Result,
-    in-process in both modes, or (launcher=True) through pii-check.sh in
-    both modes (the cases in BOUNDARY)."""
+    in-process, or through pii-check.sh with launcher=True or in a boundary
+    marker's launcher run, in both modes."""
     def _pii(*args, cwd=None, input=b"", deny=DENY, launcher=False):
         f = tmp_path / "deny.txt"
         f.write_text(deny, encoding="utf-8")
         env = {"PII_DENYLIST": None, "PII_DENYLIST_FILE": posix(f)}
-        if launcher:
+        if launcher or boundary_run():
             return run(["bash", posix(REPO / "scripts" / "pii-check.sh")] + list(args),
                        cwd=cwd, env=env, input=input)
         return call_main(pii_check.main, list(args), cwd=cwd, env=env, input=input)
@@ -119,6 +119,7 @@ def test_denylist_passes(text):
 # --- modes -------------------------------------------------------------------
 
 @pytest.mark.checks("pii/text-mode")
+@pytest.mark.boundary("pii/boundary-refusal", "a finding: exit 1 on stdout, the term itself never printed")
 def test_text_mode_never_prints_the_term(pii):
     r = pii("text", "PR title", input="Fix for Jens Hansen\nfine line\n".encode())
     assert r.rc == 1
@@ -127,11 +128,13 @@ def test_text_mode_never_prints_the_term(pii):
 
 
 @pytest.mark.checks("pii/text-clean")
+@pytest.mark.boundary("pii/boundary-clean", "clean: exit 0")
 def test_text_mode_clean(pii):
     assert pii("text", "branch", input=b"feature/lint-dates\n").rc == 0
 
 
 @pytest.mark.checks("pii/text-non-ascii")
+@pytest.mark.boundary("pii/boundary-non-ascii", "non-ASCII in the denylist file and on stdin: the encodings")
 def test_text_mode_non_ascii(pii):
     """A non-ASCII denylist entry (Frø) matches non-ASCII input, and only
     its number is printed."""
@@ -214,6 +217,7 @@ def test_tree_mode(pii, repo):
 
 
 @pytest.mark.checks("pii/pre-push")
+@pytest.mark.boundary("pii/boundary-pre-push", "the hook's own mode: ref lines on stdin, git started from the script")
 def test_pre_push_new_branch_and_update(pii, repo, tmp_path):
     remote = tmp_path / "remote.git"
     git(tmp_path, "init", "-q", "--bare", str(remote))
@@ -237,6 +241,7 @@ def test_pre_push_new_branch_and_update(pii, repo, tmp_path):
 
 
 @pytest.mark.checks("pii/pre-push-url")
+@pytest.mark.boundary("pii/boundary-pre-push-url", "a path as the remote (a push to a URL): Git Bash's path conversion")
 def test_pre_push_to_a_url_scans_only_new_commits(pii, repo, tmp_path):
     # Pushed to a URL, git passes the URL instead of a remote name: commits
     # on any remote's tracking refs are known, not the whole history.
@@ -271,6 +276,7 @@ def test_pre_push_checks_the_branch_name(pii, repo, tmp_path):
 # --- the denylist's presence -------------------------------------------------
 
 @pytest.mark.checks("pii/no-denylist")
+@pytest.mark.boundary("pii/boundary-no-denylist", "the warning on stderr with exit 0, and the refusal without a denylist, exit 1")
 def test_no_denylist_warns_locally_and_fails_when_required(pii):
     r = pii("text", "t", input=b"clean\n", deny="")
     assert r.rc == 0 and "general patterns only" in r.err.decode()
@@ -287,6 +293,7 @@ def test_denylist_from_the_environment():
 
 
 @pytest.mark.checks("pii/usage")
+@pytest.mark.boundary("pii/boundary-usage", "usage errors: exit 2, which the hook treats as a block too")
 def test_usage(pii):
     assert pii().rc == 2
     assert pii("bogus").rc == 2
@@ -306,34 +313,3 @@ def test_hook_is_committed_executable():
                         "scripts/pii-check.sh"], stdout=subprocess.PIPE, check=True)
     modes = [line.split()[0] for line in r.stdout.decode().splitlines()]
     assert modes == ["100755", "100755"], modes
-
-
-# --- the boundary ----------------------------------------------------------------
-
-# The cases that also run through pii-check.sh (bash, py-run.sh, Python's
-# stdin, stdout and stderr), in both modes. It is the pre-push hook, on Git
-# Bash too, so it keeps more of them than the plugin's scripts: each covers
-# something the boundary can break that the in-process run can't see.
-BOUNDARY = [
-    # A finding: exit 1 on stdout, the term itself never printed.
-    ("refusal", test_text_mode_never_prints_the_term),
-    # Clean: exit 0.
-    ("clean", test_text_mode_clean),
-    # Non-ASCII in the denylist file and on stdin: the encodings.
-    ("non-ascii", test_text_mode_non_ascii),
-    # The hook's own mode: ref lines on stdin, git started from the script.
-    ("pre-push", test_pre_push_new_branch_and_update),
-    # A path as the remote (a push to a URL): Git Bash's path conversion.
-    ("pre-push-url", test_pre_push_to_a_url_scans_only_new_commits),
-    # The warning on stderr with exit 0, and the refusal without a denylist, exit 1.
-    ("no-denylist", test_no_denylist_warns_locally_and_fails_when_required),
-    # Usage errors: exit 2, which the hook treats as a block too.
-    ("usage", test_usage),
-]
-
-
-@pytest.mark.parametrize("test", [pytest.param(t, id="pii/boundary-" + n) for n, t in BOUNDARY])
-def test_boundary(test, request, pii):
-    """The chosen cases through pii-check.sh, whatever --e2e says: same
-    assertions as in-process."""
-    rerun(request, test, pii=functools.partial(pii, launcher=True))
