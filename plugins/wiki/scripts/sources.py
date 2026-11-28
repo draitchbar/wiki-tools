@@ -501,6 +501,7 @@ def op_settings(w: Wiki, args: list[str]) -> int:
                         and contract.field(f, "type") == t):
                     # The cloud names as the whole wiki's settings give them.
                     rules += sourcelib.reader_rules(f, *sourcelib.cloud_setup(w.root, w.plugin))
+                    rules += sourcelib.allow_rules(f, basename(w.root), key)
             else:
                 rules += ["%s\t%s\t%s" % (ln.split("\t")[0], _f(ln, 1), _f(ln, 1)) for ln in tr]
 
@@ -601,7 +602,8 @@ def op_check_settings(w: Wiki, args: list[str]) -> int:
         out("misspelled keys: none")
     hs = set(have)
     reader: set[str] = set()
-    need = sourcelib.needed_rules(w.root, w.plugin, reader)
+    aux: set[str] = set()
+    need = sourcelib.needed_rules(w.root, w.plugin, reader, aux)
     cloud = {(_f(ln, 0), _f(ln, 1)) for ln in _cloud_lines(w, need)}
     user = sourcelib.user_rules() if reader or cloud else []
     if reader:
@@ -624,6 +626,15 @@ def op_check_settings(w: Wiki, args: list[str]) -> int:
         out("missing (rules your sources need):\n" + "\n".join(miss))
     else:
         out("missing: none")
+    # Report only: a reader_allow rule met only in the user's settings.
+    local: list[str] = []
+    for ln in need:
+        if (ln in aux and ln not in local and sourcelib.missing_rules([ln], have)
+                and not sourcelib.missing_rules([ln], user)):
+            local.append(ln)
+    if local:
+        out("only in your user settings (enough locally; a cloud session or routine reads only this "
+            "wiki's .claude/settings.json):\n" + "\n".join("  allow: " + _f(ln, 1) for ln in local))
     counts: dict[str, int] = {}
     for ln in have:
         counts[ln] = counts.get(ln, 0) + 1
@@ -651,7 +662,7 @@ def op_check_settings(w: Wiki, args: list[str]) -> int:
     # Report only: a leftover allow rule is hygiene, not a broken setup.
     stale = ["  allow: " + r for r in sorted(sourcelib.stale_rules(need, have), key=contract._bytes_key)]
     if stale:
-        out("stale (allow rules for source scripts and MCP tools that no source instance uses; "
+        out("stale (allow rules for source scripts, helper scripts and MCP tools that no source instance uses; "
             "remove any that nothing else needs):\n" + "\n".join(stale))
     else:
         out("stale: none")

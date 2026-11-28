@@ -574,6 +574,15 @@ def test_reader_outside_wiki(tmp_path, guard_run):
     assert guard_run(data, str(tmp_path)).rc == 0
 
 
+def test_reader_allow_ignored(gw, guard_run):
+    """The guard ignores reader_allow (docs/adr.md, 11), even an item that
+    validation refuses: the wiki isn't broken and a bound tool still passes."""
+    inst(gw, "x", "ms-teams", "reader:", "  - read file: mcp__claude_ai_Microsoft_365__read_resource",
+         "reader_allow:", "  - Bash(bash */scripts/file-snapshot.sh *)", "  - Bash(curl *)")
+    assert guard_run(ORDINARY, str(gw)).rc == 0
+    assert guard_run(_mcp("mcp__claude_ai_Microsoft_365__read_resource", uri="teams:///x"), str(gw)).rc == 0
+
+
 @pytest.mark.parametrize("name", [pytest.param(n, id="guard/fail-closed-%s" % n) for n in BROKEN])
 def test_fail_closed(name, gw, guard_run):
     BROKEN[name](gw)
