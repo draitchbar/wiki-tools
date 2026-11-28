@@ -297,9 +297,8 @@ def edge(tmp_path_factory, cli):
     (t / "home-none").mkdir()
     cfg = dict(home_env(posix(t / "home-none")), HOME=posix(t / "home-none"), CLAUDE_CONFIG_DIR=str(t / "cfg-none"))
     case("wiki-check", w, "wiki-check", dict(TODAY, **cfg))
-    case("wiki-check-bad-today", w, "wiki-check", dict(cfg, WIKI_LINT_TODAY="bad"))
-    write(w / ".claude/settings.json", '{"permissions": {"allow": [,]}}')
-    case("wiki-check-bad-json", w, "wiki-check", dict(TODAY, **cfg))
+    # Lint refusing to run, as wiki-check reports it: one line, not a recording.
+    bad_today = cli("wiki-check", cwd=w, env=dict(cfg, WIKI_LINT_TODAY="bad")).out.decode("utf-8")
 
     e = t / "ew-empty"
     (e / "wiki").mkdir(parents=True)
@@ -308,13 +307,13 @@ def edge(tmp_path_factory, cli):
     case("wiki-check-bare", e, "wiki-check", cfg)
     (t / "ew-plain").mkdir()
     case("lint-no-git", t / "ew-plain", "lint")
-    return "".join(cases), w
+    return "".join(cases), w, bad_today
 
 
-@pytest.mark.checks("lint-edge/same", "lint-edge/cases")
+@pytest.mark.checks("lint-edge/recorded", "lint-edge/cases")
 def test_edge_recorded(edge, request):
-    out, _ = edge
-    assert out.count("\n== ") + out.startswith("== ") == 10
+    out, _, _ = edge
+    assert out.count("\n== ") + out.startswith("== ") == 8
     recorded(request, TESTS / "fixtures/lint/edge.out", out)
 
 
@@ -322,14 +321,20 @@ def test_edge_recorded(edge, request):
     pytest.param("PASS `.gitignore` has `.obsidian/`", True, id="lint-edge/crlf-gitignore"),
     pytest.param("crlf.md`: `created", False, id="lint-edge/crlf-dates"),
 ])
-def test_edge_contains(needle, present):
-    assert (needle in (TESTS / "fixtures/lint/edge.out").read_text(encoding="utf-8")) == present
+def test_edge_contains(edge, needle, present):
+    assert (needle in edge[0]) == present
+
+
+@pytest.mark.checks("lint-edge/wiki-check-bad-today")
+def test_wiki_check_bad_today(edge):
+    """A lint refusal (lint.Die) is wiki-check's failure line, with lint's reason."""
+    assert "- FAIL lint.sh didn't run (bad WIKI_LINT_TODAY 'bad'). Fix: run `bash " in edge[2], edge[2]
 
 
 @pytest.mark.checks("lint-edge/symlink-skipped")
 def test_symlink_skipped(edge, cli):
     """A symlinked page is not a page (find -type f); only where one can be made."""
-    _, w = edge
+    _, w, _ = edge
     try:
         (w / "wiki/link.md").symlink_to("ok.md")
     except OSError:

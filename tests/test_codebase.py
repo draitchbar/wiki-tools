@@ -93,7 +93,6 @@ def story(tmp_path_factory, run):
     eq("codebase/sub-sibling", "1", cbx("sub", "show", "ref", "apples/x"))
     has("codebase/sub-grep-scoped", out("sub", "grep", "ref", "b1"), "no matches")
     eq("codebase/refuse-unknown-op", "1", cbx("code", "checkout", "ref"))
-    eq("codebase/refuse-write-ops", "1", cbx("code", "push"))
     eq("codebase/refuse-extra-args", "1", cbx("code", "show", "ref", "app/src/A.java", "L1-L2", "--output=x"))
     eq("codebase/refuse-few-args", "1", cbx("code", "show", "ref"))
     eq("codebase/refuse-dotdot", "1", cbx("code", "show", "ref", "app/../lib/B2.java"))

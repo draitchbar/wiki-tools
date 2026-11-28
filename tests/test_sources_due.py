@@ -132,28 +132,14 @@ def test_check_needed_same_day_ingest(cli, wiki):
     assert rc == 0
     assert "- gmail: last checked 2026-10-03\n" in out.split("Not due:")[0]
 
-
-def test_thread_ids_row_is_ingest(cli, wiki):
-    """gmail's history row ends with the thread IDs it read (`; thread IDs:
-    <id>, <id>`, docs/adr.md 10); it is still this key's ingest row, found
-    on a second ingest the same day as in test_check_needed_same_day_ingest."""
-    log = wiki / "raw/sync-log.md"
-    gm = wiki / ".claude/sources/instances/gmail.md"
-
-    def commit(date, msg):
-        git(wiki, "add", "-A")
-        git(wiki, "commit", "-qm", msg, date=date)
-
-    write(log, log.read_text().replace("last_checked_gmail: 2026-10-02", "last_checked_gmail: 2026-10-03")
-          + "\n## History\n| Date | Source | What |\n|---|---|---|\n"
-          "| 2026-10-03 | gmail | 1 thread ingested; thread IDs: 18f0a1b2c3d4e5f6 |\n")
-    commit("2026-10-03T09:00:00", "Ingest gmail")
-    write(gm, gm.read_bytes() + b"\nNotes.\n")
-    commit("2026-10-03T12:00:00", "Edit the gmail instance")
+    # gmail's row may end with the thread IDs it read (`; thread IDs: <id>,
+    # <id>`, docs/adr.md 10): still this key's ingest row.
+    write(gm, gm.read_bytes() + b"More notes.\n")
+    commit("2026-10-03T16:00:00", "Edit the gmail instance again")
     assert "Check needed: the instance file changed" in show(cli, wiki, "gmail")
     write(log, log.read_text() + "| 2026-10-03 | gmail | 2 threads ingested, 1 skipped; thread IDs: "
           "18f0a1b2c3d4e5f7, 18f0a1b2c3d4e5f8, 18f0a1b2c3d4e5f9 |\n")
-    commit("2026-10-03T15:00:00", "Ingest gmail again")
+    commit("2026-10-03T17:00:00", "Ingest gmail again")
     assert "Check needed" not in show(cli, wiki, "gmail")
 
 

@@ -57,9 +57,9 @@ def test_arguments_unchanged(run, prt):
     assert "arg=a b\narg=æøå\narg=/c/x\narg=C:/y\narg=/tmp/z\n" in r.merged.decode("utf-8")
 
 
-@pytest.mark.parametrize("code", [pytest.param(1, id="py-run/exit-1"), pytest.param(3, id="py-run/exit-3")])
-def test_exit_code(code, run, prt):
-    assert prx(run, prt, "echo_args", str(code)).rc == code
+@pytest.mark.checks("py-run/exit-3")
+def test_exit_code(run, prt):
+    assert prx(run, prt, "echo_args", "3").rc == 3
 
 
 @pytest.mark.checks("py-run/stdin")

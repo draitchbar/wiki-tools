@@ -43,10 +43,11 @@ def test_agents_md_imports_contributing():
 
 
 @pytest.mark.checks("agents/policy-once")
-@pytest.mark.parametrize("phrase", ["core.hooksPath", "noreply", "--no-verify"])
-def test_policy_lives_in_contributing(phrase):
-    assert phrase in (REPO / "CONTRIBUTING.md").read_text(encoding="utf-8")
-    assert phrase not in (REPO / "AGENTS.md").read_text(encoding="utf-8")
+def test_policy_lives_in_contributing():
+    contributing = (REPO / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    agents = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+    for phrase in ("core.hooksPath", "noreply", "--no-verify"):
+        assert phrase in contributing and phrase not in agents, phrase
 
 
 @pytest.mark.checks("agents/no-one-agent-files")

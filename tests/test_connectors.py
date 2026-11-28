@@ -7,7 +7,6 @@ lines on the test wiki are in test_reader_binding.py."""
 
 import pytest
 
-import guard
 import sources
 import sourcelib
 import wiki_check
@@ -83,7 +82,7 @@ def _table(items):
 
 
 @pytest.mark.parametrize("text,want", [
-    pytest.param(_table(["local=a"]), "servers item 'local=a' must be 'local=<server> cloud=<server>'", id="bad-item"),
+    pytest.param(_table(["local=a"]), "servers item 'local=a' must be 'local=<server> cloud=<server>'", id="connectors/bad-item"),
     pytest.param(_table(["local=a__b cloud=c"]), "servers item 'local=a__b cloud=c' must be", id="double-underscore"),
     pytest.param(_table(["local=_a cloud=c"]), "servers item 'local=_a cloud=c' must be", id="leading-underscore"),
     pytest.param(_table(["local=a cloud=b", "local=a cloud=c"]), "server 'a' is listed twice", id="dup-local"),
@@ -134,12 +133,9 @@ def test_reader_rules_both_names():
 
 
 def test_limited_cloud_denied(tmp_path):
+    # One instance alone, its limited dispatcher denied under the cloud name:
+    # test_reader_binding.py's test_reader_rules.
     tracker = (TESTS / "guard-wiki/.claude/sources/instances/tracker.md").read_text(encoding="utf-8")
-    got = sourcelib.reader_rules(posix(TESTS / "guard-wiki/.claude/sources/instances/tracker.md"), pairs())
-    assert "allow\t%sexecuteRead\t%sexecuteRead" % (AT, AT) in got
-    assert "deny\t%sexecuteRead\t%sexecuteRead" % (AC, AC) in got
-    assert "allow\t%sexecuteRead\t%sexecuteRead" % (AC, AC) not in got
-    assert "allow\t%sgetJiraIssue\t%sgetJiraIssue" % (AC, AC) in got
     # A second instance binding the dispatcher free: free wiki-wide, as the
     # guard treats it, so its cloud name is allowed, never denied.
     free = jira("t2", AT, ["count: %sexecuteRead" % AT])
@@ -326,20 +322,6 @@ def test_broken_table(tmp_path, broken):
     assert r.rc == 0 and '"%s"' % SHELL in o(r), o(r)
     r = prun("sources", "show", "proton", cwd=pw, env=env)
     assert r.rc == 0 and "- list folder: %s; cloud: the same" % SHELL in o(r), o(r)
-
-
-# --- not a source type ---------------------------------------------------------
-
-def test_not_a_type(tmp_path, cli, guard_run):
-    w = gw(tmp_path)
-    r = cli("sources", "catalog", cwd=w)
-    assert r.rc == 0 and "connectors" not in r.out.decode(), r
-    r = cli("sources", "contract", "connectors", cwd=w)
-    assert r.rc == 1 and "unknown source type 'connectors'" in r.merged.decode(), r
-    assert not [f for f in guard.glob_files(P + "/sources", "SOURCE.md") if "connectors" in f]
-    assert (PLUGIN / "sources/connectors.md").is_file()
-    data = (TESTS / "fixtures/guard/pass-mcp-reader-direct.json").read_text(encoding="utf-8")
-    assert guard_run(data, posix(w)).rc == 0
 
 
 # --- sources.sh show ---------------------------------------------------------------

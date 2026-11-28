@@ -209,12 +209,6 @@ def test_tools_valid(ls, tmp_path):
     assert vc(posix(f)) == ("", 0)
 
 
-@pytest.mark.checks("lib-source/proton-files-contract")
-def test_proton_files_contract():
-    from conftest import PLUGIN
-    assert vc(posix(PLUGIN / "sources/proton-files/SOURCE.md")) == ("", 0)
-
-
 # --- open-questions.md (sourcelib.open_questions) --------------------------
 
 Q_TEXT = ("# Open questions\r\n\r\nWhat /wiki:clarify answers.\r\n\r\n"

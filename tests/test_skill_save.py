@@ -96,7 +96,7 @@ def test_init_writes_save_lines():
     assert "## Turning saving on" in init
     # The config example nests the fields in the file's `save` section.
     on = init[init.index("## Turning saving on"):]
-    assert '"save": {\n       "enabled": true,' in on
+    assert re.search(r'"save": \{\s*"enabled": true,', on), on
 
 
 def _guard(folder, guard_run, cmd):
@@ -106,8 +106,7 @@ def _guard(folder, guard_run, cmd):
     return guard_run(gbash(cmd).replace("/home/u/wikis/mywiki", wiki), wiki)
 
 
-@pytest.mark.checks("save-skill/forms-pass-guard")
-@pytest.mark.parametrize("skill", ["save", "ingest"])
+@pytest.mark.parametrize("skill", [pytest.param(s, id="save-skill/forms-pass-guard-" + s) for s in ("save", "ingest")])
 def test_allowed_forms_pass_guard(skill, gw, guard_run):  # noqa: F811
     """Each save.sh form a skill may run, with the plugin root filled in as
     Claude Code does, passes the guard plainly (no refusal, no "ask")."""
@@ -129,15 +128,14 @@ def test_allow_call_asks(gw, guard_run):  # noqa: F811
 
 # The diff forms the save skill's Permission step prescribes pass; the
 # file forms they replace are refused (protected path, or "push").
-@pytest.mark.checks("save-skill/look-forms")
-@pytest.mark.parametrize("cmd,rc", [
-    ("git diff 1a2b3c4 5d6e7f8 -- .claude", 0),
-    ("git log --oneline 1a2b3c4..5d6e7f8 -- .claude", 0),
-    ("git diff 1a2b3c4 5d6e7f8 -- .", 0),
-    ("git diff 1a2b3c4 5d6e7f8 -- templates", 0),
-    ("git diff 1a2b3c4 5d6e7f8 -- .claude/settings.wiki.json", 2),
-    ("git diff 1a2b3c4 5d6e7f8 -- .mcp.json", 2),
-    ("git diff 1a2b3c4 5d6e7f8 -- templates/push-plan.md", 2),
-])
+@pytest.mark.parametrize("cmd,rc", [pytest.param(c, rc, id="save-skill/look-forms-" + n) for n, c, rc in (
+    ("diff-claude", "git diff 1a2b3c4 5d6e7f8 -- .claude", 0),
+    ("log-claude", "git log --oneline 1a2b3c4..5d6e7f8 -- .claude", 0),
+    ("diff-all", "git diff 1a2b3c4 5d6e7f8 -- .", 0),
+    ("diff-templates", "git diff 1a2b3c4 5d6e7f8 -- templates", 0),
+    ("file-settings-wiki", "git diff 1a2b3c4 5d6e7f8 -- .claude/settings.wiki.json", 2),
+    ("file-mcp-json", "git diff 1a2b3c4 5d6e7f8 -- .mcp.json", 2),
+    ("file-push-plan", "git diff 1a2b3c4 5d6e7f8 -- templates/push-plan.md", 2),
+)])
 def test_look_forms(cmd, rc, gw, guard_run):  # noqa: F811
     assert _guard(gw, guard_run, cmd).rc == rc
