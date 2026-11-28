@@ -1,6 +1,6 @@
 # Plan: size and complexity limits for the Python
 
-Status: proposal, 2026-11-27, reviewed the same day (one round, folded in); sizes, names and ADR numbers brought up to date 2026-11-28 (after #118 and #120). Not started. The draft decision is at the end: ADR 21 goes into `docs/adr.md` with phase 1, covering the limits only, and is amended when phase 4 lands. This file is deleted when the last phase is done.
+Status: proposal, 2026-11-27, reviewed the same day (one round, folded in); sizes, names and ADR numbers brought up to date 2026-11-28 (after #118 and #120). Not started. The draft decision is at the end: ADR N (the next free number when phase 1 lands; `tests/test_adr_refs.py` refuses a reference to a decision that doesn't exist yet) goes into `docs/adr.md` with phase 1, covering the limits only, and is amended when phase 4 lands. This file is deleted when the last phase is done.
 
 ## Why
 
@@ -47,10 +47,10 @@ Each phase is its own pull request and changes no behaviour unless it says so; t
 ### 1. The limits (ruff and one test)
 
 - `ruff.toml`: add `C901`, `PLR0911`, `PLR0912`, `PLR0913`, `PLR0915` to `select`, at the defaults (`max-complexity = 10`; pylint's 6 returns, 12 branches, 5 arguments, 50 statements). `tests/**` is exempt from all five. Add `RUF100` (unused `noqa`) too, so a refactor that brings a function under the limits must remove its `noqa`; enabling it also flags 32 `# noqa: E402` that ruff no longer needs (imports after `sys.path.insert`), 6 of them in `guard.py`, which this phase removes (comments only).
-- The 30 functions over a limit today each get `# noqa: <codes>  # docs/adr.md, 21` on their `def` line, not a per-file ignore, so new code in the same file is checked. The `noqa` must be on the `def` line, also for a signature over several lines (after the opening `(`: `lint.report`, `lint.questions`); one on the closing `):` doesn't apply. The guard's modules get theirs too and keep them: they are never rewritten for size alone (16), but new guard code meets the limits.
+- The 30 functions over a limit today each get `# noqa: <codes>  # docs/adr.md, N` on their `def` line, not a per-file ignore, so new code in the same file is checked. The `noqa` must be on the `def` line, also for a signature over several lines (after the opening `(`: `lint.report`, `lint.questions`); one on the closing `):` doesn't apply. The guard's modules get theirs too and keep them: they are never rewritten for size alone (16), but new guard code meets the limits.
 - `tests/test_code_size.py`: every `.py` under `plugins/` and `scripts/` is at most 600 lines. Over-limit files are listed with their ceiling, at today's size: `sourcelib.py` 1229, `guard.py` 1193, `save.py` 919, `sources.py` 710 (2026-11-28; phase 1 re-measures). The test fails when a file is over its ceiling, and also when it is more than 20 lines under it or back under 600, so a ceiling follows the file down and growth back is seen. A pull request may raise a ceiling only when it says why. `guard.py`'s ceiling makes its growth visible without forcing a split.
 - Not added: ruff has no module-length rule (pylint's `C0302` isn't implemented), hence the test. No class-size rule: the classes are few, and module size plus complexity cover them. The preview rules `PLR0917` (positional arguments) and `PLR0914` (15 locals) flag only functions already among the 30, so they add nothing today.
-- `AGENTS.md`: one line beside the Python style rule naming the limits and ADR 21.
+- `AGENTS.md`: one line beside the Python style rule naming the limits and ADR N.
 - Tests: the new test; the `noqa` changes are comments only and need none (as for annotations only, AGENTS.md).
 
 ### 2. One `main` for the scripts
@@ -94,7 +94,7 @@ Every top-level name in `sourcelib.py` is in the table (checked 2026-11-28; `TYP
 - `tests/conftest.py`: the reset of module state moves with it: `sourcelib._shown` and `_sink` stay, `_pairs` becomes `connectors._pairs`. A reset left on the old module would do nothing, silently.
 - `test_no_copies`: the guard's ban on importing `sourcelib` extends to every new module.
 - A test of the import direction (an AST pass, like `test_no_copies`).
-- Docs that name `sourcelib.py` for what moves: `plugins/wiki/sources/connectors.md` (line 17) and `docs/layout.md` (lines 30, 40, 42); ADR 17 (only `sourcelib.py` reads the table: now `connectors.py`) and ADR 12 (`sourcelib.open_questions`: now `questions.open_questions`), through ADR 21's amendment.
+- Docs that name `sourcelib.py` for what moves: `plugins/wiki/sources/connectors.md` (line 17) and `docs/layout.md` (lines 30, 40, 42); ADR 17 (only `sourcelib.py` reads the table: now `connectors.py`) and ADR 12 (`sourcelib.open_questions`: now `questions.open_questions`), through ADR N's amendment.
 - `mypy.ini`'s `files` and AGENTS.md's list of Python modules.
 
 Measure a script's start before and after on Windows (Git Bash): five more imports should cost little, but ADR 4 exists because process time there matters.
@@ -107,11 +107,11 @@ Open: whether `connectors.py` and `permissions.py` are one module (connector nam
 - `save.py` stays one module: one feature, and 919 lines with a ceiling. Phase 3 shortens `run`; a split is for when it grows.
 - Tests: no limits. `test_save.py` (1191 lines) mirrors `save.py`; it splits if `save.py` does.
 
-## Draft: ADR 21
+## Draft: ADR N
 
-Added to `docs/adr.md` with phase 1 as `## 21.` (shown one level down here); the paragraph marked *phase 4* is added by the amendment when phase 4 lands.
+Added to `docs/adr.md` with phase 1 as `## N.` (shown one level down here); the paragraph marked *phase 4* is added by the amendment when phase 4 lands.
 
-### 21. Size and complexity limits
+### N. Size and complexity limits
 **Decision.** In the Python under `plugins/` and `scripts/`, ruff enforces pylint's and McCabe's defaults per function: complexity 10 (`C901`), 6 returns, 12 branches, 5 arguments, 50 statements (`PLR0911`, `PLR0912`, `PLR0913`, `PLR0915`), and `RUF100` flags a `noqa` no longer needed. A test (`tests/test_code_size.py`) caps a module at 600 lines. A function over a limit carries a `noqa` on its `def` line naming this decision, with a reason where it is kept for good; a module over the cap has a ceiling in the test, at its size within 20 lines, raised only by a pull request that says why. The guard's modules meet the limits in new code only: their existing `noqa`s stay, and `guard.py`'s ceiling shows growth without forcing a split, since it is one file by design. `tests/` is exempt. The scripts share one `main` wrapper (`sourcelib.run_main`) and one `Die`, defined once (`test_no_copies`); code that only looks alike and changes for different reasons stays separate.
 
 **Why.** By 2026-11-27 one module, `sourcelib.py`, held six concerns in 1215 lines (1229 by 2026-11-28), and 30 functions were over a default limit, the largest at 263 lines and complexity 57; nothing in the lint stopped either from growing. The numbers are conventions (PEP 8 sets none): pylint's and McCabe's defaults are the ones most Python tools ship and readers know, and complexity predicts defects better than length. Per-function `noqa`s rather than per-file ignores, so a file with one old offender still checks its new code; ceilings that follow a file down, so the backlog can shrink but not grow back unseen. The guard keeps its shape for the reasons in 3 and 16. Splitting for a number alone was rejected: where a whole reads better than its pieces, the `noqa` stays with its reason. The plan and its measurements: `docs/plans/code-size.md` (deleted when done).
