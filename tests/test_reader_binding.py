@@ -289,6 +289,8 @@ SHAPE = "must be Bash(bash */scripts/<script>.sh *) with <script> file-snapshot,
     pytest.param(("Edit(~/.cache/other/**)",), [SHAPE], id="allow-other-cache"),
     pytest.param(("Edit(~/.cache/wiki-sources/*/*/../x)",), [SHAPE], id="allow-dotdot"),
     pytest.param(("Edit(~/.cache/wiki-sources/*/*/./x)",), [SHAPE], id="allow-dot"),
+    pytest.param(("Edit(~/.cache/wiki-sources/*/*/..*/x)",), [SHAPE], id="allow-dotstar"),
+    pytest.param(("Edit(~/.cache/wiki-sources/*/*/.*)",), [SHAPE], id="allow-dot-star"),
     pytest.param(("Edit(~/.cache/wiki-sources/*/*/a//b)",), [SHAPE], id="allow-empty-seg"),
     pytest.param(("Edit(~/.cache/wiki-sources/*/*/a b)",), [SHAPE], id="allow-space"),
     pytest.param(("%sread_resource" % M,), [SHAPE], id="allow-mcp"),
@@ -337,6 +339,14 @@ def test_reader_allow_needed_rules(tmp_path):
     assert walk in need and walk not in reader and walk not in aux, need
     assert not [ln for ln in need if "ocr.sh" in ln or "curl" in ln], need
     assert aux == set(want), aux
+
+
+def test_reader_allow_same_narrowed(tmp_path):
+    """Two spellings that narrow to one rule give one line, the first's."""
+    need, reader, aux = _allow_wiki(tmp_path, ["Edit(~/.cache/wiki-sources/**)", "Edit(~/.cache/wiki-sources/*/*/**)"])
+    got = [ln for ln in need if ln.startswith("allow\tEdit(~/.cache/wiki-sources/w/x/**)\t")]
+    assert got == ["allow\tEdit(~/.cache/wiki-sources/w/x/**)\tEdit(~/.cache/wiki-sources/**)"], need
+    assert aux == set(got), aux
 
 
 def test_reader_allow_dup_of_contract(tmp_path):
@@ -401,6 +411,36 @@ def test_check_settings_allow_removed_stale(rw, cli):
     write(w / ".claude/settings.json", sjson.replace('"allow": [', '"allow": [\n      "%s",' % SNAP, 1))
     rc, o = _check(cli, w, env)
     assert rc == 0 and "\n  allow: %s\n" % SNAP in o[o.index("stale"):], o
+
+
+def test_check_settings_allow_narrowed_contract_rule(rw, cli):
+    """A reader_allow item spelled differently from the contract's rule but
+    narrowing to it stays the contract's rule: missing from the wiki's
+    settings even though the user's settings cover it, reported once."""
+    w, home, env, _ = rw
+    write(w / ".claude/sources/instances/n.md", "---\nkey: n\ntype: onenote\nreader_allow:\n"
+          "  - Edit(~/.cache/wiki-sources/**)\nstate:\n  - last_checked\n---\n")
+    rule = "Edit(~/.cache/wiki-sources/rw/n/**)"
+    sjson = _sjson(_settings(cli, w, env))
+    assert sjson.count('"%s"' % rule) == 1, sjson
+    write(w / ".claude/settings.json", _drop(sjson, rule))
+    write(home / ".claude/settings.json", '{"permissions": {"allow": ["Edit(~/.cache/wiki-sources/**)"]}}\n')
+    rc, o = _check(cli, w, env)
+    assert rc == 1 and o.count("  allow: %s\n" % rule) == 1 and "only in your user settings" not in o, o
+
+
+def test_check_settings_allow_cache_only_in_user(rwa, cli):
+    """A reader_allow cache rule, narrowed, met by a broader rule in the
+    user's settings: enough locally, reported."""
+    w, home, env = rwa
+    f = w / ".claude/sources/instances/teams.md"
+    write(f, f.read_text(encoding="utf-8").replace(
+        "reader_allow:\n", "reader_allow:\n  - Edit(~/.cache/wiki-sources/*/*/notes/**)\n", 1))
+    rule = "Edit(~/.cache/wiki-sources/rw/teams/notes/**)"
+    write(w / ".claude/settings.json", _drop(_sjson(_settings(cli, w, env)), rule))
+    write(home / ".claude/settings.json", '{"permissions": {"allow": ["Edit(~/.cache/wiki-sources/**)"]}}\n')
+    rc, o = _check(cli, w, env)
+    assert rc == 0 and "missing: none" in o and LOCAL + "  allow: %s\n" % rule in o, o
 
 
 def test_settings_key_allow(rwa, cli):

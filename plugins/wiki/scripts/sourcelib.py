@@ -666,11 +666,12 @@ _CACHE_ALLOW = re.compile(r"Edit\(~/\.cache/wiki-sources/(\*\*|\*/\*/[A-Za-z0-9.
 
 
 def allow_ok(r: str) -> bool:
-    """A reader_allow item has one of the accepted shapes."""
+    """A reader_allow item has one of the accepted shapes: no cache path
+    segment made only of dots and stars with a dot in it (., .., .*)."""
     if _HELPER_ALLOW.match(r):
         return True
     m = _CACHE_ALLOW.match(r)
-    return m is not None and not any(s in (".", "..") for s in m.group(1).split("/"))
+    return m is not None and not any("." in s and not s.strip(".*") for s in m.group(1).split("/"))
 
 
 def reader_errors(f: str, c: str, pairs: dict[str, str] | None = None) -> list[str]:
@@ -869,9 +870,11 @@ def needed_rules(root: str, plugin: str | None, reader: set[str] | None = None,
     instances (`reader`, `reader_deny`, then `reader_allow`, narrowed). A
     set passed as reader gets the lines that come from a binding (they may
     live in the user's settings too), except those in a connector's cloud
-    name, which count only from the wiki's settings, and those that are
-    also the instance's contract rules. A set passed as aux gets the
-    `reader_allow` lines among them.
+    name, which count only from the wiki's settings. A `reader_allow` line
+    whose narrowed rule is already one of the instance's contract rules, or
+    of its earlier `reader_allow` lines, is left out: it stays the
+    contract's rule, met only in the wiki's settings. A set passed as aux
+    gets the `reader_allow` lines kept.
     Raises BindingMixError (wiki_binding_error)."""
     w = root.rstrip("/").rsplit("/", 1)[-1] or "/"
     d = contract.instance_dir(root)
@@ -886,14 +889,20 @@ def needed_rules(root: str, plugin: str | None, reader: set[str] | None = None,
             continue
         tools = contract.field(c, "access") == "tools"
         own = narrow_rules(type_rules(c), w, k)
-        extra = [ln for ln in allow_rules(f, w, k) if ln not in own] if tools else []
+        extra: list[str] = []
+        if tools:
+            taken = {_fields(ln)[:2] for ln in own}
+            for ln in allow_rules(f, w, k):
+                if _fields(ln)[:2] not in taken:
+                    taken.add(_fields(ln)[:2])
+                    extra.append(ln)
         bound = reader_rules(f, pairs, free) + extra if tools else []
         for ln in own + bound:
             if ln not in seen:
                 seen.add(ln)
                 res.append(ln)
         if reader is not None:
-            reader.update(ln for ln in bound if ln not in own and not is_cloud(_fields(ln)[1], pairs))
+            reader.update(ln for ln in bound if not is_cloud(_fields(ln)[1], pairs))
         if aux is not None:
             aux.update(extra)
     return res
