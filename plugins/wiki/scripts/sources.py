@@ -662,7 +662,7 @@ def op_check_settings(w: Wiki, args: list[str]) -> int:
     # Report only: a leftover allow rule is hygiene, not a broken setup.
     stale = ["  allow: " + r for r in sorted(sourcelib.stale_rules(need, have), key=contract._bytes_key)]
     if stale:
-        out("stale (allow rules for source scripts and MCP tools that no source instance uses; "
+        out("stale (allow rules for source scripts, helper scripts and MCP tools that no source instance uses; "
             "remove any that nothing else needs):\n" + "\n".join(stale))
     else:
         out("stale: none")

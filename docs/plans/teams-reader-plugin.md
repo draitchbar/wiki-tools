@@ -6,7 +6,7 @@ The Teams half of the roadmap item **Reader plugins for connector workarounds**:
 
 ## Before the spike: done
 
-The binding field for auxiliary rules is built: the instance list `reader_allow` (`docs/adr.md`, 11). It holds the snapshot allow and a reader's helper-script and cache rules in named shapes only (`Skill(...)` not yet; add it if check 4 needs one), `sources.sh settings` (with or without `--key`) emits it, `check-settings` verifies it and `stale` reports a helper-script allow no binding needs. `reader` keeps only operation bindings.
+The binding field for auxiliary rules is built: the instance list `reader_allow` (`docs/adr.md`, 11). It holds the snapshot allow and a reader's helper-script and cache rules in named shapes only (`Skill(...)` not yet; add it if check 4 needs one), `sources.sh settings` (the whole wiki, or `<type> --key <key>`) emits it, `check-settings` verifies it and `stale` reports a helper-script allow no binding needs. `reader` keeps only operation bindings.
 
 The spike assumes this field exists.
 

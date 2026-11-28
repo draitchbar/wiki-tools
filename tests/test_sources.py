@@ -188,7 +188,7 @@ def _seq(*fns):
 
 CODE_EDIT = '"Edit(~/.cache/wiki-sources/sw/code/**)"'
 MISSING_CODE = "allow: Edit(~/.cache/wiki-sources/sw/code/**)"
-STALE = ("stale (allow rules for source scripts and MCP tools that no source instance uses; "
+STALE = ("stale (allow rules for source scripts, helper scripts and MCP tools that no source instance uses; "
          "remove any that nothing else needs):")
 SCK = [  # name, exit, text, change to the settings `settings` prints
     ("ok", 0, "missing: none", None),
