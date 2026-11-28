@@ -657,15 +657,32 @@ def _quoted(s: str) -> bool:
     return len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'"
 
 
+# The shapes a reader_allow item may have (docs/adr.md, 11): a core helper
+# script a contract's body runs with an instance key, or an Edit rule on the
+# source cache, narrowed like the contracts' cache rules (narrow_rules).
+_HELPER_ALLOW = re.compile(r"Bash\(bash \*/scripts/(file-snapshot|decode-download|ocr)\.sh \*\)\Z", re.ASCII)
+_CACHE_ALLOW = re.compile(r"Edit\(~/\.cache/wiki-sources/(\*\*|\*/\*/[A-Za-z0-9._*-]+(?:/[A-Za-z0-9._*-]+)*)\)\Z",
+                          re.ASCII)
+
+
+def allow_ok(r: str) -> bool:
+    """A reader_allow item has one of the accepted shapes."""
+    if _HELPER_ALLOW.match(r):
+        return True
+    m = _CACHE_ALLOW.match(r)
+    return m is not None and not any(s in (".", "..") for s in m.group(1).split("/"))
+
+
 def reader_errors(f: str, c: str, pairs: dict[str, str] | None = None) -> list[str]:
     """What is wrong with an instance's reader binding (`reader`,
-    `reader_deny`; docs/adr.md, 11), given its contract c. With the pair
+    `reader_deny`, `reader_allow`; docs/adr.md, 11), given its contract c. With the pair
     table (connector_pairs), also a connector named under both its local
     and its cloud name (docs/adr.md, 17)."""
     items, deny = contract.list_(f, "reader"), contract.list_(f, "reader_deny")
+    allow = contract.list_(f, "reader_allow")
     if contract.field(c, "access") != "tools":
-        return (["only an access: tools instance has a reader binding ('reader', 'reader_deny')"]
-                if items or deny else [])
+        return (["only an access: tools instance has a reader binding ('reader', 'reader_deny', "
+                 "'reader_allow')"] if items or deny or allow else [])
     res: list[str] = []
     ops = dict(p for p in map(contract.operation, contract.list_(c, "operations")) if p)
     bound: set[str] = set()
@@ -704,6 +721,22 @@ def reader_errors(f: str, c: str, pairs: dict[str, str] | None = None) -> list[s
             res.append("reader_deny item '%s' must be an MCP tool or a Bash(...) or PowerShell(...) rule" % r)
         elif r in rules:
             res.append("reader_deny denies %s, which reader binds" % r)
+    denied = set(map(_unquoted, deny))
+    seen: set[str] = set()
+    for r in allow:
+        if _quoted(r):
+            res.append("reader_allow item %s is in quotes; write it without them (the frontmatter isn't "
+                       "YAML: quotes become part of the item)" % r)
+            r = r[1:-1]
+        if not allow_ok(r):
+            res.append("reader_allow item '%s' must be Bash(bash */scripts/<script>.sh *) with <script> "
+                       "file-snapshot, decode-download or ocr, or Edit(~/.cache/wiki-sources/**) or "
+                       "Edit(~/.cache/wiki-sources/*/*/<path>)" % r)
+        elif r in seen:
+            res.append("reader_allow lists %s twice" % r)
+        elif r in denied:
+            res.append("reader_allow allows %s, which reader_deny denies" % r)
+        seen.add(r)
     if pairs:
         res.extend("reader and reader_deny name one connector under both its local name (mcp__%s__…) and "
                    "its cloud name (mcp__%s__…); bind the local names only: sources.sh settings adds the "
@@ -756,6 +789,13 @@ def reader_rules(f: str, pairs: dict[str, str] | None = None, free: Container[st
         if cn:
             res.append("deny\t%s\t%s" % (cn, cn))
     return res
+
+
+def allow_rules(f: str, w: str, k: str) -> list[str]:
+    """An instance's `reader_allow` rules as needed_rules lines (allow),
+    cache rules narrowed to wiki w and key k; quoted or invalid items
+    skipped (reader_errors reports them)."""
+    return narrow_rules(["allow\t" + r for r in contract.list_(f, "reader_allow") if allow_ok(r)], w, k)
 
 
 FIELD_ARG_RE = re.compile(r"([a-z_]+)(\[\])?", re.ASCII)
@@ -822,12 +862,16 @@ def narrow_rules(lines: Iterable[str], w: str, k: str) -> list[str]:
     return res
 
 
-def needed_rules(root: str, plugin: str | None, reader: set[str] | None = None) -> list[str]:
+def needed_rules(root: str, plugin: str | None, reader: set[str] | None = None,
+                 aux: set[str] | None = None) -> list[str]:
     """src_needed_rules: the rules the wiki's instances need, no repeats:
     their contracts' rules, then the reader bindings of access: tools
-    instances. A set passed as reader gets the lines that come from a
-    binding (they may live in the user's settings too), except those in a
-    connector's cloud name, which count only from the wiki's settings.
+    instances (`reader`, `reader_deny`, then `reader_allow`, narrowed). A
+    set passed as reader gets the lines that come from a binding (they may
+    live in the user's settings too), except those in a connector's cloud
+    name, which count only from the wiki's settings, and those that are
+    also the instance's contract rules. A set passed as aux gets the
+    `reader_allow` lines among them.
     Raises BindingMixError (wiki_binding_error)."""
     w = root.rstrip("/").rsplit("/", 1)[-1] or "/"
     d = contract.instance_dir(root)
@@ -840,13 +884,18 @@ def needed_rules(root: str, plugin: str | None, reader: set[str] | None = None) 
             c = contract.contract(root, contract.field(f, "type"), plugin)
         except contract.ContractError:
             continue
-        bound = reader_rules(f, pairs, free) if contract.field(c, "access") == "tools" else []
-        for ln in narrow_rules(type_rules(c), w, k) + bound:
+        tools = contract.field(c, "access") == "tools"
+        own = narrow_rules(type_rules(c), w, k)
+        extra = [ln for ln in allow_rules(f, w, k) if ln not in own] if tools else []
+        bound = reader_rules(f, pairs, free) + extra if tools else []
+        for ln in own + bound:
             if ln not in seen:
                 seen.add(ln)
                 res.append(ln)
         if reader is not None:
-            reader.update(ln for ln in bound if not is_cloud(_fields(ln)[1], pairs))
+            reader.update(ln for ln in bound if ln not in own and not is_cloud(_fields(ln)[1], pairs))
+        if aux is not None:
+            aux.update(extra)
     return res
 
 
@@ -877,13 +926,15 @@ def rules_check(need: list[str], reader: Container[str], have: list[str],
 
 # The allow rules stale_rules may report: a source script, as contracts'
 # read_tools name it (standard */sources/<type>/<script>.sh, local
-# .claude/sources/types/<type>/<script>.sh), and an MCP tool.
+# .claude/sources/types/<type>/<script>.sh), a core helper script as a
+# reader_allow item names it (_HELPER_ALLOW), and an MCP tool.
 _SOURCE_SCRIPT = re.compile(r"Bash\(bash (\S*/)?sources/(types/)?[A-Za-z0-9_-]+/[A-Za-z0-9_-]+\.sh( \*)?\)\Z", re.ASCII)
 
 
 def stale_rules(need: Iterable[str], have: Iterable[str]) -> list[str]:
-    """The allow rules in have (settings_rules) for a source script or an
-    MCP tool that no needed allow rule (needed_rules) is, in either form:
+    """The allow rules in have (settings_rules) for a source script, a core
+    helper script (_HELPER_ALLOW) or an MCP tool that no needed allow rule
+    (needed_rules) is, in either form:
     left over from a source or a reader that is gone. A server rule
     (mcp__<server>, mcp__<server>__*) counts as used by its tools. Every
     other rule is never stale. In have's order, no repeats."""
@@ -899,7 +950,7 @@ def stale_rules(need: Iterable[str], have: Iterable[str]) -> list[str]:
             base = r[:-1] if r.endswith("__*") else r + "__"
             if any(u.startswith(base) for u in used):
                 continue
-        elif not _SOURCE_SCRIPT.match(r):
+        elif not (_SOURCE_SCRIPT.match(r) or _HELPER_ALLOW.match(r)):
             continue
         res.append(r)
     return res
