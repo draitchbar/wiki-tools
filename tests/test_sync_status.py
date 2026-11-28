@@ -1,13 +1,15 @@
 """sync-status.sh (formerly the sync-status section of run-tests.sh):
-in-process for the report; the plugin-working-tree note end to end, on
-copies of the scripts (the note is about the folder the script runs from)."""
+in-process for the report, in both modes; the plugin-working-tree note end
+to end, on copies of the scripts (the note is about the folder the script
+runs from), and the cases in BOUNDARY through sync-status.sh, in both
+modes (docs/adr.md, 6)."""
 
 import datetime
 import shutil
 
 import pytest
 
-from conftest import SCRIPTS, git, posix, write
+from conftest import SCRIPTS, git, posix, rerun, write
 
 ENV = {"CLAUDE_PROJECT_DIR": ""}
 SS_FILES = ("sync-status.sh", "sync_status.py", "py-run.sh", "sourcelib.py", "contract.py")
@@ -264,3 +266,28 @@ def test_questions_future(tmp_path, cli):
     w = _qwiki(tmp_path, "### q-2026-01-01-x\n- raised: 2999-01-01, raw\n")
     assert "Open questions (open-questions.md): 1. Answer them with /wiki:clarify." in \
         text(cli("sync-status", cwd=w, env=ENV))
+
+
+# --- the boundary -------------------------------------------------------------
+
+# The cases that also run through sync-status.sh (bash, py-run.sh, Python's
+# stdout and stderr), in both modes: each covers something the boundary can
+# break that the in-process run can't see. test_plugin_note (the folder the
+# launcher runs from) and test_python_missing (the launcher's own message)
+# always run bash.
+BOUNDARY = [
+    # Success: the report with its open-questions line, dates counted from today.
+    ("questions", test_questions_oldest),
+]
+
+
+@pytest.mark.parametrize("test", [pytest.param(t, id="sync-status/boundary-" + n) for n, t in BOUNDARY])
+def test_boundary(test, request, cli):
+    """The chosen cases through sync-status.sh, whatever --e2e says: same
+    assertions as in-process, and, as a SessionStart hook must, exit 0 and
+    nothing on stderr."""
+    def launched(*args, **kw):
+        r = cli(*args, launcher=True, **kw)
+        assert r.rc == 0 and r.err == b"", r
+        return r
+    rerun(request, test, cli=launched)

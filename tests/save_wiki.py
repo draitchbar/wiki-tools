@@ -128,7 +128,7 @@ class Wiki:
         through cli, so --e2e runs bash save.sh."""
         env, cwd = dict(self.env, **(env or {})), cwd or self.w
         if launcher:
-            return self.cli("save", *args, cwd=cwd, env=env)
+            return self.cli("save", *args, cwd=cwd, env=env, launcher="e2e")
         return call_main(save.main, ["--plugin", PLUGIN_BASH] + list(args), cwd=cwd, env=env)
 
     def remote(self, ref="main"):

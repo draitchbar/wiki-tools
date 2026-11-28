@@ -2,7 +2,7 @@
 # Run the test suite (pytest: tests/test_*.py, tests/conftest.py).
 #
 #   bash tests/run-tests.sh            every test
-#   bash tests/run-tests.sh --e2e      most in-process tests through the launchers (docs/development.md, "Tests")
+#   bash tests/run-tests.sh --e2e      also save's and sources' chosen cases through the launchers (docs/development.md, "Tests")
 #   bash tests/run-tests.sh ARGS...    pytest's options, e.g. -k guard -x
 #
 # pytest, pytest-xdist and the lint tools come from .venv, which uv makes

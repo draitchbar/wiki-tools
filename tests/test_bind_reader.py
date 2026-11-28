@@ -246,7 +246,7 @@ def test_contracts_quote_show_output(tmp_path, cli):
     out, heads = "", []
     # proton is unbound: the session line comes for it too.
     for k in ("gmail", "tracker", "drive", "proton"):
-        r = cli("sources", "show", k, cwd=w, env={"CLAUDE_CODE_REMOTE": "true"})
+        r = cli("sources", "show", k, cwd=w, env={"CLAUDE_CODE_REMOTE": "true"}, launcher="e2e")
         assert r.rc == 0, r
         out += r.out.decode("utf-8", "surrogateescape")
         heads.append(r.out.decode("utf-8", "surrogateescape").split("=====")[0])

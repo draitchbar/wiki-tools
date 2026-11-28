@@ -6,10 +6,11 @@ Two layers:
   in write order (`cli`, `guard_run`);
 - end to end: the .sh launchers and the scripts that are still bash, run by
   a real bash (Git Bash on Windows) (`run`, `bash_argv`).
-`--e2e` runs most `cli` tests through the launchers instead, so the same
-tests prove both paths give the same result; the guard, save and sources
-keep their many cases in-process and cross the boundary in a few chosen
-tests (docs/development.md, "Tests").
+Every case runs in-process, in both modes; a few chosen cases per script
+cross the boundary through its launcher, in both modes (`cli(...,
+launcher=True)`, a module's BOUNDARY list, `rerun`). Save and sources
+still send their chosen cases through the launcher only with `--e2e`
+(`launcher="e2e"`) (docs/development.md, "Tests").
 
 Paths: every test works in pytest's tmp_path, written with forward slashes,
 on both platforms; `norm` maps the spellings a path can come back in
@@ -19,6 +20,7 @@ Each test carries a check name of the form <area>/<case>, as its
 parametrize id or in a `checks` marker; `--check-names` prints them.
 """
 
+import inspect
 import io
 import os
 import re
@@ -413,16 +415,19 @@ _BRIDGE = '. "$1/lib-source.sh"; SRC_PLUGIN=$2; shift 2; _src_py "$@"'
 
 @pytest.fixture(scope="session")
 def cli(request, run, pydata):
-    """cli(name, *args, cwd=..., env=None, input=b"") -> Result: the script
-    `name` (lint, wiki-check, ...) in-process through its module's main, or
-    with --e2e through bash <plugin>/scripts/<name>.sh."""
+    """cli(name, *args, cwd=..., env=None, input=b"", launcher=False) -> Result:
+    the script `name` (lint, wiki-check, ...) in-process through its module's
+    main, in both modes; launcher=True through bash
+    <plugin>/scripts/<name>.sh, in both modes (a module's boundary cases);
+    launcher="e2e" through it only with --e2e (save's and sources' chosen
+    cases)."""
     e2e = request.config.getoption("--e2e")
 
-    def _cli(name, *args, cwd, env=None, input=b"", both=False):
-        """both: separate streams and the real merged order (e2e runs a
-        second time for it, when both streams have output; with one empty
-        the merged order is the other stream)."""
-        if e2e:
+    def _cli(name, *args, cwd, env=None, input=b"", both=False, launcher=False):
+        """both: separate streams and the real merged order (the launcher
+        runs a second time for it, when both streams have output; with one
+        empty the merged order is the other stream)."""
+        if launcher is True or (launcher == "e2e" and e2e):
             if name == "sourcelib":
                 argv = ["bash", "-c", _BRIDGE, "_", SCRIPTS_P, PLUGIN_BASH] + list(args)
             else:
@@ -435,6 +440,15 @@ def cli(request, run, pydata):
         env = dict(env or {}, CLAUDE_PLUGIN_DATA=pydata)
         return call_main(mod.main, _launcher_args(name, args), cwd=cwd, env=env, input=input)
     return _cli
+
+
+def rerun(request, test, **given):
+    """The test function `test` run again with its own fixtures, those in
+    `given` replacing them (and its parameters, when parametrized): a
+    module's BOUNDARY case, given its runner's launcher form, e.g.
+    cli=functools.partial(cli, launcher=True). Same assertions as in-process."""
+    names = inspect.signature(test).parameters
+    return test(**{n: given[n] if n in given else request.getfixturevalue(n) for n in names})
 
 
 # The guard as hooks.json runs it, for its launcher tests (guard_run(launcher=True)).

@@ -1,8 +1,11 @@
 """wiki-check.sh: a freshly initialised wiki passes; each planted fault
 fails (formerly the wiki-check section of run-tests.sh). The good wiki is
-built once; each fault gets its own copy."""
+built once; each fault gets its own copy. Every case runs in-process in
+both modes; the chosen cases in BOUNDARY, and test_python_missing, run
+through wiki-check.sh in both modes (docs/adr.md, 6)."""
 
 import datetime
+import functools
 import os
 import re
 import shutil
@@ -11,7 +14,7 @@ import lint
 import pytest
 import wiki_check
 
-from conftest import CACHE, GMAIL_READER, PLUGIN, SCRIPTS, copytree, git, home_env, posix, write
+from conftest import CACHE, GMAIL_READER, PLUGIN, SCRIPTS, copytree, git, home_env, posix, rerun, write
 
 
 def text(r):
@@ -77,6 +80,7 @@ def test_good(good, cli, tmp_path):
     r = wc(cli, good[1], env=dict(home_env(posix(home)), HOME=posix(home)))
     out = text(r)
     assert r.rc == 0, out
+    assert r.err == b"", r
     assert "Failures: 0." in out
     assert "PASS the guard hooks and the source scripts find Python 3." in out
     assert "PASS CLAUDE.md has no schema imports" in out
@@ -300,6 +304,7 @@ def test_outside_git(cli, tmp_path):
     (tmp_path / "plain").mkdir()
     r = wc(cli, tmp_path / "plain", {"GIT_CEILING_DIRECTORIES": posix(tmp_path)})
     assert r.rc == 1
+    assert r.out == b"", r
     assert text(r) == "wiki-check: not inside a git repo; run from a wiki.\n"
 
 
@@ -433,3 +438,26 @@ def test_save_uncommitted(mk, cli):
     git(w, "commit", "-qm", "save")
     write(w / SAVE, SAVE_GOOD.replace("main", "trunk"))
     assert "- FAIL `.claude/settings.wiki.json` has uncommitted changes" in text(wc(cli, w))
+
+
+# --- the boundary -------------------------------------------------------------
+
+# The cases that also run through wiki-check.sh (bash, py-run.sh, Python's
+# stdout and stderr), in both modes: each covers something the boundary can
+# break that the in-process run can't see. test_python_missing is the
+# launcher's own refusal.
+BOUNDARY = [
+    # Success: exit 0, the report on stdout, nothing on stderr.
+    ("pass", test_good),
+    # A FAIL: exit 1 through the launcher.
+    ("fail-exit", test_fault_exit),
+    # A refusal before any check: exit 1, its one line on stderr, nothing on stdout.
+    ("outside-git", test_outside_git),
+]
+
+
+@pytest.mark.parametrize("test", [pytest.param(t, id="wiki-check/boundary-" + n) for n, t in BOUNDARY])
+def test_boundary(test, request, cli):
+    """The chosen cases through wiki-check.sh, whatever --e2e says: same
+    assertions as in-process."""
+    rerun(request, test, cli=functools.partial(cli, launcher=True))

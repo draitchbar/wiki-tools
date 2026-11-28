@@ -3,7 +3,11 @@ plugins/wiki/sources/connectors.md, each binding rule under its cloud name
 in the settings rules (a tool bound with a limit denied there), the
 refusal of a binding that names one connector under both names, a broken
 table, and `sources.sh show`'s cloud names. check-settings' cloud-name
-lines on the test wiki are in test_reader_binding.py."""
+lines on the test wiki are in test_reader_binding.py. Every case runs
+in-process in both modes; the cases in BOUNDARY, test_boundary_internal_error
+and the install tests run through the launchers in both modes (docs/adr.md, 6)."""
+
+import functools
 
 import pytest
 
@@ -12,7 +16,7 @@ import sources
 import sourcelib
 import wiki_check
 from conftest import (GMAIL_DENY, GMAIL_OPS, GMAIL_T, PLUGIN, SCRIPTS_P, TESTS, call_main, copytree, git, home_env,
-                      msys, posix, reset_modules, write)
+                      msys, posix, rerun, reset_modules, write)
 
 P = posix(PLUGIN)
 GC = "mcp__Gmail__"
@@ -270,16 +274,16 @@ def test_install_mixed_forms(tmp_path, run):
 # --- a broken table --------------------------------------------------------------
 
 @pytest.fixture
-def broken(tmp_path, run, request, pydata):
+def broken(tmp_path, run, pydata):
     """A copy of the plugin whose connectors.md doesn't parse, and a runner
-    for its scripts (in-process with --plugin, or its launchers)."""
+    for its scripts (in-process with --plugin in both modes, or with
+    launcher=True its launchers in both modes)."""
     p = copytree(PLUGIN, tmp_path / "plugin")
     write(p / "sources/connectors.md", "---\nservers:\n  - local=claude_ai_Gmail\n---\n")
-    e2e = request.config.getoption("--e2e")
     mods = {"sources": sources, "wiki-check": wiki_check}
 
-    def _run(name, *args, cwd, env=None):
-        if e2e:
+    def _run(name, *args, cwd, env=None, launcher=False):
+        if launcher:
             return run(["bash", posix(p / "scripts" / (name + ".sh"))] + list(args), cwd=cwd, env=env)
         return call_main(mods[name].main, ["--plugin", posix(p)] + list(args), cwd=cwd,
                          env=dict(env or {}, CLAUDE_PLUGIN_DATA=pydata))
@@ -450,3 +454,39 @@ def test_cloud_rules_missing(case, gated, cli):
             in due), due
     show, due = _show_due(cli, w, remote=False)
     assert "cloud rules missing" not in show + due and "- gmail: last checked 2026-10-01\n" in due, due
+
+
+# --- the boundary ------------------------------------------------------------------
+
+# The cases that also run through sources.sh, lib-source.sh's bridge and
+# wiki-check.sh (bash, py-run.sh, Python's stdout and stderr), in both
+# modes: each covers something the boundary can break that the in-process
+# run can't see. test_install_refuses_both_forms and test_install_mixed_forms
+# always run install-source-file.sh (stdin, an answer from the environment).
+BOUNDARY = [
+    # Success: exit 0, CLAUDE_CODE_REMOTE passed through bash picks the surface.
+    ("show-surface", test_show_unbound_cloud, {}),
+    # A user's error: exit 1, its one line on stderr only, from sources.sh and the bridge.
+    ("refusal", test_mixed_forms_across_wiki, {"case": "across"}),
+]
+
+
+@pytest.mark.parametrize("test,given", [pytest.param(t, g, id="connectors/boundary-" + n) for n, t, g in BOUNDARY])
+def test_boundary(test, given, request, cli):
+    """The chosen cases through the launchers, whatever --e2e says: same
+    assertions as in-process."""
+    rerun(request, test, cli=functools.partial(cli, launcher=True), **given)
+
+
+@pytest.mark.checks("connectors/boundary-internal-error")
+def test_boundary_internal_error(tmp_path, broken):
+    """An internal error through a copied plugin's own sources.sh: exit 3,
+    the message on stderr only, the copy's path as the launcher found it."""
+    p, prun = broken
+    w = gw(tmp_path)
+    write(w / ".claude/settings.json", "{}\n")
+    r = prun("sources", "settings", cwd=w, env=empty_home(tmp_path), launcher=True)
+    err = r.err.decode("utf-8", "surrogateescape").replace(msys(posix(p)), posix(p))
+    assert r.rc == 3 and r.out == b"", r
+    assert err.startswith("sources: internal error: ConnectorsError: %s/sources/connectors.md: servers item "
+                          "'local=claude_ai_Gmail' must be" % posix(p)), err

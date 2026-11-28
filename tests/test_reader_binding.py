@@ -2,15 +2,18 @@
 contract, an instance's `reader`, `reader_deny` and `reader_allow` lists, their
 validation, and the settings rules check-settings looks for, which may sit
 in the user's settings. The guard's side is in test_guard.py (fixtures
-*-mcp-reader-*, test_reader_*)."""
+*-mcp-reader-*, test_reader_*). Every case runs in-process in both modes;
+the cases in BOUNDARY also run through sources.sh, in both modes
+(docs/adr.md, 6)."""
 
+import functools
 import json
 
 import pytest
 
 import contract
 import sourcelib
-from conftest import GMAIL_DENY, GMAIL_OPS, GMAIL_T, PLUGIN, TESTS, copytree, git, home_env, posix, write
+from conftest import GMAIL_DENY, GMAIL_OPS, GMAIL_T, PLUGIN, TESTS, copytree, git, home_env, posix, rerun, write
 
 JIRA = posix(PLUGIN / "sources" / "jira" / "SOURCE.md")
 GMAIL = posix(PLUGIN / "sources" / "gmail" / "SOURCE.md")
@@ -144,8 +147,8 @@ def rw(tmp_path, cli):
     git(w, "init", "-q")
     home = tmp_path / "home"
     (home / ".claude").mkdir(parents=True)
-    # A real folder, so HOME too: with --e2e on Windows, Git Bash would
-    # otherwise set HOME to the account's own profile (see home_env).
+    # A real folder, so HOME too: through the launcher on Windows, Git Bash
+    # would otherwise set HOME to the account's own profile (see home_env).
     env = dict(home_env(posix(home)), HOME=posix(home))
     out = cli("sources", "settings", cwd=w, env=env).out.decode()
     sjson = out[out.index("{"):out.index("\n}\n") + 3]
@@ -596,3 +599,25 @@ def test_show_gmail_unbound(tmp_path, cli):
     o = cli("sources", "show", "gmail", cwd=w).merged.decode("utf-8", errors="surrogateescape")
     assert ("Check needed: gmail names no tools (access: tools) and this instance has no reader binding yet; "
             "/wiki:bind-reader gmail drafts it.") in o, o
+
+
+# --- the boundary ------------------------------------------------------------------
+
+# The cases that also run through sources.sh (bash, py-run.sh, Python's
+# stdout and stderr), in both modes: each covers something the boundary can
+# break that the in-process run can't see.
+BOUNDARY = [
+    # Success: exit 0 and the report on stdout.
+    ("check-ok", test_check_settings_reader_ok),
+    # A FAIL: exit 1 with the missing rule on stdout.
+    ("check-missing", test_check_settings_reader_missing),
+    # The user's settings found from HOME as bash passes it (USERPROFILE on Git Bash).
+    ("user-settings", test_check_settings_reader_in_user),
+]
+
+
+@pytest.mark.parametrize("test", [pytest.param(t, id="reader-binding/boundary-" + n) for n, t in BOUNDARY])
+def test_boundary(test, request, cli):
+    """The chosen cases through sources.sh, whatever --e2e says: same
+    assertions as in-process."""
+    rerun(request, test, cli=functools.partial(cli, launcher=True))

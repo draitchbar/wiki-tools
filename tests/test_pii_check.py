@@ -1,12 +1,15 @@
 """scripts/pii-check.sh: the personal-data check (docs/development.md,
-"Personal data"). Every term and address here is made up."""
+"Personal data"). Every term and address here is made up. Every case runs
+in-process in both modes; the cases in BOUNDARY also run through
+pii-check.sh, in both modes (docs/adr.md, 6)."""
 
+import functools
 import subprocess
 import sys
 
 import pytest
 
-from conftest import TESTS, call_main, git, posix
+from conftest import TESTS, call_main, git, posix, rerun
 
 REPO = TESTS.parent
 sys.path.insert(0, str(REPO / "scripts"))
@@ -24,16 +27,15 @@ DENY = "# test denylist\nJens Hansen\nSkovvej 12\nFrø\nmyhost-pc\n"
 
 
 @pytest.fixture
-def pii(request, run, tmp_path):
-    """pii(*args, cwd, input=b"", deny=DENY) -> Result, in-process or (--e2e)
-    through the launcher."""
-    e2e = request.config.getoption("--e2e")
-
-    def _pii(*args, cwd=None, input=b"", deny=DENY):
+def pii(run, tmp_path):
+    """pii(*args, cwd, input=b"", deny=DENY, launcher=False) -> Result,
+    in-process in both modes, or (launcher=True) through pii-check.sh in
+    both modes (the cases in BOUNDARY)."""
+    def _pii(*args, cwd=None, input=b"", deny=DENY, launcher=False):
         f = tmp_path / "deny.txt"
         f.write_text(deny, encoding="utf-8")
         env = {"PII_DENYLIST": None, "PII_DENYLIST_FILE": posix(f)}
-        if e2e:
+        if launcher:
             return run(["bash", posix(REPO / "scripts" / "pii-check.sh")] + list(args),
                        cwd=cwd, env=env, input=input)
         return call_main(pii_check.main, list(args), cwd=cwd, env=env, input=input)
@@ -127,6 +129,16 @@ def test_text_mode_never_prints_the_term(pii):
 @pytest.mark.checks("pii/text-clean")
 def test_text_mode_clean(pii):
     assert pii("text", "branch", input=b"feature/lint-dates\n").rc == 0
+
+
+@pytest.mark.checks("pii/text-non-ascii")
+def test_text_mode_non_ascii(pii):
+    """A non-ASCII denylist entry (Frø) matches non-ASCII input, and only
+    its number is printed."""
+    r = pii("text", "PR body", input="bor i Frø\n".encode())
+    assert r.rc == 1
+    assert "PR body line 1: denylist entry 3" in out(r)
+    assert "Fr" not in r.merged.decode()
 
 
 @pytest.mark.checks("pii/range")
@@ -282,3 +294,34 @@ def test_hook_is_committed_executable():
                         "scripts/pii-check.sh"], stdout=subprocess.PIPE, check=True)
     modes = [line.split()[0] for line in r.stdout.decode().splitlines()]
     assert modes == ["100755", "100755"], modes
+
+
+# --- the boundary ----------------------------------------------------------------
+
+# The cases that also run through pii-check.sh (bash, py-run.sh, Python's
+# stdin, stdout and stderr), in both modes. It is the pre-push hook, on Git
+# Bash too, so it keeps more of them than the plugin's scripts: each covers
+# something the boundary can break that the in-process run can't see.
+BOUNDARY = [
+    # A finding: exit 1 on stdout, the term itself never printed.
+    ("refusal", test_text_mode_never_prints_the_term),
+    # Clean: exit 0.
+    ("clean", test_text_mode_clean),
+    # Non-ASCII in the denylist file and on stdin: the encodings.
+    ("non-ascii", test_text_mode_non_ascii),
+    # The hook's own mode: ref lines on stdin, git started from the script.
+    ("pre-push", test_pre_push_new_branch_and_update),
+    # A path as the remote (a push to a URL): Git Bash's path conversion.
+    ("pre-push-url", test_pre_push_to_a_url_scans_only_new_commits),
+    # The warning on stderr with exit 0, and the refusal without a denylist, exit 1.
+    ("no-denylist", test_no_denylist_warns_locally_and_fails_when_required),
+    # Usage errors: exit 2, which the hook treats as a block too.
+    ("usage", test_usage),
+]
+
+
+@pytest.mark.parametrize("test", [pytest.param(t, id="pii/boundary-" + n) for n, t in BOUNDARY])
+def test_boundary(test, request, pii):
+    """The chosen cases through pii-check.sh, whatever --e2e says: same
+    assertions as in-process."""
+    rerun(request, test, pii=functools.partial(pii, launcher=True))

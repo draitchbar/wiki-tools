@@ -5,7 +5,10 @@ their output, which matched bash, is kept in fixtures/lib-source/<name>.out:
 exit code, stdout, stderr and, when both have output, the merged stream.
 @TMP@ is the test folder and @PLUGIN@ the plugin, in any spelling; a
 carriage return shows as \\r. --record rewrites the .out files (review the
-diff). (Formerly run-tests.sh's lib-source-edge section.)"""
+diff). Every case runs in-process in both modes; the cases in BOUNDARY also
+run through lib-source.sh's bridge (_src_py), in both modes, and must give
+the same block (docs/adr.md, 6). (Formerly run-tests.sh's lib-source-edge
+section.)"""
 
 import pytest
 
@@ -66,8 +69,8 @@ def edge(tmp_path_factory, cli):
     for i, j in enumerate(JSONS, 1):
         write(t / "edge-json" / ("%d.json" % i), j)
 
-    def case(op, *args):
-        r = cli("sourcelib", op, *args, cwd=t, both=True)
+    def case(op, *args, launcher=False):
+        r = cli("sourcelib", op, *args, cwd=t, both=True, launcher=launcher)
         out, err = (x.decode("utf-8", "surrogateescape") for x in (r.out, r.err))
         block = "rc=%d\n-- out\n%s-- err\n%s" % (r.rc, out, err)
         if out and err:
@@ -82,10 +85,40 @@ def edge(tmp_path_factory, cli):
     inst_out += case("needed-rules", w)
     settings_out = "".join(case("settings-rules", posix(t / "edge-json" / ("%d.json" % i)))
                            for i in range(1, len(JSONS) + 1))
-    return {"contract": contract_out, "instances": inst_out, "settings": settings_out}
+    return {"contract": contract_out, "instances": inst_out, "settings": settings_out, "case": case, "w": w,
+            "json": lambda i: posix(t / "edge-json" / ("%d.json" % i))}
 
 
 @pytest.mark.parametrize("name", [pytest.param(n, id="lib-source-edge/" + n)
                                   for n in ("contract", "instances", "settings")])
 def test_recorded(name, edge, request):
     recorded(request, TESTS / "fixtures/lib-source" / (name + ".out"), edge[name])
+
+
+# The cases that also run through lib-source.sh's bridge (bash, _src_py,
+# py-run.sh, Python's stdout and stderr), in both modes: each covers
+# something the boundary can break that the in-process run can't see.
+# name, recorded file, operation, its arguments (from the edge fixture).
+BOUNDARY = [
+    # Success: exit 0, tab-separated lines on stdout, nothing on stderr.
+    ("success", "instances", "needed-rules", lambda e: [e["w"]]),
+    # A refusal: exit 1 and the messages on stderr only, in order.
+    ("refusal", "contract", "validate-contract", lambda e: [e["w"] + "/.claude/sources/types/loc/SOURCE.md"]),
+    # Non-ASCII (…) in a value read from a file and printed on stderr.
+    ("non-ascii", "instances", "validate-instance", lambda e: [e["w"], "ellipsis"]),
+    # An argument with a space, passed through bash and _src_py as one word.
+    ("quoting", "instances", "validate-instance", lambda e: [e["w"], "two words"]),
+    # Quotes and backslashes in the output: no shell re-reads it.
+    ("quotes-out", "settings", "settings-rules", lambda e: [e["json"](6)]),
+    # An error reported on stdout with exit 1: the stdout/stderr split.
+    ("error-on-stdout", "settings", "settings-rules", lambda e: [e["json"](7)]),
+]
+
+
+@pytest.mark.parametrize("rec,op,args", [pytest.param(r, o, a, id="lib-source-edge/boundary-" + n)
+                                         for n, r, o, a in BOUNDARY])
+def test_boundary(rec, op, args, edge):
+    """The chosen cases through the bridge, whatever --e2e says: the same
+    block as in-process, which is in the recorded file."""
+    block = edge["case"](op, *args(edge), launcher=True)
+    assert block in edge[rec], block
