@@ -132,8 +132,8 @@ With Copilot CLI:
 
 The tests are pytest modules (`tests/test_*.py`, helpers in `tests/conftest.py`, `tests/codebase_story.py` for the three codebase modules and `tests/save_wiki.py` for the three save modules). They never call a real source CLI or account; they use fakes in `tests/sources/<type>/`. Recorded outputs (`tests/fixtures/*/*.out`) are rewritten with `bash tests/run-tests.sh --record`; review the diff. How the tests are built, and why: `docs/adr.md`, 6.
 
-A test pyramid:
-- **In-process, every case.** The full behaviour of a Python script, hook or the guard is tested in-process, through its module's `main`: fast, and one test per case. Scripts still in bash (`cloud-update.sh`, `schema.sh`, `lib-source.sh`, the `codebase` and `local-folder` wrappers, …) have no `main` and are tested in full end to end.
+The test strategy is a pyramid (`docs/adr.md`, 6), a principle for every test, not a speed fix: each layer tests what only it can.
+- **In-process, every case.** The full behaviour of a Python script, hook or the guard is tested in-process, through its module's `main`: a failure names the case, and one test per case. Scripts still in bash (`cloud-update.sh`, `schema.sh`, `lib-source.sh`, the `codebase` and `local-folder` wrappers, …) have no `main` and are tested in full end to end.
 - **The boundary, a few chosen cases.** `--e2e` and the end-to-end tests check only the process boundary, with a few cases per launcher or script, each with a one-line reason: success, a refusal and its exit code, the stdout/stderr split, quoting and non-ASCII text, Windows and Git Bash specifics. The guard's are `BOUNDARY` and the `hooks.json` tests in `tests/test_guard.py`, run through the launcher in both modes; the guard, save and sources run their other cases in-process under `--e2e` too.
 - **A new test goes in-process** unless it tests the boundary itself; a boundary case says which boundary risk it covers.
 
