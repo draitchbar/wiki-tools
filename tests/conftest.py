@@ -122,9 +122,9 @@ def pytest_terminal_summary(terminalreporter, config):
 
 
 # The slowest modules, longest first: the top of CI's "time per module" table
-# (#115, #123). With --dist loadfile xdist hands out whole modules in
-# collection order, so a long module picked up last bounds the run; these start
-# first. A stale list only costs time.
+# (#115, #123). With --dist loadfile xdist hands out whole modules in order of
+# test count, which is not their time, so a long module with few tests picked
+# up last bounds the run; these start first. A stale list only costs time.
 HEAVY = [
     "test_guard", "test_save_paths", "test_save", "test_save_github",
     "test_codebase", "test_cloud_update", "test_wiki_check", "test_install",
@@ -437,7 +437,7 @@ def cli(request, run, pydata):
     return _cli
 
 
-# The guard as hooks.json runs it, for --e2e and the end-to-end tests.
+# The guard as hooks.json runs it, for its launcher tests (guard_run(launcher=True)).
 def hooks_guard_command():
     text = (PLUGIN / "hooks" / "hooks.json").read_text()
     m = re.search(r'"command": "(.*py-launch\.sh\\" guard.*?)"\s*$', text, re.M)
