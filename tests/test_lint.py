@@ -1,6 +1,8 @@
 """lint.sh against the fixture wiki in tests/lint-wiki (one planted problem
 per check), and the recorded edge cases of lint.sh and wiki-check.sh
-(formerly the lint and lint-edge sections of run-tests.sh)."""
+(formerly the lint and lint-edge sections of run-tests.sh). Every case
+runs in-process in both modes; the edge cases in BOUNDARY also run through
+lint.sh, in both modes (docs/adr.md, 6)."""
 
 import datetime
 import re
@@ -203,21 +205,26 @@ _PY = re.compile(r"find Python 3[^ \n]* [^ \n]*$", re.M)
 
 @pytest.fixture(scope="module")
 def edge(tmp_path_factory, cli):
-    """The recorded edge cases, run in order on one wiki: {name: text},
-    and the wiki."""
+    """The recorded edge cases, run in order on one wiki: their text, the
+    wiki, and {name: (in-process block, launcher block)} for BOUNDARY."""
     t = tmp_path_factory.mktemp("edge")
     w = t / "ew"
     w.mkdir()
     git(w, "init", "-q")
-    cases = []
+    cases, through = [], {}
+
+    def block(name, d, script, env, launcher=False):
+        r = cli(script, cwd=d, env=env, launcher=launcher)
+        b = "rc=%d\n-- out\n%s-- err\n%s" % (
+            r.rc, r.out.decode("utf-8", "surrogateescape"), r.err.decode("utf-8", "surrogateescape"))
+        b = norm(b.rstrip("\n"), t)
+        b = _PY.sub("find Python @V@", _AGES.sub("ages out on @D@", _HASH.sub("commit @H@ (@D@, ", b)))
+        return "== %s\n%s\n" % (name, b)
 
     def case(name, d, script, env=None):
-        r = cli(script, cwd=d, env=env)
-        block = "rc=%d\n-- out\n%s-- err\n%s" % (
-            r.rc, r.out.decode("utf-8", "surrogateescape"), r.err.decode("utf-8", "surrogateescape"))
-        block = norm(block.rstrip("\n"), t)
-        block = _PY.sub("find Python @V@", _AGES.sub("ages out on @D@", _HASH.sub("commit @H@ (@D@, ", block)))
-        cases.append("== %s\n%s\n" % (name, block))
+        cases.append(block(name, d, script, env))
+        if name in dict(BOUNDARY):
+            through[name] = cases[-1], block(name, d, script, env, launcher=True)
 
     write(w / "wiki/index.md", "# Index\n[[ok]] [[A-B]] [[b]] [[Økonomi-X]] [[crlf]] [[bom]]\n")
     write(w / "wiki/log.md", "# Log\n## 2026-01-01 | init | [[ghost]]\n")
@@ -307,12 +314,34 @@ def edge(tmp_path_factory, cli):
     case("wiki-check-bare", e, "wiki-check", cfg)
     (t / "ew-plain").mkdir()
     case("lint-no-git", t / "ew-plain", "lint")
-    return "".join(cases), w, bad_today
+    return "".join(cases), w, through, bad_today
+
+
+# The edge cases that also run through their launcher (bash, py-run.sh,
+# Python's stdout and stderr), at their point in the sequence, in both
+# modes: each covers something the boundary can break that the in-process
+# run can't see. wiki-check.sh's are in test_wiki_check.py.
+BOUNDARY = [
+    # Success: exit 0, a report with non-ASCII (Økonomi) on stdout, after git history reads.
+    ("lint", "success-non-ascii"),
+    # A refusal: exit 1, its line on stderr only, an env value passed through bash.
+    ("lint-bad-today", "refusal"),
+    # Outside a git repo: exit 1 before any check.
+    ("lint-no-git", "outside-git"),
+]
+
+
+@pytest.mark.parametrize("name", [pytest.param(n, id="lint-edge/boundary-" + b) for n, b in BOUNDARY])
+def test_edge_boundary(name, edge):
+    """The chosen edge cases through lint.sh, whatever --e2e says: the
+    same block as in-process."""
+    inproc, launched = edge[2][name]
+    assert launched == inproc
 
 
 @pytest.mark.checks("lint-edge/recorded", "lint-edge/cases")
 def test_edge_recorded(edge, request):
-    out, _, _ = edge
+    out, *_ = edge
     assert out.count("\n== ") + out.startswith("== ") == 8
     recorded(request, TESTS / "fixtures/lint/edge.out", out)
 
@@ -328,13 +357,13 @@ def test_edge_contains(edge, needle, present):
 @pytest.mark.checks("lint-edge/wiki-check-bad-today")
 def test_wiki_check_bad_today(edge):
     """A lint refusal (lint.Die) is wiki-check's failure line, with lint's reason."""
-    assert "- FAIL lint.sh didn't run (bad WIKI_LINT_TODAY 'bad'). Fix: run `bash " in edge[2], edge[2]
+    assert "- FAIL lint.sh didn't run (bad WIKI_LINT_TODAY 'bad'). Fix: run `bash " in edge[3], edge[3]
 
 
 @pytest.mark.checks("lint-edge/symlink-skipped")
 def test_symlink_skipped(edge, cli):
     """A symlinked page is not a page (find -type f); only where one can be made."""
-    _, w, _ = edge
+    _, w, *_ = edge
     try:
         (w / "wiki/link.md").symlink_to("ok.md")
     except OSError:

@@ -1,6 +1,8 @@
 """sync-status.sh (formerly the sync-status section of run-tests.sh):
-in-process for the report; the plugin-working-tree note end to end, on
-copies of the scripts (the note is about the folder the script runs from)."""
+in-process for the report, in both modes; the plugin-working-tree note end
+to end, on copies of the scripts (the note is about the folder the script
+runs from), and the tests marked boundary also through sync-status.sh, in
+both modes (docs/adr.md, 6)."""
 
 import datetime
 import shutil
@@ -235,13 +237,16 @@ def test_questions_none(tmp_path, cli):
 
 
 @pytest.mark.checks("sync-status/questions-oldest")
+@pytest.mark.boundary("sync-status/boundary-questions", "success: the report with its open-questions line, dates counted from today; exit 0 and nothing on stderr, as a SessionStart hook must")
 def test_questions_oldest(tmp_path, cli):
     d = datetime.date.today()
     d5, d40 = ((d - datetime.timedelta(days=n)).isoformat() for n in (5, 40))
     w = _qwiki(tmp_path, "# Open questions\n\n### q-%s-new\n- kind: unclear\n- raised: %s, gmail\n\n"
                          "### q-2026-01-01-bad\n- raised: someday\n\n"
                          "### q-%s-old\n- kind: conflict\n- raised: %s, raw\n" % (d5, d5, d40, d40))
-    out = text(cli("sync-status", cwd=w, env=ENV))
+    r = cli("sync-status", cwd=w, env=ENV)
+    assert r.rc == 0 and r.err == b"", r
+    out = text(r)
     assert ("- raw: never checked (first ingest asks for a starting point)\nOpen questions (open-questions.md): 3, "
             "oldest q-%s-old (raised %s, 40 days ago). Answer them with /wiki:clarify.\n" % (d40, d40)) in out
 

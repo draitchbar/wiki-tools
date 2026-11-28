@@ -381,7 +381,7 @@ def story(tmp_path_factory, cli, pydata, request):
                 .replace("(only %s)" % OTHER, "(only @OTHER@)", 1))
 
     def se_case(args, d=sw):
-        r = cli("sources", *args, cwd=d, both=True)
+        r = cli("sources", *args, cwd=d, both=True, launcher="e2e")
         block = "rc=%d\n-- out\n%s-- err\n%s-- merged\n%s" % (
             r.rc, r.out.decode("utf-8", "surrogateescape"), r.err.decode("utf-8", "surrogateescape"),
             r.merged.decode("utf-8", "surrogateescape"))

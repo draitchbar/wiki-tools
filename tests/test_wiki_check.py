@@ -1,6 +1,8 @@
 """wiki-check.sh: a freshly initialised wiki passes; each planted fault
 fails (formerly the wiki-check section of run-tests.sh). The good wiki is
-built once; each fault gets its own copy."""
+built once; each fault gets its own copy. Every case runs in-process in
+both modes; the tests marked boundary also run, and test_python_missing
+always runs, through wiki-check.sh in both modes (docs/adr.md, 6)."""
 
 import datetime
 import os
@@ -69,6 +71,7 @@ def wc(cli, w, env=None):
 
 @pytest.mark.checks("wiki-check/good-wiki-passes", "wiki-check/good-summary", "wiki-check/python-found",
                     "wiki-check/no-import")
+@pytest.mark.boundary("wiki-check/boundary-pass", "success: exit 0, the report on stdout, nothing on stderr")
 def test_good(good, cli, tmp_path):
     # An empty HOME: the user's settings count for the bound gmail's reader
     # rules (a deny there would block one), so the result would depend on them.
@@ -77,6 +80,7 @@ def test_good(good, cli, tmp_path):
     r = wc(cli, good[1], env=dict(home_env(posix(home)), HOME=posix(home)))
     out = text(r)
     assert r.rc == 0, out
+    assert r.err == b"", r
     assert "Failures: 0." in out
     assert "PASS the guard hooks and the source scripts find Python 3." in out
     assert "PASS CLAUDE.md has no schema imports" in out
@@ -197,6 +201,7 @@ def test_cloud_rule_only_in_user(mk, cli, tmp_path):
 
 
 @pytest.mark.checks("wiki-check/fault-exits-1")
+@pytest.mark.boundary("wiki-check/boundary-fail-exit", "a FAIL: exit 1 through the launcher")
 def test_fault_exit(mk, cli):
     w = mk("f1")
     FAULTS[0][1](w)
@@ -296,10 +301,12 @@ def test_lint_failure_is_named(mk, monkeypatch):
 
 
 @pytest.mark.checks("wiki-check/outside-git")
+@pytest.mark.boundary("wiki-check/boundary-outside-git", "a refusal before any check: exit 1, its one line on stderr, nothing on stdout")
 def test_outside_git(cli, tmp_path):
     (tmp_path / "plain").mkdir()
     r = wc(cli, tmp_path / "plain", {"GIT_CEILING_DIRECTORIES": posix(tmp_path)})
     assert r.rc == 1
+    assert r.out == b"", r
     assert text(r) == "wiki-check: not inside a git repo; run from a wiki.\n"
 
 

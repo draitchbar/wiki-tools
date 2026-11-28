@@ -3,7 +3,11 @@ plugins/wiki/sources/connectors.md, each binding rule under its cloud name
 in the settings rules (a tool bound with a limit denied there), the
 refusal of a binding that names one connector under both names, a broken
 table, and `sources.sh show`'s cloud names. check-settings' cloud-name
-lines on the test wiki are in test_reader_binding.py."""
+lines on the test wiki are in test_reader_binding.py. Every case runs
+in-process in both modes; the tests marked boundary also run through the
+launchers, and test_boundary_internal_error and the install tests always do
+(docs/adr.md, 6)."""
+
 
 import pytest
 
@@ -214,12 +218,23 @@ def _mix_msg(who):
             "names (the plugin's sources/connectors.md)" % who)
 
 
-@pytest.mark.parametrize("case", ["across", "one-instance"])
-def test_mixed_forms_across_wiki(case, tmp_path, cli):
-    """One instance in local names, another in cloud names, or one instance
-    with both: refused, since a cloud name's allow or deny would depend on
-    which binding wins (one instance alone is invalid too, but its rules
-    would still be printed)."""
+@pytest.mark.checks("across")
+@pytest.mark.boundary("connectors/boundary-refusal",
+                      "a user's error: exit 1, its one line on stderr only, from sources.sh and the bridge")
+def test_mixed_forms_across_wiki(tmp_path, cli):
+    """One instance in local names, another in cloud names: refused, since a
+    cloud name's allow or deny would depend on which binding wins."""
+    _mixed_forms("across", tmp_path, cli)
+
+
+@pytest.mark.checks("one-instance")
+def test_mixed_forms_one_instance(tmp_path, cli):
+    """One instance with both names: refused too (alone it is invalid, but
+    its rules would still be printed)."""
+    _mixed_forms("one-instance", tmp_path, cli)
+
+
+def _mixed_forms(case, tmp_path, cli):
     w = gw(tmp_path)
     inst = w / ".claude/sources/instances"
     if case == "across":
@@ -266,16 +281,16 @@ def test_install_mixed_forms(tmp_path, run):
 # --- a broken table --------------------------------------------------------------
 
 @pytest.fixture
-def broken(tmp_path, run, request, pydata):
+def broken(tmp_path, run, pydata):
     """A copy of the plugin whose connectors.md doesn't parse, and a runner
-    for its scripts (in-process with --plugin, or its launchers)."""
+    for its scripts (in-process with --plugin in both modes, or with
+    launcher=True its launchers in both modes)."""
     p = copytree(PLUGIN, tmp_path / "plugin")
     write(p / "sources/connectors.md", "---\nservers:\n  - local=claude_ai_Gmail\n---\n")
-    e2e = request.config.getoption("--e2e")
     mods = {"sources": sources, "wiki-check": wiki_check}
 
-    def _run(name, *args, cwd, env=None):
-        if e2e:
+    def _run(name, *args, cwd, env=None, launcher=False):
+        if launcher:
             return run(["bash", posix(p / "scripts" / (name + ".sh"))] + list(args), cwd=cwd, env=env)
         return call_main(mods[name].main, ["--plugin", posix(p)] + list(args), cwd=cwd,
                          env=dict(env or {}, CLAUDE_PLUGIN_DATA=pydata))
@@ -364,6 +379,7 @@ def test_show_cloud_names(tmp_path, cli):
     assert "Reader tools" not in o and "this session:" not in o, o
 
 
+@pytest.mark.boundary("connectors/boundary-show-surface", "success: exit 0, CLAUDE_CODE_REMOTE passed through bash picks the surface")
 def test_show_unbound_cloud(tmp_path, cli):
     """The session line comes for an unbound instance too, and in a cloud
     session the hint is to bind locally, not /wiki:bind-reader."""
@@ -432,3 +448,19 @@ def test_cloud_rules_missing(case, gated, cli):
             in due), due
     show, due = _show_due(cli, w, remote=False)
     assert "cloud rules missing" not in show + due and "- gmail: last checked 2026-10-01\n" in due, due
+
+
+
+
+@pytest.mark.checks("connectors/boundary-internal-error")
+def test_boundary_internal_error(tmp_path, broken):
+    """An internal error through a copied plugin's own sources.sh: exit 3,
+    the message on stderr only, the copy's path as the launcher found it."""
+    p, prun = broken
+    w = gw(tmp_path)
+    write(w / ".claude/settings.json", "{}\n")
+    r = prun("sources", "settings", cwd=w, env=empty_home(tmp_path), launcher=True)
+    err = r.err.decode("utf-8", "surrogateescape").replace(msys(posix(p)), posix(p))
+    assert r.rc == 3 and r.out == b"", r
+    assert err.startswith("sources: internal error: ConnectorsError: %s/sources/connectors.md: servers item "
+                          "'local=claude_ai_Gmail' must be" % posix(p)), err

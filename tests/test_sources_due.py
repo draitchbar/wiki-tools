@@ -1,6 +1,8 @@
 """sources.sh due: what /wiki:ingest all ingests (issue #37), on a copy of
 guard-wiki with one source per reason. Dates in the state are fixed and
-long past, except "checked today", so only that line depends on today."""
+long past, except "checked today", so only that line depends on today.
+Every case runs in-process in both modes; the tests marked boundary also
+run through sources.sh, in both modes (docs/adr.md, 6)."""
 
 import datetime
 import re
@@ -60,6 +62,7 @@ SKIPPED = [
 ]
 
 
+@pytest.mark.boundary("sources-due/boundary-success", "success: exit 0 and the whole list, with a date from the wiki's history")
 def test_due_reasons(cli, wiki):
     rc, out = due(cli, wiki)
     assert rc == 0
@@ -152,6 +155,7 @@ def test_due_nothing(cli, tmp_path):
     assert "- raw: never checked (first ingest: /wiki:ingest raw)" in out
 
 
+@pytest.mark.boundary("sources-due/boundary-usage", "a refusal: exit 1 and the usage line")
 def test_due_usage(cli, wiki):
     rc, out = due(cli, wiki, "extra")
     assert rc == 1

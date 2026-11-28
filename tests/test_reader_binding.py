@@ -2,7 +2,9 @@
 contract, an instance's `reader`, `reader_deny` and `reader_allow` lists, their
 validation, and the settings rules check-settings looks for, which may sit
 in the user's settings. The guard's side is in test_guard.py (fixtures
-*-mcp-reader-*, test_reader_*)."""
+*-mcp-reader-*, test_reader_*). Every case runs in-process in both modes;
+the tests marked boundary also run through sources.sh, in both modes
+(docs/adr.md, 6)."""
 
 import json
 
@@ -144,8 +146,8 @@ def rw(tmp_path, cli):
     git(w, "init", "-q")
     home = tmp_path / "home"
     (home / ".claude").mkdir(parents=True)
-    # A real folder, so HOME too: with --e2e on Windows, Git Bash would
-    # otherwise set HOME to the account's own profile (see home_env).
+    # A real folder, so HOME too: through the launcher on Windows, Git Bash
+    # would otherwise set HOME to the account's own profile (see home_env).
     env = dict(home_env(posix(home)), HOME=posix(home))
     out = cli("sources", "settings", cwd=w, env=env).out.decode()
     sjson = out[out.index("{"):out.index("\n}\n") + 3]
@@ -157,6 +159,7 @@ def _check(cli, w, env):
     return r.rc, r.out.decode("utf-8", errors="surrogateescape")
 
 
+@pytest.mark.boundary("reader-binding/boundary-check-ok", "success: exit 0 and the report on stdout")
 def test_check_settings_reader_ok(rw, cli):
     w, home, env, sjson = rw
     write(w / ".claude/settings.json", sjson)
@@ -166,6 +169,7 @@ def test_check_settings_reader_ok(rw, cli):
             "(the plugin's sources/connectors.md), which count only here\n") in o, o
 
 
+@pytest.mark.boundary("reader-binding/boundary-check-missing", "a FAIL: exit 1 with the missing rule on stdout")
 def test_check_settings_reader_missing(rw, cli):
     w, home, env, sjson = rw
     write(w / ".claude/settings.json", sjson.replace('      "%sgetJiraIssue",\n' % T, ""))
@@ -173,6 +177,7 @@ def test_check_settings_reader_missing(rw, cli):
     assert rc == 1 and "  allow: %sgetJiraIssue" % T in o, o
 
 
+@pytest.mark.boundary("reader-binding/boundary-user-settings", "the user's settings found from HOME as bash passes it (USERPROFILE on Git Bash)")
 def test_check_settings_reader_in_user(rw, cli):
     """Still met: only the local names moved to the user's settings; their
     cloud names stay in the wiki's (the cloud-name tests below)."""
