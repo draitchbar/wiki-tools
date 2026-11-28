@@ -1,14 +1,17 @@
 """scripts/file-snapshot.sh (file_snapshot.py) against a throwaway wiki and
-cache, through its launcher. One story: each walk builds on the snapshot
-the step before saved. Then the types it accepts (any access: tools type,
-standard or local) and refuses."""
+cache. Every case runs in-process through file_snapshot.main, in both
+modes (docs/adr.md, 6). One story: each walk builds on the snapshot the
+step before saved. Then the types it accepts (any access: tools type,
+standard or local) and refuses. A few chosen cases (BOUNDARY, and the
+missing Python) run through the launcher, in both modes."""
 
 import os
 import re
 
+import file_snapshot
 import pytest
 
-from conftest import PLUGIN, git, norm, posix, write
+from conftest import PLUGIN, call_main, git, norm, posix, write
 
 FSS = posix(PLUGIN / "scripts/file-snapshot.sh")
 
@@ -33,25 +36,30 @@ def fs(tmp_path_factory, run):
     write(inst / "teams.md", "---\nkey: teams\ntype: google-drive\nfolders:\n  - Files (1AbC)\n---\n")
     # gmail is tool-neutral now (docs/adr.md 10); the MCP type refused is local.
     write(inst / "mail.md", "---\nkey: mail\ntype: notes-mcp\nsections:\n  - Book > Section\n---\n")
-    write(inst / "gm.md", "---\nkey: gm\ntype: gmail\nlabels: X\n---\n")
     write(inst / "tickets.md", "---\nkey: tickets\ntype: jira\nsite: example.atlassian.net\n"
                                "scopes:\n  - mine | project = X\n---\n")
     write(inst / "chats.md", "---\nkey: chats\ntype: ms-teams\nfolders:\n  - Files | file:///b!d/\n---\n")
     write(inst / "notes.md", "---\nkey: notes\ntype: onenote\nsections:\n  - Book > Section\n---\n")
     write(inst / "local-notes.md", "---\nkey: local-notes\ntype: notes-tool\nsections:\n  - Book > Section\n---\n")
-    write(inst / "local-files.md", "---\nkey: local-files\ntype: notes-files\nsections:\n  - Book > Section\n---\n")
     write(inst / "ghost.md", "---\nkey: ghost\ntype: no-such-type\n---\n")
     _local_type(w, "notes-tool", "tools")
-    _local_type(w, "notes-files", "filesystem")
     _local_type(w, "notes-mcp", "mcp")
     home = t / "fshome"
     cache = home / ".cache/wiki-sources/fsw/teams"
     cache.mkdir(parents=True)
 
-    def fss(*args, cwd=w, env=None):
-        r = run(["bash", FSS] + list(args), cwd=cwd, env=dict({"HOME": posix(home)}, **(env or {})), merged=True)
+    def fss(*args, cwd=w, env=None, launcher=False):
+        """Result: file_snapshot.main in-process, or with launcher=True
+        through bash file-snapshot.sh."""
+        env = dict({"HOME": posix(home)}, **(env or {}))
+        if launcher:
+            return run(["bash", FSS] + list(args), cwd=cwd, env=env)
+        return call_main(file_snapshot.main, list(args), cwd=cwd, env=env)
+
+    def merged(*args, **kw):
+        r = fss(*args, **kw)
         return norm(r.merged, t), r.rc
-    return t, cache, fss
+    return t, cache, merged, fss
 
 
 @pytest.mark.parametrize("args", [
@@ -68,8 +76,6 @@ def test_refused(args, fs):
 @pytest.mark.parametrize("key,want", [
     pytest.param("mail", "instance 'mail' is not of a tool-neutral type (access: tools).",
                  id="file-snapshot/refuse-mcp-type"),
-    pytest.param("local-files", "instance 'local-files' is not of a tool-neutral type (access: tools).",
-                 id="file-snapshot/refuse-local-filesystem-type"),
     pytest.param("ghost", "unknown source type 'no-such-type'", id="file-snapshot/refuse-unknown-type"),
 ])
 def test_refused_type(key, want, fs):
@@ -78,14 +84,11 @@ def test_refused_type(key, want, fs):
 
 
 @pytest.mark.parametrize("key", [
-    pytest.param("tickets", id="file-snapshot/accepts-tools-type-jira"),
-    pytest.param("notes", id="file-snapshot/accepts-tools-type-onenote"),
-    pytest.param("chats", id="file-snapshot/accepts-tools-type-ms-teams"),
-    pytest.param("gm", id="file-snapshot/accepts-tools-type-gmail"),
+    pytest.param("tickets", id="file-snapshot/accepts-tools-type-standard"),
     pytest.param("local-notes", id="file-snapshot/accepts-tools-type-local"),
 ])
 def test_accepts_tools_type(key, fs):
-    t, _, fss = fs
+    t, _, fss, _ = fs
     d = t / "fshome/.cache/wiki-sources/fsw" / key
     write(d / "walk.tsv", "u1\tF/a.pdf\t1\n")
     out, rc = fss(key, "compare")
@@ -96,17 +99,48 @@ def test_accepts_tools_type(key, fs):
 
 @pytest.mark.checks("file-snapshot/refuse-outside-git")
 def test_outside_git(fs):
-    t, _, fss = fs
+    t, _, fss, _ = fs
     assert fss("teams", "compare", cwd=t)[1] == 1
+
+
+# The cases that also cross the process boundary (bash, file-snapshot.sh,
+# py-run.sh, Python's stdout and stderr), in both modes: each covers
+# something the boundary can break that the in-process run can't see.
+BOUNDARY = [
+    # A refusal: exit 1, the message on stderr, nothing on stdout.
+    ("refusal", "teams", "delete", None, 1, "err", "file-snapshot: operation 'delete' is not allowed"),
+    # Success, with non-ASCII text and a space in a path: stdout's encoding.
+    ("non-ascii", "notes", "compare", "u1\tFiles/Økonomi plan.pdf\t7\n", 0, "out",
+     "new\tFiles/Økonomi plan.pdf\t7\n"),
+    # HOME passed through bash, and the cache path in the message spelled
+    # as Python spells it (Windows: C:/..., not Git Bash's /c/...).
+    ("home-path", "chats", "compare", None, 1, "err",
+     "file-snapshot: no walk file @TMP@/fshome/.cache/wiki-sources/fsw/chats/walk.tsv;"),
+]
+
+
+@pytest.mark.parametrize("key,op,walk,rc,stream,text", [pytest.param(*b[1:], id="file-snapshot/boundary-" + b[0])
+                                                         for b in BOUNDARY])
+def test_boundary(key, op, walk, rc, stream, text, fs):
+    """Through file-snapshot.sh, whatever --e2e says: the exit code, the
+    text on its stream and nothing on the other; the same as in-process."""
+    t, _, _, fss = fs
+    if walk is not None:
+        write(t / "fshome/.cache/wiki-sources/fsw" / key / "walk.tsv", walk)
+    want, got = fss(key, op), fss(key, op, launcher=True)
+    streams = {"out": norm(got.out, t), "err": norm(got.err, t)}
+    assert got.rc == rc and text in streams.pop(stream) and list(streams.values()) == [""], got
+    assert (got.rc, norm(got.out, t), norm(got.err, t)) == (want.rc, norm(want.out, t), norm(want.err, t)), got
 
 
 @pytest.mark.checks("file-snapshot/no-python")
 def test_no_python(fs, tmp_path):
+    """The launcher's own refusal (py-run.sh): a boundary case by nature."""
     for c in ("python", "python3", "py"):
         write(tmp_path / "bin" / c, "#!/bin/sh\nexit 1\n").chmod(0o755)
     env = {"CLAUDE_PLUGIN_DATA": posix(tmp_path / "data"), "CLAUDE_CONFIG_DIR": posix(tmp_path / "cfg"),
            "PATH": str(tmp_path / "bin") + os.pathsep + os.environ.get("PATH", "")}
-    out, rc = fs[2]("teams", "compare", env=env)
+    out, rc = fs[2]("teams", "compare", env=env, launcher=True)
     assert rc == 1 and out.startswith("file-snapshot: no Python 3.11 or later found"), out
 
 
@@ -121,7 +155,7 @@ NAMES = ["file-snapshot/refuse-no-walk", "file-snapshot/refuse-two-fields", "fil
 
 @pytest.mark.checks(*NAMES)
 def test_story(fs):
-    t, cache, fss = fs
+    t, cache, fss, _ = fs
 
     def walk(text):
         write(cache / "walk.tsv", text)

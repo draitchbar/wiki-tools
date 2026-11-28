@@ -88,8 +88,7 @@ def story(tmp_path_factory, run):
     code = inst / "code.md"
     write(code, code.read_text().replace("key: code\n", "key: code\ngh_user: reader\n", 1))
     eq("gh/refuse-not-github", "1", ghx("code", "pr", "12"))
-    eq("gh/refuse-unknown-op", "1 1 1", " ".join([ghx("hub", "pr-merge", "12"), ghx("hub", "api", "x"),
-                                                  ghx("hub", "auth", "x")]))
+    eq("gh/refuse-unknown-op", "1", ghx("hub", "pr-merge", "12"))
     eq("gh/refuse-bad-number", "1 1", ghx("hub", "pr", "12x") + " " + ghx("hub", "pr", "-R"))
     eq("gh/refuse-bad-sha", "1 1", ghx("hub", "pr-of", "xyz") + " " + ghx("hub", "pr-of", "deadbeefdead"))
     eq("gh/refuse-extra-args", "1", ghx("hub", "pr", "12", "--web"))

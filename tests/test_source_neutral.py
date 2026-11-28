@@ -46,7 +46,7 @@ def test_core_names_no_source(path):
         path.relative_to(REPO), ", ".join(sorted(extra)))
 
 
-@pytest.mark.parametrize("name", sorted(ALLOWED))
+@pytest.mark.parametrize("name", sorted(ALLOWED), ids=lambda n: "source-neutral/allowlist-" + n)
 def test_allowlist_is_current(name):
     path = PLUGIN / "scripts" / name
     assert ALLOWED[name] <= names_in(path.read_text(encoding="utf-8")), (

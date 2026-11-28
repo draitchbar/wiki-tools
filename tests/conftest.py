@@ -7,9 +7,9 @@ Two layers:
 - end to end: the .sh launchers and the scripts that are still bash, run by
   a real bash (Git Bash on Windows) (`run`, `bash_argv`).
 `--e2e` runs most `cli` tests through the launchers instead, so the same
-tests prove both paths give the same result; the guard, save and sources
-keep their many cases in-process and cross the boundary in a few chosen
-tests (docs/development.md, "Tests").
+tests prove both paths give the same result; the guard, save, sources,
+file-snapshot and the installer keep their many cases in-process and
+cross the boundary in a few chosen tests (docs/development.md, "Tests").
 
 Paths: every test works in pytest's tmp_path, written with forward slashes,
 on both platforms; `norm` maps the spellings a path can come back in
@@ -85,11 +85,11 @@ def pytest_addoption(parser):
     parser.addoption("--record", action="store_true",
                      help="rewrite recorded outputs (tests/fixtures/*/*.out) instead of comparing")
     parser.addoption("--check-names", action="store_true",
-                     help="print the bash check names the collected tests carry, one per line")
+                     help="print the check names (<area>/<case>) the collected tests carry, one per line")
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "checks(*names): the bash runner's check names this test replaces")
+    config.addinivalue_line("markers", "checks(*names): the check names (<area>/<case>) this test carries, for --check-names")
 
 
 def check_names(item):
