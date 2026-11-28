@@ -9,7 +9,9 @@ Then contract.py's lookups and path helpers (formerly the contract-parity
 section of run-tests.sh).
 
 The bash side runs once, in one bash process over every file; contract.py
-is called in-process."""
+is called in-process. A few instance files are left out (SKIP): each adds no
+frontmatter shape a kept file lacks, and the bash side costs a few
+processes per file and key (slow on Windows, #123)."""
 
 
 import pytest
@@ -32,6 +34,23 @@ EDGE = {
     "no-fence.md": b"title: no fence\n---\n",
 }
 EDGE["crlf.md"] = EDGE["spaces.md"].replace(b"\n", b"\r\n")
+
+# Instance files not compared, each with the kept files that have its
+# shapes. Every name must exist (test_every_file_checked).
+_LS = "sources/lib-source/wiki/.claude/sources/instances/"
+_GW = "guard-wiki/.claude/sources/instances/"
+SKIP = {
+    _LS + "bad-root.md": "scalars and a list: lib-source good.md, loc1.md",
+    _LS + "wrong-key.md": "scalars and a list: lib-source good.md, loc1.md",
+    _LS + "missing-param.md": "scalars only: cp-edge no-final-newline.md, dup-keys.md, bom.md",
+    _LS + "unknown-type.md": "scalars only: cp-edge no-final-newline.md, dup-keys.md, bom.md",
+    _LS + "uses-broken.md": "scalars only: cp-edge no-final-newline.md, dup-keys.md, bom.md",
+    _GW + "books.md": "scalars and one-item lists: code.md, loc1.md",
+    _GW + "proton.md": "list items with spaces: teams.md, gmail.md, cp-edge spaces.md",
+    _GW + "scans.md": "a `~/` item: lib-source good.md",
+    # `=` in an item is plain text to both parsers.
+    _GW + "tracker.md": "`|` in items, a body after the block: teams.md, gmail.md",
+}
 
 # For each file: its keys (from src_fm, as before), then src_has_fm and
 # src_values per key, NUL-separated.
@@ -58,8 +77,7 @@ def tree(tmp_path_factory, run):
           .replace(b"key: good", b"key: crlf"))
     for n, data in EDGE.items():
         write(t / "cp-edge" / n, data)
-    found = [p for p in TESTS.rglob("*.md") if "/.claude/sources/" in posix(p)]
-    files = sorted(found, key=lambda p: posix(p).encode()) + [inst / "crlf.md"]
+    files = sorted(_found(), key=lambda p: posix(p).encode()) + [inst / "crlf.md"]
     files += sorted((t / "cp-edge").glob("*.md"))
     r = run(["bash", "-c", BASH_SIDE, "_", SCRIPTS_P] + [posix(f) for f in files])
     assert r.rc == 0, r
@@ -85,10 +103,17 @@ def _python_side(path, keys):
     return b"".join(s.encode("utf-8", errors="surrogateescape") + b"\n" for s in lines)
 
 
+def _all_found():
+    return [p for p in TESTS.rglob("*.md") if "/.claude/sources/" in posix(p)]
+
+
+def _found():
+    return [p for p in _all_found() if posix(p.relative_to(TESTS)) not in SKIP]
+
+
 def _names():
     # Collected before the tree exists: the same walk, names only.
-    found = [p for p in TESTS.rglob("*.md") if "/.claude/sources/" in posix(p)]
-    names = [posix(p.relative_to(TESTS)) for p in found]
+    names = [posix(p.relative_to(TESTS)) for p in _found()]
     names += ["ls/wiki/.claude/sources/instances/crlf.md"] + ["cp-edge/" + n for n in sorted(EDGE)]
     return sorted(set(names))
 
@@ -103,7 +128,11 @@ def test_parity(name, tree):
 
 @pytest.mark.checks("contract-parity/every-file-checked")
 def test_every_file_checked(tree):
+    """Every instance file and local contract in the tests is compared,
+    but those SKIP names, each of which exists."""
     assert sorted(tree[1]) == _names()
+    every = {posix(p.relative_to(TESTS)) for p in _all_found()}
+    assert set(SKIP) <= every, sorted(set(SKIP) - every)
 
 
 # Lookups: contract.py only since lib-source.sh's src_contract and

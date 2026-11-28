@@ -9,7 +9,7 @@ Edit this repo in an agent session opened in the clone, Claude Code or Copilot C
 0. Once per clone, switch on the personal-data check: `git config core.hooksPath .githooks` ("Personal data", below). `run-tests.sh` says so while it is off. Once per clone and per worktree, make the dev tools' venv: `uv sync --locked` ("Dev environment", below).
 1. Work on a branch. Every change to a script, a hook or a wrapper comes with a test: a case in a `tests/test_*.py` module, or a guard fixture in `tests/fixtures/<push|guard>/<pass|block>-<case>.json` (with a `.msg` beside it for the exact message).
    - **`hooks.json` and the scripts it launches move apart in the cloud.** A cloud session updates the plugin's files at its start but runs the snapshot's `hooks.json`, read before the update, until the environment's snapshot is rebuilt (up to about seven days; `docs/adr.md`, 19). So a change to `hooks.json` must keep working with the previous `hooks.json`'s launch lines for a week: a script it launches keeps its name, arguments and output contract, or the old line still finds something that works. The guard fails closed, so a mismatch there blocks calls; it never leaves a session unguarded.
-2. `bash tests/run-tests.sh` must pass. A change to a launcher or another `.sh` file also needs `bash tests/run-tests.sh --e2e`, which runs the in-process tests through the launchers. `bash tests/run-tests.sh -k guard -x` runs a selection (pytest only). The modules run in parallel (pytest-xdist); `-n 0` runs serially.
+2. `bash tests/run-tests.sh` must pass. A change to a launcher or another `.sh` file also needs `bash tests/run-tests.sh --e2e`, which runs most in-process tests through the launchers ("Tests", below). `bash tests/run-tests.sh -k guard -x` runs a selection (pytest only). The modules run in parallel (pytest-xdist); `-n 0` runs serially.
 3. Lint (below), commit, push the branch and open a pull request.
 4. After the merge, on each machine: `git pull`, then start a new wiki session or run `/reload-plugins`.
 
@@ -131,6 +131,11 @@ With Copilot CLI:
 ## Tests
 
 The tests are pytest modules (`tests/test_*.py`, helpers in `tests/conftest.py`, `tests/codebase_story.py` for the three codebase modules and `tests/save_wiki.py` for the three save modules). They never call a real source CLI or account; they use fakes in `tests/sources/<type>/`. Recorded outputs (`tests/fixtures/*/*.out`) are rewritten with `bash tests/run-tests.sh --record`; review the diff. How the tests are built, and why: `docs/adr.md`, 6.
+
+The test strategy is a pyramid (`docs/adr.md`, 6), a principle for every test, not a speed fix: each layer tests what only it can.
+- **In-process, every case.** The full behaviour of a Python script, hook or the guard is tested in-process, through its module's `main`: a failure names the case, and one test per case. Scripts still in bash (`cloud-update.sh`, `schema.sh`, `lib-source.sh`, the `codebase` and `local-folder` wrappers, …) have no `main` and are tested in full end to end.
+- **The boundary, a few chosen cases.** `--e2e` and the end-to-end tests check only the process boundary, with a few cases per launcher or script, each with a one-line reason: success, a refusal and its exit code, the stdout/stderr split, quoting and non-ASCII text, Windows and Git Bash specifics. The guard's are `BOUNDARY` and the `hooks.json` tests in `tests/test_guard.py`, run through the launcher in both modes; the guard, save and sources run their other cases in-process under `--e2e` too.
+- **A new test goes in-process** unless it tests the boundary itself; a boundary case says which boundary risk it covers.
 
 ## Personal data
 

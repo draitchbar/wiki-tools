@@ -34,9 +34,11 @@ def story(tmp_path_factory, run):
     has("codebase/grep-patfile-sub", out("code", "grep", "ref", "@runs/r1/q.txt", "lib/*"), "lib/B2.java#L1: b1")
     write(cache / "many.txt", "".join("p%d\n" % i for i in range(21)))
     write(cache / "empty.txt", "")
-    eq("codebase/refuse-patfile", "1 1 1 1 1 1", " ".join(cbx("code", "grep", "ref", p) for p in
-                                                          ("@../x", "@runs/../p.txt", "@/etc/passwd", "@nosuch.txt",
-                                                           "@many.txt", "@empty.txt")))
+    # @nosuch.txt once: its message is checked at the end (cache-shown-as-tilde).
+    nosuch = refused("code", "grep", "ref", "@nosuch.txt")
+    rcs = [cbx("code", "grep", "ref", p) for p in ("@../x", "@runs/../p.txt", "@/etc/passwd")] + [nosuch[0]]
+    rcs += [cbx("code", "grep", "ref", p) for p in ("@many.txt", "@empty.txt")]
+    eq("codebase/refuse-patfile", "1 1 1 1 1 1", " ".join(rcs))
     eq("codebase/refuse-patfile-other-key", "1", cbx("sub", "grep", "ref", "@p.txt"))
     # -e patterns, or-ed, and a leading @ as a regex.
     o = out("code", "grep", "ref", "-e", "FO+", "-e", "^L6")
@@ -75,7 +77,7 @@ def story(tmp_path_factory, run):
         cbx("code", "grep", "ref", "foo", *elev)]))
     has("codebase/refuse-i-hint", late_i[1], "use igrep for a case-insensitive search")
     has("codebase/refuse-flag-hint", flag_w[1], "takes no flags but -e")
-    o = out("code", "grep", "ref", "@nosuch.txt")
+    o = nosuch[1]
     chk("codebase/cache-shown-as-tilde", "'~/.cache/wiki-sources/cbw/code/nosuch.txt' not found" in o
         and not any(s in o for s in spellings(cbhome)), o)
     return c.st

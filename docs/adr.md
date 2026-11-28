@@ -9,7 +9,7 @@ The decisions behind how wiki-tools is built, and why. Plans and parked work are
 | 3 | The guard: a guardrail that fails closed | One hook checks every tool call, only for what settings rules can't express. |
 | 4 | Python behind bash launchers | Python 3.11+ standard library, started by bash launchers that keep their names. |
 | 5 | Codebase research | `/wiki:research` answers from code through capped Opus agents, with no code index. |
-| 6 | Tests: pytest in two layers, in parallel | In-process and end-to-end layers, xdist by module, test modes as separate CI jobs. |
+| 6 | Tests: a test pyramid, in parallel | Every case in-process, the process boundary end to end in a few chosen cases; xdist by module, test modes as separate CI jobs. |
 | 7 | Changes through pull requests, checked on both platforms | Lint and tests on Linux and Windows before every merge. |
 | 8 | Public from a fresh history, with a personal-data check | No personal data anywhere; checked before the push and in CI. |
 | 9 | Two coding agents, one set of rules | Claude Code and Copilot CLI read the same files. |
@@ -92,16 +92,17 @@ The decisions behind how wiki-tools is built, and why. Plans and parked work are
 - Run notes live in `~/.cache/wiki-sources/<wiki>/<key>/runs/`, re-verified before reuse on another SHA.
 - If an index ever comes, it is a lead generator only, built in the cache, never in the clone; `setup.sh <key> graph` and the `git.sh` operations `graph-query`, `graph-path` and `graph-explain` are reserved for it.
 
-## 6. Tests: pytest in two layers, in parallel
-**Decision.** The suite is pytest, started with `bash tests/run-tests.sh` from the repo's `.venv` (15), in two layers: in-process through each module's `main(argv)`, and end to end through a real bash (Git Bash on Windows); `--e2e` runs the in-process tests through the launchers. Modules run in parallel with pytest-xdist, one module per worker (`--dist loadfile`), and CI runs the plain and `--e2e` modes as separate jobs.
+## 6. Tests: a test pyramid, in parallel
+**Decision.** The test strategy is a pyramid, as a general principle for every test in the repo. Every case of a script's, hook's or the guard's behaviour is tested in-process, through its module's `main(argv)`. The end-to-end layer, through a real bash (Git Bash on Windows), tests only the process boundary: a few chosen cases per launcher or script, each with a reason (success, a refusal and its exit code, the stdout/stderr split, quoting and non-ASCII text, Windows specifics). Scripts still in bash have no `main` and are tested in full end to end. `--e2e` sends the in-process `cli` tests through the launchers; the guard, save and sources already keep their many cases in-process beside a few chosen launcher tests (#123), and other modules follow as they change. The suite is pytest, started with `bash tests/run-tests.sh` from the repo's `.venv` (15); modules run in parallel with pytest-xdist, one module per worker (`--dist loadfile`), and CI runs the plain and `--e2e` modes as separate jobs.
 
-**Why.** In-process tests are fast and free of shell quoting; the end-to-end layer and `--e2e` cover the process boundary, where Windows differs. The Windows jobs set how long every PR waits; most modules run one ordered story in a module-scoped fixture, which xdist's default distribution would rerun on every worker.
+**Why.** Each layer tests what only it can. Behaviour is decided in Python, so every case belongs where a failure names the case and runs in milliseconds, free of shell quoting. The boundary (bash, the launchers, Git Bash re-parsing a command line, stdin and stdout encodings) is the same for every case, so repeating every case through it adds no coverage; a few cases chosen for the risks it carries cover it, and a failure there points to the boundary, not to a rule. That the suite is also faster, on Windows by minutes, follows from this; it is not the reason. Most modules run one ordered story in a module-scoped fixture, which xdist's default distribution would rerun on every worker.
 
 **Consequences.**
 - `--e2e` is required before a commit that touches a launcher or another `.sh` file. Tests use fakes (`tests/sources/<type>/`), never a real source CLI or account. Recorded outputs are compared byte for byte and rewritten with `--record`.
 - One normaliser (`norm`) maps every spelling of a path to `@TMP@` and `@PLUGIN@`. Arguments to bash go NUL-separated through a file to a fixed driver, since Git Bash re-parses its command line on Windows; there a restricted `PATH` still has Git's folders in front.
 - The required checks are `test (<os>, plain)` and `test (<os>, e2e)`. Print debugging and `--pdb` need `-n 0`; `--check-names` runs serially.
-- The slowest story bounds a run: a story that grows past the others is split into modules (as `test_codebase*.py`, over `tests/codebase_story.py`, and the save tests over `tests/save_wiki.py`, which builds each wiki once and copies it per test). In CI, `run-tests.sh` adds `--durations=20` and the summary lists each module's summed time; no time limit is checked.
+- The slowest story bounds a run: a story that grows past the others is split into modules (as `test_codebase*.py`, over `tests/codebase_story.py`, and the save tests over `tests/save_wiki.py`, which builds each wiki once and copies it per test). In CI, `run-tests.sh` adds `--durations=20` and the summary lists each module's summed time; no time limit is checked. The heaviest modules start first (a small list in `tests/conftest.py`; a stale list only costs time).
+- Where a new test goes, and what the boundary cases cover: `docs/development.md`, "Tests".
 
 ## 7. Changes through pull requests, checked on both platforms
 **Decision.** `main` changes only through pull requests. CI (`ci.yml`) runs lint (`bash scripts/dev-lint.sh`: ruff, mypy, shellcheck, no CRLF) and the suite, plain and with `--e2e`, on Linux and Windows; Claude reviews each pull request (`claude-review.yml`).

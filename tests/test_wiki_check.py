@@ -365,15 +365,13 @@ def test_save_no_union(mk, cli):
 
 
 @pytest.mark.parametrize("cfg,want", [
-    pytest.param('{"save": {"enabled": true, "url": "http://example.com/w", "base": "main"}}\n',
-                 "- FAIL `.claude/settings.wiki.json` is invalid: `save.url` must be an https://, ssh:// or "
-                 "user@host:path URL. Fix: correct it (you, not Claude)", id="wiki-check/save-bad-url"),
+    # Each field's refusals are save.validate's, tested in test_save.py
+    # (save/refuse-*): here, that they reach the check, with its fix.
     pytest.param('{"save": {"enabled": "yes", "url": "git@example.com:w.git", "base": "-x", '
                  '"content_paths": "wiki/"}}\n',
-                 "is invalid: `save.enabled` must be true or false; `save.base` must be a branch name; "
-                 "`save.content_paths` must be a list of paths", id="wiki-check/save-bad-fields"),
-    pytest.param('{"save": {"enabled": true, "url": "file:///x/w.git", "base": "main"}}\n',
-                 "is invalid: `save.url` must be", id="wiki-check/save-file-url"),
+                 "- FAIL `.claude/settings.wiki.json` is invalid: `save.enabled` must be true or false; "
+                 "`save.base` must be a branch name; `save.content_paths` must be a list of paths. "
+                 "Fix: correct it (you, not Claude)", id="wiki-check/save-bad-fields"),
     pytest.param("{enabled}\n", "- FAIL `.claude/settings.wiki.json` is not valid JSON: ",
                  id="wiki-check/save-not-json"),
     pytest.param('[{"save": {"enabled": true}}]\n',

@@ -12,12 +12,19 @@ Building a wiki takes about 14 git processes, slow on Windows (#115), so
 each kind is built once per module (`built`) and copied for every test,
 always to the same folder (`cur`): the committed pin and the other
 clone's origin name that folder, so a copy needs no rewiring.
+
+`Wiki.save` runs save.py in-process, also with --e2e (a launcher start
+is slow on Windows, #123); only `save(..., launcher=True)` goes through
+`cli`, so --e2e runs it through bash save.sh: a save (test_push), a
+refusal (test_permission_refused, one unknown-arguments case) and a
+conflict, exit 3 (test_non_ff_conflict). test_launcher and
+test_non_utf8_path always run bash.
 """
 
+import itertools
 import json
 import os
 import shutil
-import stat
 import subprocess
 import sys
 
@@ -116,8 +123,13 @@ class Wiki:
         self.commit(msg, *paths, d=self.other, content=content)
         git(self.other, "push", "-q", "origin", "HEAD:main")
 
-    def save(self, *args, env=None):
-        return self.cli("save", *args, cwd=self.w, env=dict(self.env, **(env or {})))
+    def save(self, *args, env=None, cwd=None, launcher=False):
+        """save.sh in the wiki (or cwd): save.main in-process; launcher:
+        through cli, so --e2e runs bash save.sh."""
+        env, cwd = dict(self.env, **(env or {})), cwd or self.w
+        if launcher:
+            return self.cli("save", *args, cwd=cwd, env=env)
+        return call_main(save.main, ["--plugin", PLUGIN_BASH] + list(args), cwd=cwd, env=env)
 
     def remote(self, ref="main"):
         return out("rev-parse", "refs/heads/" + ref, cwd=self.bare)
@@ -135,28 +147,19 @@ class Wiki:
         return [c["args"] for c in self.gh_log()]
 
 
-def _rmtree(p):
-    """rmtree that also removes read-only files (git's objects on Windows)."""
-    def unlock(fn, path, _exc):
-        os.chmod(path, stat.S_IWRITE)
-        fn(path)
-    if sys.version_info >= (3, 12):
-        shutil.rmtree(str(p), onexc=unlock)
-    else:
-        shutil.rmtree(str(p), onerror=unlock)
-
-
 @pytest.fixture(scope="module")
 def built(tmp_path_factory, cli, fakebin):
     """fresh(url) -> the folder `cur`, holding a new copy of the wiki pinned
     to url (None: its bare remote). Each kind is built once, in `cur`, then
     moved aside as the template."""
     base = tmp_path_factory.mktemp("save")
-    cur, done = base / "cur", {}
+    cur, done, gone = base / "cur", {}, itertools.count()
 
     def fresh(url):
         if cur.exists():
-            _rmtree(cur)
+            # Out of the way, not deleted: a rename is one call, a
+            # removal one per file (pytest removes the base folder later).
+            os.rename(str(cur), str(base / ("old%d" % next(gone))))
         if url not in done:
             cur.mkdir()
             Wiki(cur, cli, fakebin, url=url)
@@ -182,9 +185,10 @@ class GhWiki(Wiki):
         bare = file_url(self.bare)
         monkeypatch.setattr(save, "transport", lambda u: bare if u == GH_URL else u)
 
-    def save(self, *args, env=None):
-        return call_main(save.main, ["--plugin", PLUGIN_BASH] + list(args), cwd=self.w,
-                         env=dict(self.env, **(env or {})))
+    def save(self, *args, env=None, cwd=None, launcher=False):
+        # The patched transport works in-process only.
+        assert not launcher
+        return super().save(*args, env=env, cwd=cwd)
 
 
 @pytest.fixture

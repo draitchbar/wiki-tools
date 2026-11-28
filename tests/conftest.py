@@ -6,8 +6,10 @@ Two layers:
   in write order (`cli`, `guard_run`);
 - end to end: the .sh launchers and the scripts that are still bash, run by
   a real bash (Git Bash on Windows) (`run`, `bash_argv`).
-`--e2e` runs the in-process tests through the launchers instead, so the same
-tests prove both paths give the same result.
+`--e2e` runs most `cli` tests through the launchers instead, so the same
+tests prove both paths give the same result; the guard, save and sources
+keep their many cases in-process and cross the boundary in a few chosen
+tests (docs/development.md, "Tests").
 
 Paths: every test works in pytest's tmp_path, written with forward slashes,
 on both platforms; `norm` maps the spellings a path can come back in
@@ -117,6 +119,46 @@ def pytest_terminal_summary(terminalreporter, config):
     terminalreporter.write_sep("=", "time per module (its tests' setup, call and teardown)")
     for m, t in sorted(_MODULE_TIME.items(), key=lambda x: -x[1])[:15]:
         terminalreporter.write_line("%8.2fs %s" % (t, m))
+
+
+# The slowest modules, longest first: the top of CI's "time per module" table
+# (#115, #123). With --dist loadfile xdist hands out whole modules in order of
+# test count, which is not their time, so a long module with few tests picked
+# up last bounds the run; these start first. A stale list only costs time.
+HEAVY = [
+    "test_guard", "test_save_paths", "test_save", "test_save_github",
+    "test_codebase", "test_cloud_update", "test_wiki_check", "test_install",
+    "test_codebase_fetch", "test_contract_parity", "test_codebase_grep",
+    "test_sources",
+]
+
+
+def heavy_first(scopes):
+    """The scopes (test file paths) with the HEAVY modules first, in HEAVY order."""
+    rank = {name: i for i, name in enumerate(HEAVY)}
+    return sorted(scopes, key=lambda s: rank.get(Path(s).stem, len(HEAVY)))
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_xdist_make_scheduler(config, log):
+    """Start the HEAVY modules first under `-n N --dist loadfile`; else xdist's default."""
+    try:
+        if config.getvalue("dist") != "loadfile":
+            return None
+        from xdist.scheduler import LoadFileScheduling
+
+        class HeavyFirst(LoadFileScheduling):
+            def _assign_work_unit(self, node):
+                queue = self.workqueue
+                for scope in reversed(heavy_first(queue)):
+                    queue.move_to_end(scope, last=False)
+                super()._assign_work_unit(node)
+
+        if not callable(getattr(LoadFileScheduling, "_assign_work_unit", None)):
+            return None
+        return HeavyFirst(config, log)
+    except Exception:  # xdist's internals changed: keep its own order
+        return None
 
 
 def pytest_collection_finish(session):
@@ -395,7 +437,7 @@ def cli(request, run, pydata):
     return _cli
 
 
-# The guard as hooks.json runs it, for --e2e and the end-to-end tests.
+# The guard as hooks.json runs it, for its launcher tests (guard_run(launcher=True)).
 def hooks_guard_command():
     text = (PLUGIN / "hooks" / "hooks.json").read_text()
     m = re.search(r'"command": "(.*py-launch\.sh\\" guard.*?)"\s*$', text, re.M)
@@ -412,17 +454,18 @@ def home_env(home):
 
 
 @pytest.fixture(scope="session")
-def guard_run(request, run, pydata):
-    """guard_run(input_bytes, project_dir, home) -> Result: guard.py's
-    decision, in-process or (--e2e) through the hooks.json command."""
-    e2e = request.config.getoption("--e2e")
+def guard_run(run, pydata):
+    """guard_run(input_bytes, project_dir, home, launcher=False) -> Result:
+    guard.py's decision in-process, in both modes; with launcher=True
+    through the hooks.json command and py-launch.sh, in both modes too. The
+    boundary is tested by a few chosen cases, not every fixture (docs/adr.md, 6)."""
     import guard
 
-    def _g(data, project, home="/home/u", e2e_only=False):
+    def _g(data, project, home="/home/u", launcher=False):
         project = posix(project)
         if isinstance(data, str):
             data = data.encode("utf-8")
-        if e2e or e2e_only:
+        if launcher:
             env = dict(home_env(home), CLAUDE_PLUGIN_ROOT=PLUGIN_BASH, CLAUDE_PLUGIN_DATA=pydata,
                        CLAUDE_PROJECT_DIR=project)
             # On Windows Git Bash sets an unset HOME from the account's real
