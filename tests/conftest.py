@@ -6,8 +6,10 @@ Two layers:
   in write order (`cli`, `guard_run`);
 - end to end: the .sh launchers and the scripts that are still bash, run by
   a real bash (Git Bash on Windows) (`run`, `bash_argv`).
-`--e2e` runs the in-process tests through the launchers instead, so the same
-tests prove both paths give the same result.
+`--e2e` runs most `cli` tests through the launchers instead, so the same
+tests prove both paths give the same result; the guard, save and sources
+keep their many cases in-process and cross the boundary in a few chosen
+tests (docs/development.md, "Tests").
 
 Paths: every test works in pytest's tmp_path, written with forward slashes,
 on both platforms; `norm` maps the spellings a path can come back in
