@@ -66,7 +66,7 @@ A private GitHub repository gives the wiki an offsite copy, and a ruleset stops 
    "Bash(git push * -f*)",
    "Bash(git push *+*)"
    ```
-   The last rule catches a force push written as a refspec (`git push origin +main`). Bash rules only match how a command is written, so `eval "git push --force"` gets past them (`docs/guard.md`, "Checked against Claude Code"). The ruleset is what actually holds.
+   The last rule catches a force push written as a refspec (`git push origin +main`). Bash rules only match how a command is written, so `eval "git push --force"` gets past them (`docs/adr.md`, 3). The ruleset is what actually holds.
 
 **What a ruleset can't do:** stop someone deleting the repository. An org owner can restore a deleted org repository within 90 days. Your local clone is a full copy, and an occasional `git bundle create <path> --all` (stored outside the wiki) is a single-file backup.
 

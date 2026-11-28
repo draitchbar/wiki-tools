@@ -53,7 +53,7 @@ The decisions behind how wiki-tools is built, and why. Plans and parked work are
 
 **Why.**
 - The sources must stay read-only and the guard machinery protected from the session it guards. Matching command text is not a security boundary, but it reliably stops accidental and straightforward misuse.
-- Rules can't do what the kept checks do: a committed rule can't name the per-machine plugin folder; `Bash(...)` rules match a command's shape and miss `git -C x push`, `env …`, `sh -c` and `eval "git push …"` (checked 2026-11-19, `docs/guard.md`); rules don't see written content, apply to subagents alike (so can't express agent_only), and are static, while contracts change at hook time.
+- Rules can't do what the kept checks do: a committed rule can't name the per-machine plugin folder; `Bash(...)` rules match a command's shape and miss `git -C x push`, `env …`, `sh -c` and `eval "git push …"` (checked 2026-11-19 in headless runs on Claude Code 2.1.326 and 2.1.328, Linux and Windows; on Windows `Git push …` got through too; fixtures `tests/fixtures/push/block-eval-push`, `block-git-capitalized-push`); rules don't see written content, apply to subagents alike (so can't express agent_only), and are static, while contracts change at hook time.
 - Irreversible harm (`git push`, writes into a source) stays guarded by a deterministic check even where a rule also covers it. `git push` is checked first, so no later exception can let one through.
 - A GitHub MCP server's write tools push past git (seen in a cloud session, 2026-11-24), and a list of them would keep growing, so every tool of a server whose name contains `github` is refused.
 - Fail closed: a check that can't read its input or its contracts must not wave calls through.
