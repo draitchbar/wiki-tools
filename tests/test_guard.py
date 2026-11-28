@@ -8,8 +8,9 @@ and the "ask" reply on stdout (hookjson.ask); a <case>.msg beside it holds
 the exact message (for "ask", the reply's reason) (@PLUGIN@ the plugin folder as bash prints it,
 @PLUGIN_DRIVE@ as Claude Code substitutes it on Windows, C:/...; @WIKI@ the
 test wiki). They run on a copy of tests/guard-wiki with HOME=/home/u, the
-home the fixtures use; in-process, or with --e2e through hooks.json's
-command and py-launch.sh.
+home the fixtures use, in-process in both modes. A few chosen fixtures
+(BOUNDARY) and the launcher tests below run through hooks.json's command and
+py-launch.sh, in both modes (docs/adr.md, 6).
 """
 
 import json
@@ -55,9 +56,13 @@ def _message(r, wiki):
 
 @pytest.mark.parametrize("fixture", _fixture_params())
 def test_fixture(fixture, gw, guard_run):
+    _check_fixture(fixture, gw, guard_run)
+
+
+def _check_fixture(fixture, gw, guard_run, launcher=False):
     wiki = str(gw).replace("\\", "/")
     data = subst(fixture.read_bytes().decode("utf-8"), wiki)
-    r = guard_run(data, wiki)
+    r = guard_run(data, wiki, launcher=launcher)
     assert r.rc == (2 if fixture.stem.startswith("block-") else 0), r
     got = _message(r, wiki)
     if r.rc == 0:
@@ -72,6 +77,37 @@ def test_fixture(fixture, gw, guard_run):
     if msg.is_file():
         want = subst(msg.read_bytes().decode("utf-8"), wiki).rstrip("\n")
         assert norm(got, wiki) == norm(want, wiki)
+
+
+# The fixtures that also cross the process boundary (hooks.json's command,
+# sh, py-launch.sh, Python's stdin/stdout/stderr), in both modes: each covers
+# something the boundary can break that the in-process run can't see.
+BOUNDARY = [
+    # A refusal: exit 2 and the message on stderr.
+    ("refusal", "push/block-git-push"),
+    # An allow: exit 0, nothing on stdout or stderr.
+    ("allow", "guard/pass-ordinary-bash"),
+    # Non-ASCII in the command and in the reply: stdin and stdout encodings.
+    ("non-ascii", "guard/ask-save-sh-allow-non-ascii"),
+    # Quotes, $( ) and a subshell word in the command: no shell expands the input.
+    ("quoting", "guard/block-claude-subst"),
+    # A PowerShell form: & "$env:..." with backslashes, the Windows tool.
+    ("powershell", "guard/pass-powershell-user-skill-env"),
+    # The longest input (over 2,000 characters), read whole from stdin.
+    ("long-input", "guard/block-save-sh-allow-too-long"),
+    # A path rule: Write under a protected root, HOME passed through bash.
+    ("path-rule", "guard/block-write-into-root"),
+    # An MCP tool, refused, with its message.
+    ("mcp", "push/block-mcp-github-push-files"),
+]
+
+
+@pytest.mark.parametrize("fixture", [pytest.param(FIXTURES / (f + ".json"), id="py-launch/boundary-" + n)
+                                     for n, f in BOUNDARY])
+def test_boundary(fixture, gw, guard_run):
+    """The chosen fixtures through hooks.json's command, whatever --e2e
+    says: same exit code, output and message as in-process."""
+    _check_fixture(fixture, gw, guard_run, launcher=True)
 
 
 def _ask_reason(r):
@@ -342,7 +378,7 @@ def test_hooks_json_sync_status_matcher():
 def test_hooks_json_every_tool(tool, ti, want, gw, guard_run):
     """The matcher sends every tool to the guard; through hooks.json's
     command, whatever --e2e says."""
-    assert guard_run(_bash_input(tool, ti), str(gw), e2e_only=True).rc == want
+    assert guard_run(_bash_input(tool, ti), str(gw), launcher=True).rc == want
 
 
 @pytest.mark.checks("py-launch/hooks-json-guard-once")

@@ -452,17 +452,18 @@ def home_env(home):
 
 
 @pytest.fixture(scope="session")
-def guard_run(request, run, pydata):
-    """guard_run(input_bytes, project_dir, home) -> Result: guard.py's
-    decision, in-process or (--e2e) through the hooks.json command."""
-    e2e = request.config.getoption("--e2e")
+def guard_run(run, pydata):
+    """guard_run(input_bytes, project_dir, home, launcher=False) -> Result:
+    guard.py's decision in-process, in both modes; with launcher=True
+    through the hooks.json command and py-launch.sh, in both modes too. The
+    boundary is tested by a few chosen cases, not every fixture (docs/adr.md, 6)."""
     import guard
 
-    def _g(data, project, home="/home/u", e2e_only=False):
+    def _g(data, project, home="/home/u", launcher=False):
         project = posix(project)
         if isinstance(data, str):
             data = data.encode("utf-8")
-        if e2e or e2e_only:
+        if launcher:
             env = dict(home_env(home), CLAUDE_PLUGIN_ROOT=PLUGIN_BASH, CLAUDE_PLUGIN_DATA=pydata,
                        CLAUDE_PROJECT_DIR=project)
             # On Windows Git Bash sets an unset HOME from the account's real
