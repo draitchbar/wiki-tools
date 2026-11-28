@@ -59,7 +59,7 @@ Then restart `claude` in the wiki (or run `/reload-plugins`). Automatic updates 
 - `docs/setup.md`: prerequisites in full (OCR, what each source needs), setting up a wiki in detail, known issues
 - `docs/skills.md`: every skill, including lint and audit
 - `docs/sources.md`: source types and instances, adding a source, adding a source type
-- `docs/guard.md`: what the guard blocks, and its known false positives
+- `docs/guard.md`: the security model, what the guard blocks, and its known false positives
 - `docs/development.md`: changing wiki-tools: tests, lint, pull requests
 - `docs/layout.md`: what lives where in this repository
 - `docs/adr.md`: the decisions behind the design; `docs/roadmap.md`: plans and parked work
