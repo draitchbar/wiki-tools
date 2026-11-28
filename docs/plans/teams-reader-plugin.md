@@ -6,7 +6,7 @@ The Teams half of the roadmap item **Reader plugins for connector workarounds**:
 
 ## Before the spike: done
 
-The binding field for auxiliary rules is built: the instance list `reader_allow` (`docs/adr.md`, 11). It holds the snapshot allow and a reader's helper-script and cache rules in named shapes only (`Skill(...)` not yet; add it if check 4 needs one), `sources.sh settings --key` emits it, `check-settings` verifies it and `stale` reports a helper-script allow no binding needs. `reader` keeps only operation bindings.
+The binding field for auxiliary rules is built: the instance list `reader_allow` (`docs/adr.md`, 11). It holds the snapshot allow and a reader's helper-script and cache rules in named shapes only (`Skill(...)` not yet; add it if check 4 needs one), `sources.sh settings` (with or without `--key`) emits it, `check-settings` verifies it and `stale` reports a helper-script allow no binding needs. `reader` keeps only operation bindings.
 
 The spike assumes this field exists.
 
@@ -29,7 +29,7 @@ The spike assumes this field exists.
 | The folder walk (list folder, recursively, into `walk.tsv`) | contract List new | stays; it uses only the bound **list folder** operation. The connector's paging (200 entries, `startPage`) and URI construction move to the notes |
 | The snapshot (`compare`, `save`), its guard checks and fixtures, its tests | `wiki/scripts/file-snapshot.sh`, `file_snapshot.py`, `CORE_SCRIPTS`, `tests/test_file_snapshot.py` | stays |
 | Snapshot allow in `ingest`'s and `clarify`'s `allowed-tools` | core skills | stays (a core skill naming a core script) |
-| Snapshot allow in settings | a hand-written `## Bind` settings line (not checked) | the instance's `reader_allow` (**Before the spike**); the notes say when to add it |
+| Snapshot allow in settings | a hand-written `## Bind` settings line (not checked); since `reader_allow`, drafted into the instance and checked | the instance's `reader_allow` (**Before the spike**); the notes say when to add it |
 | `Edit(~/.cache/wiki-sources/*/*/walk.tsv)` | contract `read_tools` | stays |
 | Known reader: operation-to-tool mapping, fixed arguments, tools to deny | contract `## Bind`, "Known reader" (~91–108) | `teams-reader` notes |
 | Connector details: chat limits and paging, reply truncation, format handling, quirks ("Readers seen working") | contract (~156–177) | `teams-reader` notes |
@@ -139,8 +139,8 @@ The spike is meant as the pattern for moving other readers' notes out of the cor
 | `gmail` | `gmail-reader` | `## Bind` mapping, fixed arguments, denies, connector quirks | nothing; the simplest second case |
 | `google-drive` | `google-drive-reader` | mapping, denies, quirks (`decode-download.sh` stays core) | nothing; its cloud name is still unknown (`connectors.md`), so it can't run in the cloud either way |
 | `jira` | `jira-reader` | mapping, `executeRead` arguments, denies, quirks | to use the dispatcher operations in the cloud, a generic way to hold the `field=value` limit under the cloud name (today denied there, which is parity): the guard reads the pair table, or a reader hook (**Where it stops being clean**) |
-| `proton-files` | `proton-files-reader` | Proton-specific commands, arguments, quirks | the external `proton` plugin is its base reader and stays the user's install; its allow, hand-written in user settings today, goes into `reader_allow` |
-| `onenote` | `onenote-reader` | the operation mapping and Bind tests against a defined base-reader interface (`notebooks`, `sections`, `pages`, `page`, `files`, GET only), the scope check, Graph quirks | a base reader meeting that interface; its rules move into `reader_allow` (**Before the spike**). A token-taking script shipped here (`docs/plans/onenote-cloud.md`) would be code (**Later**) |
+| `proton-files` | `proton-files-reader` | Proton-specific commands, arguments, quirks | the external `proton` plugin is its base reader and stays the user's install; its command allow, hand-written in user settings today, goes into the instance's `reader` (operation bindings; `reader_allow` takes only a helper-script or cache allow, anything else needs a new named shape first) |
+| `onenote` | `onenote-reader` | the operation mapping and Bind tests against a defined base-reader interface (`notebooks`, `sections`, `pages`, `page`, `files`, GET only), the scope check, Graph quirks | a base reader meeting that interface; its reader's rules (`Bash(<reader command> *)` or `mcp__…` read tools) go into the instance's `reader`; `reader_allow` takes only a helper-script or cache allow, anything else needs a new named shape first (**Before the spike**). A token-taking script shipped here (`docs/plans/onenote-cloud.md`) would be code (**Later**) |
 | `codebase`, `local-folder` | none | stay core | — |
 
 `codebase` and `local-folder` are `access: filesystem` types: their wrappers are the source's read-only access, not a separate reader, and `codebase`'s `agent_only` and root checks are core guard checks. They stay in the core.
