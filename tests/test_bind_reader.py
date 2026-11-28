@@ -117,6 +117,8 @@ def test_ms_teams_contract():
                  "outlook_find_available_time", "find_meeting_availability", "search_people", "get_me"):
         assert "`%s`" % tool in bind, tool
     assert "`Bash(bash */scripts/file-snapshot.sh *)`" in bind
+    assert "reader_allow" in bind
+    assert "can't verify" not in text
     assert "**Stop**" in bind
     assert "sources/ms-teams/snapshot" not in text
     assert "${CLAUDE_PLUGIN_ROOT}/scripts/file-snapshot.sh <key> compare" in _section(text, "List new")
